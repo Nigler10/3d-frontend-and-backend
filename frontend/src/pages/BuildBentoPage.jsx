@@ -1160,6 +1160,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         setToppingSize,
         tierFlavors,
         setTierLayerFlavor,
+        resetTierFlavorOverrides,
         tierFlavorLabels,
         inscriptionText,
         setInscriptionText,
@@ -1485,6 +1486,13 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                 ) : (
                     <div className="flex flex-col gap-3">
                         <p className="text-xs text-[#A07060] italic">Choose the flavor for each tier in your cake layout.</p>
+                        <button
+                            type="button"
+                            className="self-start px-3 py-1.5 text-[11px] font-semibold text-[#A05A2C] bg-white border border-[#E6CCA2] rounded-lg hover:bg-[#FDF6E2] transition-all cursor-pointer active:scale-95"
+                            onClick={resetTierFlavorOverrides}
+                        >
+                            ↺ Reset all tiers to Cake Color
+                        </button>
                         {Array.from({ length: selectedTierIndex + 1 }).map((_, idx) => (
                             <label className="flex items-center justify-between gap-4 p-3 bg-white rounded-xl border border-[#E6CCA2]" key={`tier-flavor-${idx}`}>
                                 <span className="flex items-center gap-2 text-sm font-medium text-[#6E473B]">

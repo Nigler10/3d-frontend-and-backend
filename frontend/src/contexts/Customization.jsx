@@ -332,6 +332,18 @@ export const CustomizationProvider = (props) => {
             [tierKey]: (prev[tierKey] || []).map((v, idx) => (idx === layerIdx ? true : v)),
         }));
     };
+     const resetTierFlavorOverrides = () => {
+        setTierFlavors({
+            tier2: [flavors[0], flavors[0]],
+            tier3: [flavors[0], flavors[0], flavors[0]],
+            tier4: [flavors[0], flavors[0], flavors[0], flavors[0]],
+        });
+        setTierFlavorOverrides({
+            tier2: [false, false],
+            tier3: [false, false, false],
+            tier4: [false, false, false, false],
+        });
+    };
 
     const setCandleNumber = (value) => {
         setCandleNumberState(normalizeCandleNumber(value));
@@ -505,6 +517,7 @@ export const CustomizationProvider = (props) => {
                 INSCRIPTION_COLOR_OPTIONS,
                 selectedTierFlavors,
                 selectedTierFlavorOverrides,
+                resetTierFlavorOverrides,
                 candle,
                 setCandle,
                 candleMode,
