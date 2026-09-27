@@ -25,6 +25,11 @@
     border-radius: 16px;
 }
 
+.topping-board,
+.topping-board__cake {
+    overflow: visible !important;
+}
+
 .topping-marker {
     position: absolute;
     width: 28px;
@@ -38,7 +43,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
     z-index: 5;
     touch-action: none;
     user-select: none;

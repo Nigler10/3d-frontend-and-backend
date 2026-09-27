@@ -185,7 +185,95 @@ const getToppingPosition = (
 
 const getCandlePlacementBounds = (selectedTierIndex, candleMode = "number") => {
     // Allow the 2D UI dot to be dragged freely to the edges
-    return [0, 100]; 
+    return [0, 100];
+};
+const clampToppingToBoard = (x, y, form, markerDiameter, width, height) => {
+    // Failsafe para sa tamang numbers
+    const safeX = Number.isFinite(Number(x)) ? Number(x) : 50;
+    const safeY = Number.isFinite(Number(y)) ? Number(y) : 50;
+
+    let finalX = safeX;
+    let finalY = safeY;
+
+    // Kapag nag-load ang component at 0 pa ang width/height
+    if (!width || !height) {
+        if (form === 1) { // Round Cake
+            const dx = safeX - 50;
+            const dy = safeY - 50;
+            const dist = Math.hypot(dx, dy);
+            // Limit distance to 40% from center safely
+            if (dist > 40 && dist > 0) {
+                finalX = 50 + (dx / dist) * 40;
+                finalY = 50 + (dy / dist) * 40;
+            }
+        } else { // Rectangle Cake
+            finalX = Math.max(10, Math.min(90, safeX));
+            finalY = Math.max(10, Math.min(90, safeY));
+        }
+    } else {
+        // Normal na clamping logic kapag nakuha na ang exact DOM dimensions
+        const marginPx = (markerDiameter / 2) + 8; // Exact safety gap
+        const marginPctX = (marginPx / width) * 100;
+        const marginPctY = (marginPx / height) * 100;
+
+        if (form === 1) {
+            const maxRadiusX = Math.max(5, 50 - marginPctX);
+            const maxRadiusY = Math.max(5, 50 - marginPctY);
+            const dx = safeX - 50;
+            const dy = safeY - 50;
+
+            // Normalized distance computation
+            const dist = Math.hypot(dx / maxRadiusX, dy / maxRadiusY);
+
+            // FIX: Dito nangyari ang bug. Tinanggal na natin ang pag-multiply 
+            // ulit sa maxRadius kaya hinding hindi na ito tatalon pa-labas.
+            if (dist > 1 && dist > 0) {
+                finalX = 50 + (dx / dist);
+                finalY = 50 + (dy / dist);
+            }
+        } else {
+            const cornerRadius = Math.min(16, width / 2, height / 2);
+            const safeCornerRadius = Math.max(0, cornerRadius - marginPx);
+            const cornerStart = marginPx + safeCornerRadius;
+
+            let boundedX = Math.max(marginPctX, Math.min(100 - marginPctX, safeX));
+            let boundedY = Math.max(marginPctY, Math.min(100 - marginPctY, safeY));
+
+            const pixelX = (boundedX / 100) * width;
+            const pixelY = (boundedY / 100) * height;
+            const isLeftCorner = pixelX < cornerStart;
+            const isRightCorner = pixelX > width - cornerStart;
+            const isTopCorner = pixelY < cornerStart;
+            const isBottomCorner = pixelY > height - cornerStart;
+
+            if ((isLeftCorner || isRightCorner) && (isTopCorner || isBottomCorner)) {
+                const centerX = isLeftCorner ? cornerRadius : width - cornerRadius;
+                const centerY = isTopCorner ? cornerRadius : height - cornerRadius;
+                const dx = pixelX - centerX;
+                const dy = pixelY - centerY;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance > safeCornerRadius && safeCornerRadius > 0) {
+                    const directionX = distance > 0 ? dx / distance : (isLeftCorner ? -1 : 1) / Math.SQRT2;
+                    const directionY = distance > 0 ? dy / distance : (isTopCorner ? -1 : 1) / Math.SQRT2;
+                    boundedX = ((centerX + directionX * safeCornerRadius) / width) * 100;
+                    boundedY = ((centerY + directionY * safeCornerRadius) / height) * 100;
+                }
+            }
+            finalX = Math.max(marginPctX, Math.min(100 - marginPctX, boundedX));
+            finalY = Math.max(marginPctY, Math.min(100 - marginPctY, boundedY));
+        }
+    }
+
+    // Ultimate Guardrail: I-force ang X at Y na laging may valid number (0 hanggang 100)
+    // para imposible nang mawala ang indicator sa screen.
+    if (Number.isNaN(finalX)) finalX = 50;
+    if (Number.isNaN(finalY)) finalY = 50;
+
+    return [
+        Math.max(0, Math.min(100, finalX)),
+        Math.max(0, Math.min(100, finalY))
+    ];
 };
 const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor, useFlavorColor = false) => ({
     color: useFlavorColor
@@ -222,15 +310,22 @@ const getToppingFootprint = (geometry, scale) => {
     return (geometry.boundingSphere?.radius || 0) * Math.abs(scale);
 };
 
-const getNodeFootprint = (node) => {
-    if (!node?.geometry) return 0;
-    const nodeScale = Math.max(
-        Math.abs(node.scale?.x || 0),
-        Math.abs(node.scale?.y || 0),
-        Math.abs(node.scale?.z || 0),
-        CANDLE_DIGIT_FALLBACK_SCALE
+const getNodeHorizontalHalfExtents = (node, scale, rotation) => {
+    if (!node?.geometry) return { x: 0, z: 0 };
+    node.geometry.computeBoundingBox();
+
+    const transformedBounds = node.geometry.boundingBox.clone().applyMatrix4(
+        new THREE.Matrix4().compose(
+            new THREE.Vector3(),
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+            new THREE.Vector3(...scale.map((value) => Math.abs(value)))
+        )
     );
-    return getToppingFootprint(node.geometry, nodeScale);
+
+    return {
+        x: Math.max(Math.abs(transformedBounds.min.x), Math.abs(transformedBounds.max.x)),
+        z: Math.max(Math.abs(transformedBounds.min.z), Math.abs(transformedBounds.max.z)),
+    };
 };
 
 const getNodeWidth = (node) => {
@@ -247,7 +342,7 @@ const getCenteredNutTransform = (tierBounds, selectedTierIndex, form, geometries
     geometries.forEach((g) => {
         if (g && !g.userData.isCentered) {
             g.center();
-            g.userData.isCentered = true; 
+            g.userData.isCentered = true;
         }
     });
 
@@ -273,23 +368,23 @@ const getCenteredNutTransform = (tierBounds, selectedTierIndex, form, geometries
     const nutWorldHeight = maxLocalZ;
 
     // 4. Calculate the proper scale-down size
-    const coverageRatio = form === 1 ? 0.55 : 0.55; 
+    const coverageRatio = form === 1 ? 0.55 : 0.55;
     const targetWidth = topWidth * coverageRatio;
-    
+
     const currentBaseWidth = nutWorldWidth * Math.abs(baseScale);
     const fitScale = currentBaseWidth > 0 ? (targetWidth / currentBaseWidth) : 0.5;
     const finalScale = baseScale * fitScale;
 
     // 5. Calculate perfect Y height to sit flush on the cake
     const topY = tierBounds?.max?.y ?? TIER_TOP_Y[selectedTierIndex] ?? TIER_TOP_Y[0];
-    
+
     // Since the pivot is now dead center, we lift it by exactly half 
     // its scaled height so it rests beautifully on the icing.
     const flushYOffset = (nutWorldHeight * Math.abs(finalScale)) / 2;
 
     return {
         // X and Z are locked to 0 for a perfect center placement!
-        position: [0, topY + flushYOffset -0.02, 0],
+        position: [0, topY + flushYOffset - 0.02, 0],
         scale: finalScale,
     };
 }
@@ -473,7 +568,7 @@ function applyMaterialsToScene(scene, {
         child.receiveShadow = true;
     });
 
-        cakeMeshes
+    cakeMeshes
         .filter((mesh) => mesh.visible)
         .map((mesh) => {
             const box = new THREE.Box3().setFromObject(mesh);
@@ -596,7 +691,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         inscriptionColor,
     } = useCustomization();
 
-        const baseFlavor = selectedTierFlavors?.[0] || flavor;
+    const baseFlavor = selectedTierFlavors?.[0] || flavor;
 
     // Load all flavor texture sets unconditionally (keeps hook order stable)
     const chocoTexture = useTexture(TEXTURE_URLS.choco);
@@ -696,7 +791,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         form,
     ]);
 
-        const textureByFlavor = useMemo(() => {
+    const textureByFlavor = useMemo(() => {
         const map = {};
         (flavors || []).forEach((flavorName) => {
             const key = flavorTextureMap[flavorName] || "choco";
@@ -705,7 +800,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         return map;
     }, [flavors, flavorTextureMap, textureSetsByKey]);
 
-        const matProps = useMemo(() => ({
+    const matProps = useMemo(() => ({
         cakeColor,
         activeTexture,
         form,
@@ -752,14 +847,14 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
     const chocolateNode = nodes.bar?.geometry
         ? nodes.bar
         : Object.values(nodes).find((node) => {
-        const nodeName = (node?.name || "").toLowerCase();
-        return node?.geometry && (nodeName.includes("bar") || nodeName.includes("choco"));
+            const nodeName = (node?.name || "").toLowerCase();
+            return node?.geometry && (nodeName.includes("bar") || nodeName.includes("choco"));
         });
     const chocolateGeometry = chocolateNode?.geometry;
     const chocolateLayout = toppingLayout?.chocolate || { x: 50, y: 50, size: "M" };
     const chocolateFootprint = getToppingFootprint(
-    chocolateGeometry,
-    TOPPING_3D_CONFIG.chocolate.scale * 0.5 * (TOPPING_SIZES[chocolateLayout.size] || 1)
+        chocolateGeometry,
+        TOPPING_3D_CONFIG.chocolate.scale * 0.5 * (TOPPING_SIZES[chocolateLayout.size] || 1)
     );
     const ballsFootprint = getToppingFootprint(
         nodes.balls?.geometry,
@@ -781,7 +876,6 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         const selectedCandleColor = toppingLayout.candle?.color || candleColor || "gold";
         const digitScaleMultiplier = TOPPING_SIZES[toppingLayout.candle.size] || 1;
         const digits = String(Math.max(1, Math.min(100, Number(candleNumber) || 1))).split("");
-        const candleScale = TOPPING_3D_CONFIG.candle.scale * digitScaleMultiplier;
         const candleNodes = selectedCandleMode === "gold"
             ? [nodes.chandel || nodes.Candle_White_Default].filter(Boolean)
             : digits.map((digit) => nodes[`candle_${digit}`]).filter(Boolean);
@@ -790,15 +884,25 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         const topSize = new THREE.Vector3();
         activeTierBounds?.getSize(topSize);
         const topWidth = Math.min(topSize.x, topSize.z);
-        const candleSizeMultiplier = candleWidth > 0 && topWidth > 0
-            ? Math.min(1, (topWidth * 0.72) / candleWidth)
+        const requestedCandleWidth = candleWidth * digitScaleMultiplier;
+        const candleSizeMultiplier = requestedCandleWidth > 0 && topWidth > 0
+            ? Math.min(1, (topWidth * 0.72) / requestedCandleWidth)
             : 1;
-        const candleFootprint = Math.max(
-            0.04,
-            ...candleNodes.map((node) => getNodeFootprint(node) * candleSizeMultiplier)
-        ) + (selectedCandleMode === "number"
-            ? (digits.length - 1) * CANDLE_DIGIT_SPACING * candleSizeMultiplier / 2
-            : 0);
+        const effectiveCandleScale = digitScaleMultiplier * candleSizeMultiplier;
+        const candleExtents = candleNodes.map((node) => getNodeHorizontalHalfExtents(
+            node,
+            selectedCandleMode === "gold"
+                ? Array(3).fill(Math.abs(TOPPING_3D_CONFIG.candle.scale * effectiveCandleScale))
+                : getNodeScaleArray(node, effectiveCandleScale),
+            selectedCandleMode === "gold" ? TOPPING_3D_CONFIG.candle.rotation : [0, 0, 0]
+        ));
+        const candleFootprint = selectedCandleMode === "number"
+            ? Math.max(
+                candleWidth * effectiveCandleScale / 2,
+                ...candleExtents.map((extent) => extent.z),
+                0.025
+            )
+            : Math.max(...candleExtents.map((extent) => Math.max(extent.x, extent.z)), 0.025);
 
         // Pass form and activeTierBounds so it clamps safely inside the cake edges!
         const candlePosition = getToppingPosition(
@@ -830,14 +934,14 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
                     material={materials.chandel || materials.Candle_White_Default || materials.Default}
                     position={candlePosition}
                     rotation={TOPPING_3D_CONFIG.candle.rotation}
-                    scale={TOPPING_3D_CONFIG.candle.scale * digitScaleMultiplier * candleSizeMultiplier}
+                    scale={TOPPING_3D_CONFIG.candle.scale * effectiveCandleScale}
                     castShadow
                     receiveShadow
                 />
             );
         }
 
-        const spacing = CANDLE_DIGIT_SPACING * candleSizeMultiplier;
+        const spacing = CANDLE_DIGIT_SPACING * effectiveCandleScale;
         const digitMaterial = candleMaterial;
         const hasDigitMeshes = digits.every((digit) => nodes[`candle_${digit}`]?.geometry);
 
@@ -851,7 +955,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
                     material={candleMaterial}
                     position={candleNumberPosition}
                     rotation={TOPPING_3D_CONFIG.candle.rotation}
-                    scale={TOPPING_3D_CONFIG.candle.scale * digitScaleMultiplier * candleSizeMultiplier}
+                    scale={TOPPING_3D_CONFIG.candle.scale * effectiveCandleScale}
                     castShadow
                     receiveShadow
                 />
@@ -871,7 +975,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
                             material={digitMaterial}
                             position={[xOffset, 0, 0]}
                             rotation={[0, 0, 0]}
-                            scale={getNodeScaleArray(node, candleSizeMultiplier)}
+                            scale={getNodeScaleArray(node, effectiveCandleScale)}
                             castShadow
                         />
                     );
@@ -905,7 +1009,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
                 </group>
             )}
 
-                {selectedToppings.chocolate && chocolateGeometry && (
+            {selectedToppings.chocolate && chocolateGeometry && (
                 <mesh
                     geometry={chocolateGeometry}
                     material={materials.choco || chocolateNode.material || new THREE.MeshStandardMaterial({
@@ -927,8 +1031,8 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
                     visible={true}
                     castShadow
                     receiveShadow
-                    />
-                )}
+                />
+            )}
 
             {selectedToppings.balls && nodes.balls?.geometry && (
                 <mesh
@@ -995,37 +1099,58 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
 
 
 // ──────── DraggableTopping ────────
-function DraggableTopping({ topping, layout }) {
+function DraggableTopping({ topping, layout, isEnabled = true, form, boardWidth, boardHeight }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: topping.key,
     });
-    const dragTransform = transform
-        ? `translate3d(${transform.x}px, ${transform.y}px, 0) translate(-50%, -50%)`
-        : "translate(-50%, -50%)";
+
+    const safeX = Number.isFinite(layout?.x) ? layout.x : 50;
+    const safeY = Number.isFinite(layout?.y) ? layout.y : 50;
+    const sizeStr = (layout?.size || "medium").toLowerCase();
+    const markerDiameter = { small: 22, medium: 28, large: 36 }[sizeStr] ?? 28;
+
+    let displayX = safeX;
+    let displayY = safeY;
+
+    if (transform && boardWidth > 0 && boardHeight > 0) {
+        const tentativeX = safeX + (transform.x / boardWidth) * 100;
+        const tentativeY = safeY + (transform.y / boardHeight) * 100;
+        [displayX, displayY] = clampToppingToBoard(
+            tentativeX,
+            tentativeY,
+            form,
+            markerDiameter,
+            boardWidth,
+            boardHeight
+        );
+    }
+
+    const shortLabelText = topping?.shortLabel || topping?.label?.[0] || "";
 
     return (
         <button
             ref={setNodeRef}
             type="button"
-            className={`topping-marker topping-marker--${layout.size.toLowerCase()} ${isDragging ? "topping-marker--dragging" : ""}`}
+            className={`topping-marker topping-marker--${sizeStr} ${isDragging ? "topping-marker--dragging" : ""} ${isEnabled ? "" : "opacity-50"}`}
             style={{
-                left: `${layout.x}%`,
-                top: `${layout.y}%`,
-                backgroundColor: topping.color,
-                transform: dragTransform,
+                left: `${displayX}%`,
+                top: `${displayY}%`,
+                backgroundColor: topping?.color || "#FFD700",
+                transform: "translate(-50%, -50%)",
             }}
-            aria-label={`Move ${topping.label}`}
+            aria-label={`Move ${topping?.label || "topping"}`}
             {...listeners}
             {...attributes}
         >
-            {topping.shortLabel}
+            {shortLabelText}
         </button>
     );
 }
 
 // ────── ToppingPlacementBoard ──────
-function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppingLayout, cherryLayouts, onMove }) {
+function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppingLayout, cherryLayouts, candleEnabled, onMove }) {
     const boardRef = useRef(null);
+    const [boardDimensions, setBoardDimensions] = useState({ width: 0, height: 0 });
     const { setNodeRef } = useDroppable({ id: "cake-placement" });
     const sensors = useSensors(
         useSensor(MouseSensor, {
@@ -1039,7 +1164,76 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
     const setBoardNode = (node) => {
         boardRef.current = node;
         setNodeRef(node);
+        if (node) {
+            const w = node.clientWidth;
+            const h = node.clientHeight;
+            if (w && h) {
+                setBoardDimensions((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
+            }
+        }
     };
+
+    useEffect(() => {
+        const board = boardRef.current;
+        if (!board || typeof ResizeObserver === "undefined") return;
+
+        const clampActiveToppings = () => {
+            const width = board.clientWidth;
+            const height = board.clientHeight;
+            if (!width || !height) return;
+
+            setBoardDimensions((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+
+            activeToppings.forEach((topping) => {
+                const layout = topping.key.startsWith("cherry-")
+                    ? cherryLayouts[Number.parseInt(topping.key.slice("cherry-".length), 10)]
+                    : toppingLayout[topping.key];
+                if (!layout) return;
+
+                const markerDiameter = { small: 22, medium: 28, large: 36 }[layout.size] ?? 28;
+                // Treat an already-corrupted (non-finite) stored value as
+                // needing correction too, using the board center as the
+                // starting point to clamp from.
+                const safeCurrentX = Number.isFinite(layout.x) ? layout.x : 50;
+                const safeCurrentY = Number.isFinite(layout.y) ? layout.y : 50;
+                const [nextX, nextY] = clampToppingToBoard(
+                    safeCurrentX,
+                    safeCurrentY,
+                    form,
+                    markerDiameter,
+                    width,
+                    height
+                );
+
+                if (
+                    Number.isFinite(nextX) &&
+                    Number.isFinite(nextY) &&
+                    (!Number.isFinite(layout.x) ||
+                        !Number.isFinite(layout.y) ||
+                        Math.abs(nextX - layout.x) > 0.01 ||
+                        Math.abs(nextY - layout.y) > 0.01)
+                ) {
+                    onMove(topping.key, nextX, nextY);
+                }
+            });
+        };
+
+        const observer = new ResizeObserver(clampActiveToppings);
+        observer.observe(board);
+        clampActiveToppings();
+
+        // Belt-and-suspenders: re-run once more after the browser has
+        // actually painted, in case clientWidth/clientHeight was still 0 on
+        // the very first pass (e.g. right when this accordion section opens
+        // or when switching to a smaller tier). ResizeObserver doesn't
+        // always fire a second time if the size settles immediately.
+        const raf = requestAnimationFrame(clampActiveToppings);
+
+        return () => {
+            observer.disconnect();
+            cancelAnimationFrame(raf);
+        };
+    }, [activeToppings, form, toppingLayout, cherryLayouts, onMove, selectedTierIndex]);
 
     const handleDragEnd = ({ active, delta }) => {
         const key = active?.id;
@@ -1051,25 +1245,17 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
 
         if (!currentLayout) return;
 
-        const rect = boardRef.current.getBoundingClientRect();
+        const width = boardRef.current.clientWidth;
+        const height = boardRef.current.clientHeight;
         const markerDiameter = { small: 22, medium: 28, large: 36 }[currentLayout.size] ?? 28;
-        const marginX = (markerDiameter / (2 * rect.width)) * 100;
-        const marginY = (markerDiameter / (2 * rect.height)) * 100;
-        let nextX = Math.max(marginX, Math.min(100 - marginX, currentLayout.x + (delta.x / rect.width) * 100));
-        let nextY = Math.max(marginY, Math.min(100 - marginY, currentLayout.y + (delta.y / rect.height) * 100));
-
-        if (form === 1) {
-            const dx = nextX - 50;
-            const dy = nextY - 50;
-            const radiusX = 50 - marginX;
-            const radiusY = 50 - marginY;
-            const distance = Math.hypot(dx / radiusX, dy / radiusY);
-
-            if (distance > 1) {
-                nextX = 50 + (dx / distance);
-                nextY = 50 + (dy / distance);
-            }
-        }
+        const [nextX, nextY] = clampToppingToBoard(
+            currentLayout.x + (delta.x / width) * 100,
+            currentLayout.y + (delta.y / height) * 100,
+            form,
+            markerDiameter,
+            width,
+            height
+        );
 
         onMove(key, nextX, nextY);
     };
@@ -1088,6 +1274,10 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
                         <DraggableTopping
                             key={topping.key}
                             topping={topping}
+                            form={form}
+                            boardWidth={boardDimensions.width}
+                            boardHeight={boardDimensions.height}
+                            isEnabled={topping.key !== "candle" || candleEnabled}
                             layout={topping.key.startsWith("cherry-")
                                 ? cherryLayouts[Number.parseInt(topping.key.slice("cherry-".length), 10)]
                                 : toppingLayout[topping.key]}
@@ -1186,10 +1376,6 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     const handleSizeChange = (e) => setSelectedSize(e.target.value);
     const handleShapeChange = (newForm) => {
         setForm(newForm);
-
-        // Keep topping positions when changing shape, while clamping any
-        // positions that fall outside the new cake boundaries.
-        enforceToppingBounds(newForm, selectedTierIndex);
     };
     const toppingEnabled = { candle, chocolate, balls, nuts, cherry, sprinkles };
     const activeToppings = TOPPING_OPTIONS
@@ -1198,56 +1384,11 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         .flatMap((topping) => topping.key === "cherry"
             ? cherryLayouts.map((_, index) => ({ ...topping, key: `cherry-${index}`, label: `Cherry ${index + 1}` }))
             : [topping]);
+    const placementToppings = activeToppings.some((topping) => topping.key === "candle")
+        ? activeToppings
+        : [TOPPING_OPTIONS.find((topping) => topping.key === "candle"), ...activeToppings];
     const activeTierLabels = TIER_FLAVOR_LABELS[selectedTierIndex + 1] || TIER_FLAVOR_LABELS[1];
 
-    // ADD THIS HELPER FUNCTION:
-    const enforceToppingBounds = (targetForm, targetTierIndex) => {
-        const activeKeys = Object.keys(toppingEnabled)
-            .filter(k => toppingEnabled[k])
-            .flatMap((key) => key === "cherry"
-                ? cherryLayouts.map((_, index) => `cherry-${index}`)
-                : [key]);
-
-        activeKeys.forEach((key) => {
-            const currentLayout = key.startsWith("cherry-")
-                ? cherryLayouts[Number.parseInt(key.slice("cherry-".length), 10)]
-                : toppingLayout[key];
-            if (!currentLayout) return;
-
-            let nextX = currentLayout.x;
-            let nextY = currentLayout.y;
-
-            // 1. Enforce specific bounds based on tier
-            if (key === "candle") {
-                const [min, max] = getCandlePlacementBounds(targetTierIndex, candleMode);
-                nextX = Math.max(min, Math.min(max, nextX));
-                nextY = Math.max(min, Math.min(max, nextY));
-            } else {
-                nextX = Math.max(5, Math.min(95, nextX));
-                nextY = Math.max(5, Math.min(95, nextY));
-            }
-
-            // 2. Enforce radial bounds if switching to Round (form 1)
-            if (targetForm === 1) {
-                const dx = nextX - 50;
-                const dy = nextY - 50;
-                const radius = key === "candle" ? 50 : 45;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // If it's outside the circle, pull it back to the edge
-                if (distance > radius) {
-                    const angle = Math.atan2(dy, dx);
-                    nextX = 50 + Math.cos(angle) * radius;
-                    nextY = 50 + Math.sin(angle) * radius;
-                }
-            }
-
-            // Update the state if coordinates needed adjusting
-            if (nextX !== currentLayout.x || nextY !== currentLayout.y) {
-                setToppingPosition(key, nextX, nextY);
-            }
-        });
-    };
     const handleAddToCart = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
@@ -1351,7 +1492,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                 setSelectedSize(CAKE_SIZES[idx].sizes[0]);
 
                             }}
-                            >
+                        >
                             {item.tier}
                         </button>
                     ))}
@@ -1717,15 +1858,16 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                 isOpen={openSection === "placement"}
                 onToggle={() => toggleSection("placement")}
             >
-                {activeToppings.length > 0 ? (
+                {placementToppings.length > 0 ? (
                     <div className="flex flex-col gap-5">
                         <div className="flex justify-center p-2 bg-[#FFFDF9] rounded-2xl border border-[#E6CCA2]">
                             <ToppingPlacementBoard
                                 form={form}
                                 selectedTierIndex={selectedTierIndex}
-                                activeToppings={activeToppings}
+                                activeToppings={placementToppings}
                                 toppingLayout={toppingLayout}
                                 cherryLayouts={cherryLayouts}
+                                candleEnabled={candle}
                                 onMove={setToppingPosition}
                             />
                         </div>
