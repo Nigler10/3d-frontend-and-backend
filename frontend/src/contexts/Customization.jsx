@@ -41,7 +41,7 @@ export const FLAVOR_VISUALS = {
 };
 
 export const TEXT_FONT_OPTIONS = [
-    { value: "classic", label: "Classic", path: "https://pub-b6dbdfd663ae44429f46f08964320068.r2.dev/fonts/customization/classic.ttf" },
+    { value: "classic", label: "Classic", path: "https://pub-b6dbdfd663ae44429f46f08964320068.r2.dev/fonts/customization/cursive.ttf" },
     { value: "elegant", label: "Elegant", path: "https://pub-b6dbdfd663ae44429f46f08964320068.r2.dev/fonts/customization/elegant.otf" },
     { value: "playful", label: "Playful", path: "https://pub-b6dbdfd663ae44429f46f08964320068.r2.dev/fonts/customization/playful.ttf" },
 ];
