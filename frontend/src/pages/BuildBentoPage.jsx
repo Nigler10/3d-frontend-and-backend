@@ -187,11 +187,13 @@ const getCandlePlacementBounds = (selectedTierIndex, candleMode = "number") => {
     // Allow the 2D UI dot to be dragged freely to the edges
     return [0, 100]; 
 };
-const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor) => ({
-    color: FLAVOR_VISUALS[flavorName]?.color || fallbackColor, 
+const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor, useFlavorColor = false) => ({
+    color: useFlavorColor
+        ? (FLAVOR_VISUALS[flavorName]?.color || fallbackColor)
+        : (fallbackColor || FLAVOR_VISUALS[flavorName]?.color),
     roughness: 0.65,
     metalness: 0.0,
-    ...(textureByFlavor[flavorName] || {}),
+    ...(textureByFlavor[flavorName] || {})
 });
 
 const getCakeShape = (name) => {
@@ -342,6 +344,7 @@ function applyMaterialsToScene(scene, {
     cakeColor,
     activeTexture,
     form,
+    selectedLayerOverrides = [],
     selectedLayerFlavors = [],
     textureByFlavor = {},
     icingColor,
@@ -470,7 +473,7 @@ function applyMaterialsToScene(scene, {
         child.receiveShadow = true;
     });
 
-    cakeMeshes
+        cakeMeshes
         .filter((mesh) => mesh.visible)
         .map((mesh) => {
             const box = new THREE.Box3().setFromObject(mesh);
@@ -479,8 +482,9 @@ function applyMaterialsToScene(scene, {
         .sort((a, b) => a.y - b.y)
         .forEach(({ mesh }, idx) => {
             const flavorName = selectedLayerFlavors[idx] ?? selectedLayerFlavors[0];
+            const isOverridden = selectedLayerOverrides[idx];
             mesh.material = new THREE.MeshStandardMaterial(
-                getFlavorMaterialProps(flavorName, textureByFlavor, cakeColor.color)
+                getFlavorMaterialProps(flavorName, textureByFlavor, cakeColor.color, isOverridden)
             );
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -575,6 +579,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         flavors,
         flavorTextureMap,
         selectedTierFlavors,
+        selectedTierFlavorOverrides,
         candle,
         candleMode,
         candleColor,
@@ -700,11 +705,12 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         return map;
     }, [flavors, flavorTextureMap, textureSetsByKey]);
 
-    const matProps = useMemo(() => ({
+        const matProps = useMemo(() => ({
         cakeColor,
         activeTexture,
         form,
         selectedLayerFlavors: selectedTierFlavors,
+        selectedLayerOverrides: selectedTierFlavorOverrides,
         textureByFlavor,
         icingColor,
         cherryTexture,
@@ -715,6 +721,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         activeTexture,
         form,
         selectedTierFlavors,
+        selectedTierFlavorOverrides,
         textureByFlavor,
         icingColor,
         cherryTexture,

@@ -246,6 +246,12 @@ export const CustomizationProvider = (props) => {
             tier4: [flavors[0], flavors[0], flavors[0], flavors[0]],
         };
     });
+      const [tierFlavorOverrides, setTierFlavorOverrides] = useState({
+        tier2: [false, false],
+        tier3: [false, false, false],
+        tier4: [false, false, false, false],
+    });
+
     const [tierFlavorLabels] = useState(["Bottom Tier", "Middle Tier", "Top Tier", "Peak Tier"]);
     // LANDMARK: inscription + font hydrate fix
     const [inscriptionText, setInscriptionText] = useState(
@@ -263,6 +269,9 @@ export const CustomizationProvider = (props) => {
     const selectedTierFlavors = tier.tierKey === "tier1"
         ? [flavor]
         : tierFlavors[tier.tierKey] ?? [flavor];
+    const selectedTierFlavorOverrides = tier.tierKey === "tier1"
+        ? [false]
+        : tierFlavorOverrides[tier.tierKey] ?? [];
     const pricingFlavor = selectedTierFlavors[0] ?? flavor;
 
     const setToppingPosition = (key, x, y) => {
@@ -311,12 +320,16 @@ export const CustomizationProvider = (props) => {
         )));
     };
 
-    const setTierLayerFlavor = (layerIdx, newFlavor) => {
+        const setTierLayerFlavor = (layerIdx, newFlavor) => {
         const tierKey = CAKE_SIZES[selectedTierIndex]?.tierKey;
         if (!tierKey || tierKey === "tier1") return;
         setTierFlavors((prev) => ({
             ...prev,
             [tierKey]: prev[tierKey].map((f, idx) => (idx === layerIdx ? newFlavor : f)),
+        }));
+        setTierFlavorOverrides((prev) => ({
+            ...prev,
+            [tierKey]: (prev[tierKey] || []).map((v, idx) => (idx === layerIdx ? true : v)),
         }));
     };
 
@@ -491,6 +504,7 @@ export const CustomizationProvider = (props) => {
                 TEXT_FONT_OPTIONS,
                 INSCRIPTION_COLOR_OPTIONS,
                 selectedTierFlavors,
+                selectedTierFlavorOverrides,
                 candle,
                 setCandle,
                 candleMode,
