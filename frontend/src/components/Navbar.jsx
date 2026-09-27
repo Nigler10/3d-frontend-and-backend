@@ -170,28 +170,24 @@ function Navbar() {
                             {!isLoggedIn ? (
                                 <Link to="/login" className="text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors">Login</Link>
                             ) : (
-                                <>
-                                    {isAdmin ? (
-                                        <Link to="/admin" className="text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors">
-                                            Admin
-                                        </Link>
-                                    ) : (
-                                        <div className="relative">
-                                            <button
-                                                type="button"
-                                                aria-expanded={isProfileMenuOpen}
-                                                aria-haspopup="menu"
-                                                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                                                className="flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors"
-                                            >
-                                                Profile
-                                                <svg className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                                </svg>
-                                            </button>
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        aria-expanded={isProfileMenuOpen}
+                                        aria-haspopup="menu"
+                                        onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                                        className="flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors"
+                                    >
+                                        Profile
+                                        <svg className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
 
-                                            {isProfileMenuOpen && (
-                                                <div className="absolute right-0 top-full mt-4 w-64 overflow-hidden rounded-2xl border border-stone-100 bg-white py-2 shadow-xl" role="menu">
+                                    {isProfileMenuOpen && (
+                                        <div className="absolute right-0 top-full mt-4 w-64 overflow-hidden rounded-2xl border border-stone-100 bg-white py-2 shadow-xl" role="menu">
+                                            {!isAdmin && (
+                                                <>
                                                     <Link
                                                         to="/profile"
                                                         role="menuitem"
@@ -214,19 +210,19 @@ function Navbar() {
                                                         )}
                                                     </Link>
                                                     <div className="my-1 border-t border-stone-100" />
-                                                    <button
-                                                        type="button"
-                                                        role="menuitem"
-                                                        onClick={handleLogout}
-                                                        className="block w-full px-5 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
-                                                    >
-                                                        Logout
-                                                    </button>
-                                                </div>
+                                                </>
                                             )}
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                onClick={handleLogout}
+                                                className="block w-full px-5 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                                            >
+                                                Logout
+                                            </button>
                                         </div>
                                     )}
-                                </>
+                                </div>
                             )}
                         </div>
 
