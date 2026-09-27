@@ -246,7 +246,37 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+# Render terminates HTTPS at its proxy and forwards traffic
+# to the Django service internally.
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
+
+# Origins allowed to submit CSRF-protected POST requests.
+CSRF_TRUSTED_ORIGINS = [
+    FRONTEND_BASE_URL,
+]
+
+# Trust the Django backend's own Render HTTPS URL.
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(
+        f"https://{RENDER_EXTERNAL_HOSTNAME}"
+    )
+
+
+# Optional additional trusted origins for future custom domains.
+EXTRA_CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS",
+    "",
+)
+
+if EXTRA_CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.extend(
+        origin.strip()
+        for origin in EXTRA_CSRF_TRUSTED_ORIGINS.split(",")
+        if origin.strip()
+    )
 
 # ========DJANGO REST FRAMEWORK========
 
