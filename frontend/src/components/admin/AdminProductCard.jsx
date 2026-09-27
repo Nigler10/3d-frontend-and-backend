@@ -3,32 +3,9 @@ import { getAccessToken } from "../../utils/auth";
 import { useNavigate } from "react-router-dom";
 import "./AdminProductCard.css";
 
-function AdminProductCard({ product, onDelete }) {
+function AdminProductCard({ product }) {
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
-
-    const handleDelete = async () => {
-        const confirmDelete = window.confirm(`Are you sure you want to delete "${product.name}"?`);
-        if (!confirmDelete) return;
-
-        try {
-            const token = getAccessToken();
-            const res = await fetch(
-                `${BASEURL}/api/admin/products/${product.id}/delete/`,
-                {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!res.ok) throw new Error("Delete failed");
-            onDelete(product.id);
-        } catch (err) {
-            alert(err.message);
-        }
-    };
 
     return (
         <div className="admin-card">
@@ -58,13 +35,6 @@ function AdminProductCard({ product, onDelete }) {
                         className="btn-admin-edit"
                     >
                         Edit Item
-                    </button>
-                    <button
-                        onClick={handleDelete}
-                        className="btn-admin-delete"
-                        title="Delete Product"
-                    >
-                        <span className="trash-icon">🗑</span>
                     </button>
                 </div>
             </div>
