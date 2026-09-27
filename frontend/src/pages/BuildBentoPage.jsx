@@ -188,7 +188,7 @@ const getCandlePlacementBounds = (selectedTierIndex, candleMode = "number") => {
     return [0, 100]; 
 };
 const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor) => ({
-    color: fallbackColor || FLAVOR_VISUALS[flavorName]?.color,
+    color: FLAVOR_VISUALS[flavorName]?.color || fallbackColor, 
     roughness: 0.65,
     metalness: 0.0,
     ...(textureByFlavor[flavorName] || {}),
@@ -572,6 +572,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         cakeColor,
         icingColor,
         flavor,
+        flavors,
         flavorTextureMap,
         selectedTierFlavors,
         candle,
@@ -590,9 +591,20 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         inscriptionColor,
     } = useCustomization();
 
-    const baseFlavor = selectedTierFlavors?.[0] || flavor;
+        const baseFlavor = selectedTierFlavors?.[0] || flavor;
+
+    // Load all flavor texture sets unconditionally (keeps hook order stable)
+    const chocoTexture = useTexture(TEXTURE_URLS.choco);
+    const vanillaTexture = useTexture(TEXTURE_URLS.vanilla);
+    const ubeTexture = useTexture(TEXTURE_URLS.ube);
+    const textureSetsByKey = useMemo(() => ({
+        choco: chocoTexture,
+        vanilla: vanillaTexture,
+        ube: ubeTexture,
+    }), [chocoTexture, vanillaTexture, ubeTexture]);
+
     const activeTextureKey = flavorTextureMap[baseFlavor] || "choco";
-    const activeTexture = useTexture(TEXTURE_URLS[activeTextureKey]);
+    const activeTexture = textureSetsByKey[activeTextureKey];
     const cherryTexture = useTexture(TIER1_CHERRY_TEXTURE);
     const activeTierScene = activeTier.scene;
 
@@ -679,10 +691,14 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         form,
     ]);
 
-    const textureByFlavor = useMemo(
-        () => ({ [baseFlavor]: activeTexture }),
-        [baseFlavor, activeTexture]
-    );
+        const textureByFlavor = useMemo(() => {
+        const map = {};
+        (flavors || []).forEach((flavorName) => {
+            const key = flavorTextureMap[flavorName] || "choco";
+            map[flavorName] = textureSetsByKey[key];
+        });
+        return map;
+    }, [flavors, flavorTextureMap, textureSetsByKey]);
 
     const matProps = useMemo(() => ({
         cakeColor,
