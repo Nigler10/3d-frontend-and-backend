@@ -3,6 +3,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  position: relative;
+}
+
 :root {
   --espresso: #2d1b14;
   --berry: #d85c7b;

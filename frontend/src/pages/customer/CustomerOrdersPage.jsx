@@ -1,23 +1,25 @@
 // src/pages/customer/CustomerOrdersPage.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
+import { CustomizationProvider } from "../../contexts/Customization";
 
 const ACTIVE_STATUSES = new Set([
     "pending_review",
-    "processing",
+    "awaiting_customer_response",
     "awaiting_downpayment",
+    "processing",
     "ready_for_delivery",
 ]);
 
 const FINISHED_STATUSES = new Set(["delivered", "completed"]);
-const ORDERS_PER_PAGE = 5;
+const ORDERS_PER_PAGE = 4;
 
 const formatDate = (value, fallback = "Date unavailable") => {
     if (!value) return fallback;
-
-    return new Date(value).toLocaleDateString(undefined, {
+    return new Date(value).toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
@@ -25,83 +27,307 @@ const formatDate = (value, fallback = "Date unavailable") => {
     });
 };
 
-const formatTotal = (value) => `₱${Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-})}`;
+const formatTotal = (value) =>
+    `₱${Number(value || 0).toLocaleString("en-PH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 
-function OrderItems({ items = [] }) {
-    if (items.length === 0) return <p className="text-sm text-stone-500">No items listed</p>;
+// Stepper Step Mapping
+const getStepState = (status) => {
+    switch (status) {
+        case "pending_review":
+        case "awaiting_customer_response":
+            return 2; // Step 2: Pending Review
+        case "awaiting_downpayment":
+        case "processing":
+            return 3; // Step 3: In The Oven / Baking
+        case "ready_for_delivery":
+            return 4; // Step 4: Dispatched
+        case "delivered":
+        case "completed":
+            return 5; // All steps completed
+        default:
+            return 1; // Step 1: Order Placed
+    }
+};
+
+function OrderProgressStepper({ status }) {
+    const currentStep = getStepState(status);
+
+    const steps = [
+        { label: "Order Placed", stepNum: 1 },
+        { label: "Pending Review", stepNum: 2 },
+        { label: "In The Oven", stepNum: 3 },
+        { label: "Dispatched", stepNum: 4 },
+    ];
 
     return (
-        <ul className="space-y-1">
-            {items.map((item) => (
-                <li key={item.id} className="text-sm text-stone-700">
-                    <span className="font-medium">{item.quantity} x</span> {item.product_name}
-                </li>
-            ))}
-        </ul>
+        <div className="w-full my-6 py-2 px-2 sm:px-6 bg-[#FAF5EB] rounded-2xl border border-[#F3E5D0]">
+            <div className="relative flex items-center justify-between">
+                {/* Background Line */}
+                <div className="absolute top-1/2 left-4 right-4 h-1 bg-[#EFE3CF] -translate-y-1/2 z-0" />
+
+                {/* Filled Line */}
+                <div
+                    className="absolute top-1/2 left-4 h-1 bg-[#C05A11] -translate-y-1/2 transition-all duration-500 z-0"
+                    style={{
+                        width: `${Math.min(100, Math.max(0, ((currentStep - 1) / (steps.length - 1)) * 100))}%`,
+                    }}
+                />
+
+                {steps.map((s) => {
+                    const isCompleted = currentStep > s.stepNum;
+                    const isActive = currentStep === s.stepNum;
+
+                    return (
+                        <div key={s.stepNum} className="relative z-10 flex flex-col items-center">
+                            <div
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
+                                    isCompleted
+                                        ? "bg-[#C05A11] text-white shadow-md"
+                                        : isActive
+                                        ? "bg-[#D97706] text-white ring-4 ring-[#FEF3C7] shadow-lg scale-110"
+                                        : "bg-white text-stone-400 border-2 border-[#EFE3CF]"
+                                }`}
+                            >
+                                {isCompleted ? "✓" : s.stepNum}
+                            </div>
+                            <span
+                                className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${
+                                    isActive
+                                        ? "text-[#844414] font-black"
+                                        : isCompleted
+                                        ? "text-[#C05A11]"
+                                        : "text-stone-400"
+                                }`}
+                            >
+                                {s.label}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
-function ReorderModal({ order, onClose, onReorder }) {
-    if (!order) return null;
-
-    const reorderItem = order.items?.find((item) => item.customization?.shape);
-    const itemSummary = order.items?.map((item) => `${item.quantity} x ${item.product_name}`).join(", ");
+function OrderItemsList({ items = [], orderId, onItemClick }) {
+    if (!items || items.length === 0) {
+        return <p className="text-xs text-stone-500 italic">No items listed for this order</p>;
+    }
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" role="presentation">
-            <div
-                className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="reorder-title"
-            >
-                <div className="flex items-start justify-between border-b border-stone-100 px-5 py-4">
-                    <h2 id="reorder-title" className="text-sm font-black text-stone-800">
-                        Reorder this custom cake?
-                    </h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="text-lg leading-none text-stone-400 transition-colors hover:text-stone-700"
-                        aria-label="Close reorder dialog"
-                    >
-                        ×
-                    </button>
-                </div>
+        <div className="space-y-3">
+            {items.map((item, idx) => {
+                const cust = item.customization || {};
+                const isCustom = !!item.customization;
+                const has3DModel = isCustom && (cust.shape || cust.tiers || cust.flavor);
+                const hasUploadedPhoto = isCustom && (cust.uploaded_cake || cust.reference_photo || (cust.images && cust.images.length > 0));
 
-                <div className="px-5 py-5">
-                    <p className="text-xs leading-relaxed text-stone-500">
-                        You can check out with the exact design from your past order, or edit the flavor and message before placing it again.
-                    </p>
-                    <div className="mt-4 rounded-xl bg-[#fff8ef] px-4 py-3 text-xs text-stone-600">
-                        <p className="font-bold text-[#844414]">Order #{order.id}</p>
-                        <p className="mt-1">{itemSummary || "No items listed"}</p>
+                return (
+                    <div
+                        key={item.id || idx}
+                        onClick={() => onItemClick(item, orderId)}
+                        className="group flex items-center justify-between gap-4 p-3.5 bg-white rounded-2xl border border-[#F3E5D0] hover:border-[#C05A11] hover:bg-[#FFFBF4] transition-all cursor-pointer shadow-xs hover:shadow-md"
+                        title="Click to view 3D cake design or sample photo"
+                    >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                            {/* Thumbnail / Icon Container */}
+                            <div className="w-12 h-12 rounded-xl bg-[#FAF5EB] border border-[#F3E5D0] group-hover:border-[#E6CCA2] group-hover:bg-[#FFF8EF] flex items-center justify-center text-2xl shrink-0 text-[#C05A11] transition-colors">
+                                {cust.shape === "Round" || cust.shape === "round"
+                                    ? "🎂"
+                                    : cust.shape === "Heart" || cust.shape === "heart"
+                                    ? "💖"
+                                    : isCustom
+                                    ? "🧁"
+                                    : "🍰"}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-sm font-bold text-[#6E473B] group-hover:text-[#C05A11] transition-colors truncate">
+                                        {item.product_name || `Custom ${cust.shape || "Cake"}`}
+                                    </h4>
+                                    {has3DModel && (
+                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded-full border border-[#FCD34D]/40">
+                                            3D Design 👁️
+                                        </span>
+                                    )}
+                                    {hasUploadedPhoto && !has3DModel && (
+                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#E0F2FE] text-[#0369A1] px-2 py-0.5 rounded-full border border-[#7DD3FC]/40">
+                                            Photo Sample 📷
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Details & Tags matching Image 1 */}
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-600">
+                                    {cust.shape && (
+                                        <span className="bg-[#FAF5EB] px-2.5 py-0.5 rounded-lg text-[#844414] font-semibold border border-[#F3E5D0]">
+                                            {cust.shape}
+                                        </span>
+                                    )}
+                                    {cust.flavor && (
+                                        <span className="bg-[#FAF5EB] px-2.5 py-0.5 rounded-lg font-semibold border border-[#F3E5D0]">
+                                            Flavor: {cust.flavor}
+                                        </span>
+                                    )}
+                                    {cust.size && (
+                                        <span className="bg-[#FAF5EB] px-2.5 py-0.5 rounded-lg font-semibold border border-[#F3E5D0]">
+                                            Size: {cust.size}
+                                        </span>
+                                    )}
+                                    {cust.tier_count && (
+                                        <span className="bg-[#FAF5EB] px-2.5 py-0.5 rounded-lg text-[#844414] font-semibold border border-[#F3E5D0]">
+                                            {cust.tier_count}-Tier
+                                        </span>
+                                    )}
+                                    {item.quantity > 1 && (
+                                        <span className="bg-[#FEF3C7] px-2 py-0.5 rounded-md text-[#B45309] font-bold">
+                                            Qty: {item.quantity}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Dedication Message tag */}
+                                {(cust.message || cust.dedication) && (
+                                    <div className="mt-1.5 inline-block text-[11px] bg-[#FFF8EF] border border-[#FCD34D]/40 text-[#B45309] font-medium px-2.5 py-0.5 rounded-md">
+                                        ✍️ Dedication: "{cust.message || cust.dedication}"
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Right side Price & Click View Button */}
+                        <div className="flex flex-col items-end shrink-0 pl-2">
+                            <span className="text-sm sm:text-base font-black text-[#844414]">
+                                {formatTotal(item.price || item.subtotal || 0)}
+                            </span>
+                            <span className="mt-1 text-[11px] font-bold text-[#C05A11] group-hover:underline flex items-center gap-1">
+                                <span>View Cake</span> <span>→</span>
+                            </span>
+                        </div>
                     </div>
-                    {!reorderItem && (
-                        <p className="mt-3 text-xs font-semibold text-amber-700">
-                            This order does not contain a saved 3D cake design to edit.
-                        </p>
-                    )}
+                );
+            })}
+        </div>
+    );
+}
+
+function InvoiceModal({ order, onClose }) {
+    if (!order) return null;
+
+    const items = order.items || [];
+    const handlePrint = () => {
+        window.print();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" role="dialog">
+            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#E6CCA2] my-8">
+                {/* Header */}
+                <div className="flex items-center justify-between bg-[#6E473B] text-white px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-2xl">🧾</span>
+                        <div>
+                            <h3 className="font-black text-lg leading-tight">Cake Studio Invoice</h3>
+                            <p className="text-xs text-[#E6CCA2]">Order #{order.id}</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-white hover:text-[#E6CCA2] text-xl font-bold transition-colors"
+                        aria-label="Close invoice"
+                    >
+                        ✕
+                    </button>
                 </div>
 
-                <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-3">
+                {/* Invoice Content */}
+                <div className="p-6 space-y-6 bg-[#FCF8EE]/30" id="printable-invoice">
+                    {/* Billed To & Dates */}
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <p className="text-[#A07060] uppercase font-bold tracking-wider text-[10px]">Customer Details</p>
+                            <p className="font-bold text-[#6E473B] mt-1 text-sm">{order.full_name || order.user_name || "Valued Customer"}</p>
+                            <p className="text-stone-600">{order.customer_email}</p>
+                            <p className="text-stone-600">{order.formatted_phone}</p>
+                            <p className="text-stone-600 mt-1">{order.full_address}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[#A07060] uppercase font-bold tracking-wider text-[10px]">Order Summary</p>
+                            <p className="font-bold text-[#6E473B] mt-1">Date: {formatDate(order.created_at)}</p>
+                            <p className="text-stone-600">Status: <span className="font-bold text-[#C05A11]">{getOrderStatusLabel(order.status)}</span></p>
+                            {order.delivery_date && (
+                                <p className="text-stone-600">Delivery: {formatDate(order.delivery_date)} {order.delivery_time ? `@ ${order.delivery_time}` : ""}</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <div className="border border-[#E6CCA2] rounded-xl overflow-hidden bg-white">
+                        <table className="w-full text-xs">
+                            <thead className="bg-[#FAF5EB] text-[#844414] font-bold border-b border-[#E6CCA2]">
+                                <tr>
+                                    <th className="text-left py-2.5 px-4">Item & Customizations</th>
+                                    <th className="text-center py-2.5 px-2">Qty</th>
+                                    <th className="text-right py-2.5 px-4">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100">
+                                {items.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-stone-50">
+                                        <td className="py-3 px-4">
+                                            <p className="font-bold text-[#6E473B]">{item.product_name || "Custom Cake"}</p>
+                                            {item.customization && (
+                                                <p className="text-[11px] text-stone-500 mt-0.5">
+                                                    {item.customization.shape} • {item.customization.flavor} • {item.customization.size || "Standard"}
+                                                </p>
+                                            )}
+                                        </td>
+                                        <td className="text-center py-3 px-2 font-medium">{item.quantity}</td>
+                                        <td className="text-right py-3 px-4 font-bold text-[#844414]">{formatTotal(item.price || item.subtotal)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Totals */}
+                    <div className="flex justify-end">
+                        <div className="w-full sm:w-64 space-y-2 text-xs bg-white p-4 rounded-xl border border-[#E6CCA2]">
+                            <div className="flex justify-between text-stone-600">
+                                <span>Subtotal</span>
+                                <span>{formatTotal(order.total_amount)}</span>
+                            </div>
+                            <div className="flex justify-between text-stone-600">
+                                <span>Total Paid</span>
+                                <span className="font-semibold text-emerald-600">{formatTotal(order.total_paid)}</span>
+                            </div>
+                            <div className="flex justify-between font-black text-sm text-[#6E473B] pt-2 border-t border-stone-200">
+                                <span>Remaining Balance</span>
+                                <span className="text-[#C05A11]">{formatTotal(order.remaining_balance)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 bg-stone-50">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-bold text-stone-600 transition-colors hover:bg-stone-50"
+                        className="px-4 py-2 text-xs font-bold text-stone-600 hover:text-stone-800 bg-white border border-stone-300 rounded-lg transition-colors"
                     >
-                        Maybe later
+                        Close
                     </button>
                     <button
                         type="button"
-                        onClick={() => onReorder(reorderItem)}
-                        disabled={!reorderItem}
-                        className="rounded-lg bg-[#d67b27] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#b56219] disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={handlePrint}
+                        className="px-5 py-2 text-xs font-bold text-white bg-[#C05A11] hover:bg-[#A84E0E] rounded-lg shadow transition-all flex items-center gap-1.5"
                     >
-                        Edit and reorder
+                        🖨️ Print / Save PDF
                     </button>
                 </div>
             </div>
@@ -109,64 +335,266 @@ function ReorderModal({ order, onClose, onReorder }) {
     );
 }
 
-function ActiveOrderCard({ order, unreadCount, onView }) {
+function ReorderModal({ order, onClose, onReorder }) {
+    if (!order) return null;
+
+    const reorderItem = order.items?.find((item) => item.customization?.shape);
+    const itemSummary = order.items?.map((item) => `${item.quantity}x ${item.product_name}`).join(", ");
+
     return (
-        <article className="rounded-2xl border border-[#f3e1c6] bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-stone-400">Order #{order.id}</p>
-                    <h3 className="mt-1 text-lg font-black text-[#844414]">{formatTotal(order.total_amount)}</h3>
-                    <p className="mt-1 text-sm text-stone-500">Placed {formatDate(order.created_at)}</p>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" role="presentation">
+            <div
+                className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl border border-[#F3E5D0]"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="reorder-title"
+            >
+                <div className="flex items-start justify-between border-b border-stone-100 bg-[#FAF5EB] px-5 py-4">
+                    <h2 id="reorder-title" className="text-sm font-black text-[#6E473B] flex items-center gap-2">
+                        <span>🔄</span> Reorder this custom cake?
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="text-lg leading-none text-stone-400 hover:text-stone-700 transition-colors"
+                        aria-label="Close reorder dialog"
+                    >
+                        ×
+                    </button>
                 </div>
-                <span className="self-start rounded-full border border-[#f3e1c6] bg-[#fff8ef] px-3 py-1 text-xs font-bold text-[#d67b27]">
-                    {getOrderStatusLabel(order.status)}
-                </span>
-            </div>
 
-            <div className="mt-4 border-t border-stone-100 pt-4">
-                <OrderItems items={order.items} />
-            </div>
+                <div className="px-5 py-5 space-y-3">
+                    <p className="text-xs leading-relaxed text-stone-600">
+                        You can load the exact 3D design from your past order into the builder to customize flavors, messages, or order immediately.
+                    </p>
+                    <div className="rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] px-4 py-3 text-xs text-stone-600">
+                        <p className="font-bold text-[#844414]">Order #{order.id}</p>
+                        <p className="mt-1 font-medium">{itemSummary || "No items listed"}</p>
+                    </div>
+                    {!reorderItem && (
+                        <p className="text-xs font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                            Note: This order contains standard products or uploaded reference photos without a 3D model configuration.
+                        </p>
+                    )}
+                </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                {unreadCount > 0 ? (
-                    <span className="text-xs font-bold text-[#d67b27]">
-                        {unreadCount} unread {unreadCount === 1 ? "message" : "messages"}
+                <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-3.5 bg-stone-50">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onReorder(reorderItem)}
+                        disabled={!reorderItem}
+                        className="rounded-lg bg-[#C05A11] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#A84E0E] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        Edit in 3D Builder & Reorder
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick }) {
+    const statusLabel = getOrderStatusLabel(order.status);
+
+    const getStatusBadgeStyle = (status) => {
+        switch (status) {
+            case "pending_review":
+            case "awaiting_customer_response":
+                return "bg-[#FEF3C7] text-[#B45309] border-[#FCD34D]";
+            case "awaiting_downpayment":
+            case "processing":
+                return "bg-[#FFEDD5] text-[#C05A11] border-[#FDBA74]";
+            case "ready_for_delivery":
+                return "bg-[#DBEAFE] text-[#1D4ED8] border-[#93C5FD]";
+            default:
+                return "bg-[#ECFDF5] text-[#047857] border-[#6EE7B7]";
+        }
+    };
+
+    return (
+        <article className="rounded-3xl border border-[#F3E5D0] bg-[#FFFDF9] p-5 sm:p-7 shadow-sm hover:shadow-md transition-all">
+            {/* Card Top Metadata Bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-[#F3E5D0]">
+                <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-black uppercase tracking-wider bg-[#FAF5EB] text-[#844414] px-3 py-1 rounded-lg border border-[#EFE3CF]">
+                        Order #{order.id}
                     </span>
-                ) : <span />}
+                    <span className="text-xs font-semibold text-stone-500">
+                        Placed {formatDate(order.created_at)}
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <span className="text-xs text-stone-500 font-medium">TOTAL AMOUNT</span>
+                    <span className="text-xl font-black text-[#844414]">{formatTotal(order.total_amount)}</span>
+                    <span
+                        className={`text-xs font-bold px-3 py-1 rounded-full border ${getStatusBadgeStyle(
+                            order.status
+                        )}`}
+                    >
+                        {statusLabel}
+                    </span>
+                </div>
+            </div>
+
+            {/* Stepper Component */}
+            <OrderProgressStepper status={order.status} />
+
+            {/* Main Content Grid: Left Items + Right Delivery Specs */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+                {/* Left Side: 2 Cols on Large */}
+                <div className="lg:col-span-2 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black uppercase tracking-wider text-[#A07060]">
+                            Custom Crafted Items ({order.items?.length || 0} {order.items?.length === 1 ? "Cake" : "Items"})
+                        </h3>
+                        <span className="text-[11px] font-bold text-[#C05A11]">
+                            Click item to view 3D cake design
+                        </span>
+                    </div>
+                    <OrderItemsList items={order.items} orderId={order.id} onItemClick={onItemClick} />
+                </div>
+
+                {/* Right Side: Delivery & Event Specs Panel */}
+                <div className="bg-[#FAF5EB] rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] flex flex-col justify-between space-y-4">
+                    <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-[#844414] border-b border-[#EFE3CF] pb-2 flex items-center gap-1.5">
+                            <span>📦</span> Delivery & Event Specs
+                        </h4>
+
+                        <div className="mt-3 space-y-2.5 text-xs text-stone-700">
+                            <div className="flex items-start gap-2">
+                                <span className="text-base leading-none">📅</span>
+                                <div>
+                                    <p className="font-bold text-[#6E473B]">
+                                        Bake & Delivery: {formatDate(order.delivery_date || order.created_at)}
+                                    </p>
+                                    <p className="text-[11px] text-stone-500">
+                                        Time Slot: {order.delivery_time || "Standard Afternoon Delivery"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                                <span className="text-base leading-none">📍</span>
+                                <div>
+                                    <p className="font-bold text-[#6E473B]">Delivery Location</p>
+                                    <p className="text-[11px] text-stone-500 leading-snug">{order.full_address || "Studio Pickup / Customer Address"}</p>
+                                </div>
+                            </div>
+
+                            {order.order_notes && (
+                                <div className="mt-2 p-2.5 bg-[#FFF8EF] rounded-xl border border-[#FCD34D]/30 text-[11px] text-[#B45309]">
+                                    <p className="font-bold flex items-center gap-1">
+                                        <span>⚠️</span> Special Instructions:
+                                    </p>
+                                    <p className="mt-0.5 italic">{order.order_notes}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Subtotal Footer */}
+                    <div className="pt-3 border-t border-[#EFE3CF] flex items-center justify-between text-xs font-bold text-[#6E473B]">
+                        <span>Subtotal ({order.items?.length || 0} items)</span>
+                        <span className="text-sm font-black text-[#844414]">{formatTotal(order.total_amount)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Card Action Footer Bar */}
+            <div className="mt-6 pt-4 border-t border-[#F3E5D0] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <button
+                        onClick={() => onView(order.id)}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-bold text-[#844414] bg-[#FAF5EB] hover:bg-[#F5E8D3] border border-[#EFE3CF] transition-colors flex items-center justify-center gap-1.5"
+                    >
+                        <span>💬</span> Message Baker {unreadCount > 0 && <span className="bg-[#C05A11] text-white px-1.5 py-0.5 rounded-full text-[10px]">{unreadCount}</span>}
+                    </button>
+
+                    <button
+                        onClick={() => onInvoice(order)}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                        <span>📄</span> Invoice PDF
+                    </button>
+                </div>
+
                 <button
                     onClick={() => onView(order.id)}
-                    className="rounded-lg bg-[#d67b27] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#b56219]"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold text-xs shadow-md shadow-[#C05A11]/20 transition-all flex items-center justify-center gap-1.5"
                 >
-                    View order
+                    <span>View Order Details & 3D Mockup</span>
+                    <span>→</span>
                 </button>
             </div>
         </article>
     );
 }
 
-function PastOrderCard({ order, onReorder }) {
+function PastOrderCard({ order, onReorder, onInvoice, onView, onItemClick }) {
     return (
-        <article className="rounded-2xl border border-stone-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                    <h3 className="text-lg font-black text-[#844414]">
-                        {order.items?.map((item) => item.product_name).join(", ") || "Order items"}
-                    </h3>
-                    <p className="mt-2 text-sm text-stone-600">
-                        Delivered on {formatDate(order.delivery_date || order.created_at)}
-                    </p>
-                    <p className="mt-1 text-sm text-stone-500">Order #{order.id}</p>
+        <article className="rounded-3xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-lg font-bold shrink-0 mt-0.5">
+                        ✓
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black uppercase text-stone-500">Order #{order.id}</span>
+                            <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                Delivered
+                            </span>
+                        </div>
+                        <h3 className="mt-1 text-base font-bold text-[#6E473B]">
+                            {order.items?.map((item) => item.product_name).join(", ") || "Custom Cake Order"}
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Placed {formatDate(order.created_at)} • Delivered {formatDate(order.delivery_date || order.created_at)}
+                        </p>
+                    </div>
                 </div>
-                <p className="shrink-0 text-lg font-black text-[#844414]">{formatTotal(order.total_amount)}</p>
+
+                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-stone-100">
+                    <span className="text-xs text-stone-400 font-medium sm:hidden">Total Amount</span>
+                    <span className="text-lg font-black text-[#844414]">{formatTotal(order.total_amount)}</span>
+                </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <OrderItems items={order.items} />
+            {/* Clickable items list */}
+            <div className="mt-4 pt-4 border-t border-stone-100 space-y-2">
+                <OrderItemsList items={order.items} orderId={order.id} onItemClick={onItemClick} />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                        onClick={() => onView(order.id)}
+                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors"
+                    >
+                        Write Pastry Review
+                    </button>
+                    <button
+                        onClick={() => onInvoice(order)}
+                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"
+                    >
+                        📄 Invoice
+                    </button>
+                </div>
+
                 <button
                     onClick={() => onReorder(order)}
-                    className="shrink-0 rounded-lg bg-[#d67b27] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#b56219]"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-white text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-1.5"
                 >
-                    Select items to reorder
+                    <span>🔄</span> Reorder Same Cake
                 </button>
             </div>
         </article>
@@ -175,25 +603,26 @@ function PastOrderCard({ order, onReorder }) {
 
 function OrderPagination({ page, totalItems, onPageChange }) {
     const totalPages = Math.ceil(totalItems / ORDERS_PER_PAGE);
-
     if (totalPages <= 1) return null;
 
     return (
-        <div className="mt-6 flex items-center justify-center gap-4 sm:gap-12">
+        <div className="mt-6 flex items-center justify-center gap-3">
             <button
                 type="button"
                 onClick={() => onPageChange(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="rounded-xl bg-[#f1e4cf] px-5 py-3 text-sm font-bold text-[#6E473B] transition-colors hover:bg-[#ead6b7] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#FAF5EB] px-4 py-2 text-xs font-bold text-[#6E473B] border border-[#F3E5D0] transition-colors hover:bg-[#F5E8D3] disabled:cursor-not-allowed disabled:opacity-40"
             >
                 ← Back
             </button>
-            <span className="text-base font-black text-[#6E473B]">Page {page}</span>
+            <span className="text-xs font-black text-[#844414] px-3">
+                Page {page} of {totalPages}
+            </span>
             <button
                 type="button"
                 onClick={() => onPageChange(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="rounded-xl bg-[#ead0a4] px-5 py-3 text-sm font-bold text-[#6E473B] transition-colors hover:bg-[#e2c38c] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#C05A11] px-4 py-2 text-xs font-bold text-white shadow transition-colors hover:bg-[#A84E0E] disabled:cursor-not-allowed disabled:opacity-40"
             >
                 Next →
             </button>
@@ -205,31 +634,45 @@ export default function CustomerOrdersPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
+    const [profile, setProfile] = useState(null);
     const [unreadOrders, setUnreadOrders] = useState({});
     const [reorderOrder, setReorderOrder] = useState(null);
+    const [invoiceOrder, setInvoiceOrder] = useState(null);
+
+    // Cake 3D / Sample Photo Modal State
+    const [selectedCakeCustomization, setSelectedCakeCustomization] = useState(null);
+    const [selectedCakeOrderId, setSelectedCakeOrderId] = useState(null);
+    const [showCakeModal, setShowCakeModal] = useState(false);
+
+    const [activeTab, setActiveTab] = useState("all");
+    const [searchQuery, setSearchQuery] = useState("");
     const [activePage, setActivePage] = useState(1);
     const [pastPage, setPastPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const fetchProfile = async () => {
+        try {
+            const res = await authFetch(`${BASEURL}/api/profile/`);
+            if (res.ok) {
+                const data = await res.json();
+                setProfile(data);
+            }
+        } catch (err) {
+            console.error("Failed to load profile", err);
+        }
+    };
+
     const fetchUnreadOrders = async () => {
         try {
-            const res = await authFetch(
-                `${BASEURL}/api/chat/unread/orders/`
-            );
-
+            const res = await authFetch(`${BASEURL}/api/chat/unread/orders/`);
             if (!res.ok) return;
-
             const data = await res.json();
-
             const map = {};
-
-            data.forEach(item => {
+            data.forEach((item) => {
                 map[item.order] = item.unread;
             });
-
             setUnreadOrders(map);
-
         } catch (err) {
             console.error(err);
         }
@@ -238,7 +681,7 @@ export default function CustomerOrdersPage() {
     const fetchOrders = async () => {
         try {
             const res = await authFetch(`${BASEURL}/api/orders/customer/orders/`);
-            if (!res.ok) throw new Error("Failed to fetch orders");
+            if (!res.ok) throw new Error("Failed to fetch customer orders");
             const data = await res.json();
             setOrders(data);
         } catch (err) {
@@ -251,99 +694,361 @@ export default function CustomerOrdersPage() {
     useEffect(() => {
         fetchOrders();
         fetchUnreadOrders();
+        fetchProfile();
     }, []);
 
-    if (loading) return (
-        <div className="min-h-[60vh] flex items-center justify-center text-[#A07060] font-bold">
-            <div className="animate-pulse">Loading your orders...</div>
-        </div>
+    const customerName = profile?.user?.first_name || profile?.user?.username || "Sarah";
+
+    // Item Click Handler -> Opens 3D / Photo Customization Modal or Details Page
+    const handleItemClick = (item, orderId) => {
+        if (item?.customization) {
+            setSelectedCakeCustomization(item.customization);
+            setSelectedCakeOrderId(orderId);
+            setShowCakeModal(true);
+        } else {
+            navigate(`/orders/${orderId}`);
+        }
+    };
+
+    // Filtering & Sorting Logic
+    const filteredOrders = useMemo(() => {
+        return orders.filter((o) => {
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const matchesId = String(o.id).includes(q);
+                const matchesItem = o.items?.some((i) => i.product_name?.toLowerCase().includes(q));
+                if (!matchesId && !matchesItem) return false;
+            }
+            if (activeTab === "awaiting") {
+                return o.status === "pending_review" || o.status === "awaiting_customer_response";
+            }
+            if (activeTab === "in_oven") {
+                return o.status === "processing" || o.status === "awaiting_downpayment";
+            }
+            if (activeTab === "completed") {
+                return FINISHED_STATUSES.has(o.status);
+            }
+            return true;
+        });
+    }, [orders, searchQuery, activeTab]);
+
+    const activeOrders = useMemo(
+        () => filteredOrders.filter((order) => ACTIVE_STATUSES.has(order.status)),
+        [filteredOrders]
     );
 
-    if (error) return (
-        <div className="min-h-[60vh] flex items-center justify-center text-rose-600 font-bold p-6 text-center">
-            {error}
-        </div>
+    const pastOrders = useMemo(
+        () => filteredOrders.filter((order) => FINISHED_STATUSES.has(order.status)),
+        [filteredOrders]
     );
 
-    const sortedOrders = [...orders].sort(
-        (first, second) => new Date(second.created_at) - new Date(first.created_at)
-    );
-    const activeOrders = sortedOrders.filter((order) => ACTIVE_STATUSES.has(order.status));
-    const pastOrders = sortedOrders.filter((order) => FINISHED_STATUSES.has(order.status));
-    const activePageCount = Math.max(1, Math.ceil(activeOrders.length / ORDERS_PER_PAGE));
-    const pastPageCount = Math.max(1, Math.ceil(pastOrders.length / ORDERS_PER_PAGE));
-    const currentActivePage = Math.min(activePage, activePageCount);
-    const currentPastPage = Math.min(pastPage, pastPageCount);
+    // Metrics
+    const totalActiveCount = orders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
+    const awaitingReviewCount = orders.filter(
+        (o) => o.status === "pending_review" || o.status === "awaiting_customer_response"
+    ).length;
+    const inOvenCount = orders.filter((o) => o.status === "processing").length;
+    const pastCompletedCount = orders.filter((o) => FINISHED_STATUSES.has(o.status)).length;
+
     const visibleActiveOrders = activeOrders.slice(
-        (currentActivePage - 1) * ORDERS_PER_PAGE,
-        currentActivePage * ORDERS_PER_PAGE
+        (activePage - 1) * ORDERS_PER_PAGE,
+        activePage * ORDERS_PER_PAGE
     );
     const visiblePastOrders = pastOrders.slice(
-        (currentPastPage - 1) * ORDERS_PER_PAGE,
-        currentPastPage * ORDERS_PER_PAGE
+        (pastPage - 1) * ORDERS_PER_PAGE,
+        pastPage * ORDERS_PER_PAGE
     );
 
-    return (
-        <div className="min-h-screen p-6 md:p-10 bg-[#FCF8EE]">
-            <div className="mx-auto max-w-5xl space-y-12">
-                <section>
-                    <h1 className="text-3xl font-black text-[#6E473B]">Active orders</h1>
-                    {activeOrders.length === 0 ? (
-                        <p className="mt-5 text-lg text-stone-600">You have no active orders.</p>
-                    ) : (
-                        <div className="mt-5 grid grid-cols-1 gap-5">
-                            {visibleActiveOrders.map((order) => (
-                                <ActiveOrderCard
-                                    key={order.id}
-                                    order={order}
-                                    unreadCount={unreadOrders[order.id] || 0}
-                                    onView={(id) => navigate(`/orders/${id}`)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    <OrderPagination
-                        page={currentActivePage}
-                        totalItems={activeOrders.length}
-                        onPageChange={setActivePage}
-                    />
-                </section>
-
-                <section>
-                    <h2 className="text-3xl font-black text-[#6E473B]">Past orders</h2>
-                    {pastOrders.length === 0 ? (
-                        <p className="mt-5 text-lg text-stone-600">You have no past orders.</p>
-                    ) : (
-                        <div className="mt-5 grid grid-cols-1 gap-5">
-                            {visiblePastOrders.map((order) => (
-                                <PastOrderCard
-                                    key={order.id}
-                                    order={order}
-                                    onReorder={setReorderOrder}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    <OrderPagination
-                        page={currentPastPage}
-                        totalItems={pastOrders.length}
-                        onPageChange={setPastPage}
-                    />
-                </section>
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#FCF8EE] flex flex-col items-center justify-center p-6 text-[#C05A11]">
+                <div className="w-10 h-10 border-4 border-[#F3E5D0] border-t-[#C05A11] rounded-full animate-spin"></div>
+                <p className="mt-4 text-sm font-bold tracking-wide">Loading your custom bakery dashboard...</p>
             </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-[#FCF8EE] flex items-center justify-center p-6">
+                <div className="max-w-md w-full bg-white p-6 rounded-2xl border border-rose-200 shadow-md text-center">
+                    <p className="text-rose-600 font-bold">{error}</p>
+                    <button
+                        onClick={fetchOrders}
+                        className="mt-4 px-4 py-2 bg-[#C05A11] text-white font-bold rounded-xl text-xs"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-[#FCF8EE] antialiased text-stone-800 pb-16">
+            {/* Top Navigation & Hero Section */}
+            <div className="bg-[#FAF5EB] border-b border-[#F3E5D0] pt-8 pb-10 px-4 sm:px-8">
+                <div className="max-w-6xl mx-auto space-y-6">
+                    {/* Small Badge */}
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF8EF] border border-[#F3E5D0] text-[#844414] text-xs font-bold">
+                        <span>🧁</span> Handcrafted with Fresh Local Ingredients
+                    </div>
+
+                    {/* Greeting & Main Header Bar */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-3xl sm:text-4xl font-black text-[#6E473B] tracking-tight">
+                                Welcome back, {customerName}!
+                            </h1>
+                            <p className="mt-2 text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
+                                Track your custom tiered birthday cakes, communicate with our cake artists, and review fresh quotes in real-time.
+                            </p>
+                        </div>
+
+                        {/* Top Right Action Buttons */}
+                        <div className="flex flex-wrap items-center gap-3 shrink-0">
+                            <button
+                                onClick={() => navigate("/build")}
+                                className="px-5 py-3 rounded-2xl bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold text-xs shadow-md shadow-[#C05A11]/20 transition-all flex items-center gap-2 active:scale-95"
+                            >
+                                <span className="text-base leading-none">+</span>
+                                <span>Design New Custom Cake</span>
+                            </button>
+
+                            {/* Find Order Search Box */}
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs">🔍</span>
+                                <input
+                                    type="text"
+                                    placeholder="Find Order #"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-8 pr-3 py-2.5 bg-white border border-[#EFE3CF] rounded-xl text-xs font-semibold text-stone-700 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#C05A11]/40 w-36 sm:w-44 shadow-xs"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Summary Metrics Row (Points Card Removed per request) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        {/* Card 1: Active Orders */}
+                        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
+                                🏆
+                            </div>
+                            <div>
+                                <p className="text-xl font-black text-[#844414]">{totalActiveCount} Active Orders</p>
+                                <p className="text-xs text-stone-500 font-medium mt-0.5">Under Review & Baking</p>
+                            </div>
+                        </div>
+
+                        {/* Card 2: Upcoming Deliveries */}
+                        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
+                                🚚
+                            </div>
+                            <div>
+                                <p className="text-xl font-black text-[#844414]">
+                                    {orders.filter((o) => o.delivery_date).length} Delivery
+                                </p>
+                                <p className="text-xs text-stone-500 font-medium mt-0.5">Scheduled This Month</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Filter Tabs Bar & Main Container */}
+            <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 space-y-10">
+                {/* Tabs Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#F3E5D0] pb-4">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-none">
+                        <button
+                            onClick={() => {
+                                setActiveTab("all");
+                                setActivePage(1);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                activeTab === "all"
+                                    ? "bg-[#6E473B] text-white shadow-sm"
+                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                            }`}
+                        >
+                            All Orders ({orders.length})
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setActiveTab("awaiting");
+                                setActivePage(1);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                activeTab === "awaiting"
+                                    ? "bg-[#6E473B] text-white shadow-sm"
+                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                            }`}
+                        >
+                            Awaiting Review & Quote ({awaitingReviewCount})
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setActiveTab("in_oven");
+                                setActivePage(1);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                activeTab === "in_oven"
+                                    ? "bg-[#6E473B] text-white shadow-sm"
+                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                            }`}
+                        >
+                            In The Oven ({inOvenCount})
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setActiveTab("completed");
+                                setPastPage(1);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                activeTab === "completed"
+                                    ? "bg-[#6E473B] text-white shadow-sm"
+                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                            }`}
+                        >
+                            Past Completed ({pastCompletedCount})
+                        </button>
+                    </div>
+                </div>
+
+                {/* ACTIVE ORDERS SECTION */}
+                {activeTab !== "completed" && (
+                    <section className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                            <h2 className="text-2xl font-black text-[#6E473B] flex items-center gap-2">
+                                <span>Active Orders</span>
+                                <span className="text-xs font-bold bg-[#FFF8EF] text-[#C05A11] border border-[#F3E5D0] px-2.5 py-0.5 rounded-full">
+                                    {activeOrders.length} active
+                                </span>
+                            </h2>
+                            <p className="text-xs text-stone-500">
+                                Orders are actively monitored by Lead Pastry Chef • Live updates
+                            </p>
+                        </div>
+
+                        {activeOrders.length === 0 ? (
+                            <div className="bg-white rounded-3xl p-10 border border-[#F3E5D0] text-center space-y-4">
+                                <div className="text-4xl">🧁</div>
+                                <h3 className="text-base font-bold text-[#6E473B]">No active orders right now</h3>
+                                <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                                    Ready to bake something special? Design your custom tiered cake with our 3D builder!
+                                </p>
+                                <button
+                                    onClick={() => navigate("/build")}
+                                    className="px-5 py-2.5 rounded-xl bg-[#C05A11] text-white font-bold text-xs shadow hover:bg-[#A84E0E] transition-colors"
+                                >
+                                    Start Designing Cake
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {visibleActiveOrders.map((order) => (
+                                    <ActiveOrderCard
+                                        key={order.id}
+                                        order={order}
+                                        unreadCount={unreadOrders[order.id] || 0}
+                                        onView={(id) => navigate(`/orders/${id}`)}
+                                        onInvoice={setInvoiceOrder}
+                                        onItemClick={handleItemClick}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        <OrderPagination
+                            page={activePage}
+                            totalItems={activeOrders.length}
+                            onPageChange={setActivePage}
+                        />
+                    </section>
+                )}
+
+                {/* PAST ORDERS & RE-ORDERS SECTION */}
+                {(activeTab === "all" || activeTab === "completed") && (
+                    <section className="space-y-6 pt-6 border-t border-[#F3E5D0]">
+                        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                            <div>
+                                <h2 className="text-2xl font-black text-[#6E473B]">Past Orders & Re-Orders</h2>
+                                <p className="text-xs text-stone-500 mt-0.5">
+                                    Looking for past custom recipes? Re-order with 1-click, or download design spec certificates.
+                                </p>
+                            </div>
+                        </div>
+
+                        {pastOrders.length === 0 ? (
+                            <div className="bg-white rounded-3xl p-8 border border-stone-200 text-center text-xs text-stone-500">
+                                No delivered or past completed orders yet.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {visiblePastOrders.map((order) => (
+                                    <PastOrderCard
+                                        key={order.id}
+                                        order={order}
+                                        onReorder={setReorderOrder}
+                                        onInvoice={setInvoiceOrder}
+                                        onView={(id) => navigate(`/orders/${id}`)}
+                                        onItemClick={handleItemClick}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        <OrderPagination
+                            page={pastPage}
+                            totalItems={pastOrders.length}
+                            onPageChange={setPastPage}
+                        />
+                    </section>
+                )}
+            </main>
+
+            {/* Modals */}
             <ReorderModal
                 order={reorderOrder}
                 onClose={() => setReorderOrder(null)}
                 onReorder={(item) => {
                     setReorderOrder(null);
-                    navigate("/build", {
-                        state: {
-                            reorderCustomization: item.customization,
-                            reorderOrderId: reorderOrder.id,
-                        },
-                    });
+                    if (item?.customization) {
+                        navigate("/build", {
+                            state: {
+                                reorderCustomization: item.customization,
+                                reorderOrderId: reorderOrder.id,
+                            },
+                        });
+                    }
                 }}
             />
+
+            <InvoiceModal
+                order={invoiceOrder}
+                onClose={() => setInvoiceOrder(null)}
+            />
+
+            {/* Interactive 3D Customization & Sample Photo Modal */}
+            <CustomizationProvider>
+                <CustomCakeModal
+                    isOpen={showCakeModal}
+                    onClose={() => {
+                        setShowCakeModal(false);
+                        setSelectedCakeCustomization(null);
+                        setSelectedCakeOrderId(null);
+                    }}
+                    customization={selectedCakeCustomization}
+                    orderId={selectedCakeOrderId}
+                    canAddImages={false}
+                />
+            </CustomizationProvider>
         </div>
     );
 }

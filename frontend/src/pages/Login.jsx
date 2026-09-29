@@ -51,10 +51,10 @@ function Login() {
     return (
         <div className="min-h-[calc(100vh-5rem)] w-full bg-[#FCF8EE] flex items-start sm:items-center justify-center px-4 pt-5 pb-8 antialiased font-sans">
             <div className="w-full max-w-md bg-white border border-[#E6CCA2] rounded-2xl shadow-md p-6 sm:p-8 flex flex-col gap-6">
-                
+
                 {/* 🎂 Brand Header */}
                 <div className="text-center flex flex-col items-center gap-1.5">
-                    <span className="text-4xl filter drop-shadow-sm mb-1" role="img" aria-label="Cake">🎂</span>
+                    <span className="text-4xl filter drop-shadow-sm mb-1" role="img" aria-label="Cake"></span>
                     <h2 className="text-2xl font-black text-[#6E473B]">Welcome Back</h2>
                     <p className="text-sm text-[#A07060]">
                         Log in to manage your cart and design cakes in 3D.
@@ -67,13 +67,13 @@ function Login() {
                         <label className="text-xs font-semibold tracking-wider text-[#A05A2C] uppercase">
                             Username
                         </label>
-                        <input 
-                            name="username" 
+                        <input
+                            name="username"
                             type="text"
-                            onChange={handleChange} 
-                            value={form.username} 
-                            placeholder="Type your username" 
-                            required 
+                            onChange={handleChange}
+                            value={form.username}
+                            placeholder="Type your username"
+                            required
                             className="w-full px-4 py-2.5 text-sm rounded-xl bg-[#FFFDF9] border border-[#E6CCA2] text-[#6E473B] placeholder-[#CBB294] focus:outline-none focus:border-[#C05A11] focus:ring-1 focus:ring-[#C05A11]/30 transition-all"
                         />
                     </div>
@@ -82,19 +82,19 @@ function Login() {
                         <label className="text-xs font-semibold tracking-wider text-[#A05A2C] uppercase">
                             Password
                         </label>
-                        <input 
-                            name="password" 
-                            type="password" 
-                            onChange={handleChange} 
-                            value={form.password} 
-                            placeholder="Type your password" 
-                            required 
+                        <input
+                            name="password"
+                            type="password"
+                            onChange={handleChange}
+                            value={form.password}
+                            placeholder="Type your password"
+                            required
                             className="w-full px-4 py-2.5 text-sm rounded-xl bg-[#FFFDF9] border border-[#E6CCA2] text-[#6E473B] placeholder-[#CBB294] focus:outline-none focus:border-[#C05A11] focus:ring-1 focus:ring-[#C05A11]/30 transition-all"
                         />
                     </div>
 
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         disabled={isLoading}
                         className="w-full mt-2 py-3 bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold rounded-xl shadow-md shadow-[#C05A11]/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer text-sm text-center"
                     >
@@ -104,11 +104,10 @@ function Login() {
 
                 {/* 🚨 Alert Message Popup box */}
                 {msg && (
-                    <div className={`p-3.5 rounded-xl border text-xs font-medium text-center shadow-inner animate-fadeIn ${
-                        msg.startsWith('✅') 
-                            ? 'bg-[#2E7D32]/10 border-[#2E7D32]/20 text-[#2E7D32]' 
+                    <div className={`p-3.5 rounded-xl border text-xs font-medium text-center shadow-inner animate-fadeIn ${msg.startsWith('✅')
+                            ? 'bg-[#2E7D32]/10 border-[#2E7D32]/20 text-[#2E7D32]'
                             : 'bg-red-50 border-red-100 text-red-600'
-                    }`}>
+                        }`}>
                         {msg}
                     </div>
                 )}
