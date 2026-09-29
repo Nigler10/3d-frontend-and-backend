@@ -6,6 +6,7 @@ import { getOrderStatusLabel } from "../../utils/orderStatus";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { CustomizationProvider } from "../../contexts/Customization";
 
+
 const ACTIVE_STATUSES = new Set([
     "pending_review",
     "awaiting_customer_response",
@@ -83,24 +84,22 @@ function OrderProgressStepper({ status }) {
                     return (
                         <div key={s.stepNum} className="relative z-10 flex flex-col items-center">
                             <div
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
-                                    isCompleted
-                                        ? "bg-[#C05A11] text-white shadow-md"
-                                        : isActive
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${isCompleted
+                                    ? "bg-[#C05A11] text-white shadow-md"
+                                    : isActive
                                         ? "bg-[#D97706] text-white ring-4 ring-[#FEF3C7] shadow-lg scale-110"
                                         : "bg-white text-stone-400 border-2 border-[#EFE3CF]"
-                                }`}
+                                    }`}
                             >
                                 {isCompleted ? "✓" : s.stepNum}
                             </div>
                             <span
-                                className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${
-                                    isActive
-                                        ? "text-[#844414] font-black"
-                                        : isCompleted
+                                className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${isActive
+                                    ? "text-[#844414] font-black"
+                                    : isCompleted
                                         ? "text-[#C05A11]"
                                         : "text-stone-400"
-                                }`}
+                                    }`}
                             >
                                 {s.label}
                             </span>
@@ -138,10 +137,10 @@ function OrderItemsList({ items = [], orderId, onItemClick }) {
                                 {cust.shape === "Round" || cust.shape === "round"
                                     ? "🎂"
                                     : cust.shape === "Heart" || cust.shape === "heart"
-                                    ? "💖"
-                                    : isCustom
-                                    ? "🧁"
-                                    : "🍰"}
+                                        ? "💖"
+                                        : isCustom
+                                            ? "🧁"
+                                            : "🍰"}
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -691,11 +690,35 @@ export default function CustomerOrdersPage() {
         }
     };
 
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
     useEffect(() => {
         fetchOrders();
         fetchUnreadOrders();
         fetchProfile();
     }, []);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollPosition = window.scrollY || document.documentElement.scrollTop;
+            const totalScrollable = document.documentElement.scrollHeight - window.innerHeight;
+            if (totalScrollable > 0 && scrollPosition >= totalScrollable * 0.3) {
+                setShowScrollTop(true);
+            } else {
+                setShowScrollTop(false);
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    };
 
     const customerName = profile?.user?.first_name || profile?.user?.username || "Sarah";
 
@@ -788,10 +811,10 @@ export default function CustomerOrdersPage() {
         <div className="min-h-screen bg-[#FCF8EE] antialiased text-stone-800 pb-16">
             {/* Top Navigation & Hero Section */}
             <div className="bg-[#FAF5EB] border-b border-[#F3E5D0] pt-8 pb-10 px-4 sm:px-8">
-                <div className="max-w-6xl mx-auto space-y-6">
+                <div className="animate__animated animate__zoomIn max-w-6xl mx-auto space-y-6 ">
                     {/* Small Badge */}
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF8EF] border border-[#F3E5D0] text-[#844414] text-xs font-bold">
-                        <span>🧁</span> Handcrafted with Fresh Local Ingredients
+                        Handcrafted with Fresh Local Ingredients
                     </div>
 
                     {/* Greeting & Main Header Bar */}
@@ -868,11 +891,10 @@ export default function CustomerOrdersPage() {
                                 setActiveTab("all");
                                 setActivePage(1);
                             }}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                activeTab === "all"
-                                    ? "bg-[#6E473B] text-white shadow-sm"
-                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === "all"
+                                ? "bg-[#6E473B] text-white shadow-sm"
+                                : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                                }`}
                         >
                             All Orders ({orders.length})
                         </button>
@@ -882,11 +904,10 @@ export default function CustomerOrdersPage() {
                                 setActiveTab("awaiting");
                                 setActivePage(1);
                             }}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                activeTab === "awaiting"
-                                    ? "bg-[#6E473B] text-white shadow-sm"
-                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === "awaiting"
+                                ? "bg-[#6E473B] text-white shadow-sm"
+                                : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                                }`}
                         >
                             Awaiting Review & Quote ({awaitingReviewCount})
                         </button>
@@ -896,11 +917,10 @@ export default function CustomerOrdersPage() {
                                 setActiveTab("in_oven");
                                 setActivePage(1);
                             }}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                activeTab === "in_oven"
-                                    ? "bg-[#6E473B] text-white shadow-sm"
-                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === "in_oven"
+                                ? "bg-[#6E473B] text-white shadow-sm"
+                                : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                                }`}
                         >
                             In The Oven ({inOvenCount})
                         </button>
@@ -910,11 +930,10 @@ export default function CustomerOrdersPage() {
                                 setActiveTab("completed");
                                 setPastPage(1);
                             }}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                activeTab === "completed"
-                                    ? "bg-[#6E473B] text-white shadow-sm"
-                                    : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === "completed"
+                                ? "bg-[#6E473B] text-white shadow-sm"
+                                : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                                }`}
                         >
                             Past Completed ({pastCompletedCount})
                         </button>
@@ -1049,6 +1068,27 @@ export default function CustomerOrdersPage() {
                     canAddImages={false}
                 />
             </CustomizationProvider>
+
+            {/* Scroll To Top Button (Appears when scroll > 30% of webpage height) */}
+            {showScrollTop && (
+                <button
+                    onClick={scrollToTop}
+                    aria-label="Scroll to top of page"
+                    title="Scroll to Top"
+                    className="fixed bottom-8 right-8 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-[#844414] text-white shadow-xl hover:bg-[#6E473B] hover:scale-110 active:scale-95 transition-all duration-300 border border-[#F3E5D0] animate__animated animate__fadeInUp cursor-pointer group"
+                >
+                    <svg
+                        className="w-5 h-5 transition-transform duration-300 group-hover:-translate-y-1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                    </svg>
+                    <span className="text-xs font-bold tracking-wide hidden sm:inline">Top</span>
+                </button>
+            )}
         </div>
     );
 }
