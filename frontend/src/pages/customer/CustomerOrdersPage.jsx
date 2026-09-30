@@ -811,7 +811,7 @@ export default function CustomerOrdersPage() {
         <div className="min-h-screen bg-[#FCF8EE] antialiased text-stone-800 pb-16">
             {/* Top Navigation & Hero Section */}
             <div className="bg-[#FAF5EB] border-b border-[#F3E5D0] pt-8 pb-10 px-4 sm:px-8">
-                <div className="animate__animated animate__zoomIn max-w-6xl mx-auto space-y-6 ">
+                <div className="max-w-6xl mx-auto space-y-6 ">
                     {/* Small Badge */}
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF8EF] border border-[#F3E5D0] text-[#844414] text-xs font-bold">
                         Handcrafted with Fresh Local Ingredients
@@ -855,7 +855,7 @@ export default function CustomerOrdersPage() {
                     {/* Summary Metrics Row (Points Card Removed per request) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                         {/* Card 1: Active Orders */}
-                        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
+                        <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
                                 🏆
                             </div>
@@ -866,7 +866,7 @@ export default function CustomerOrdersPage() {
                         </div>
 
                         {/* Card 2: Upcoming Deliveries */}
-                        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
+                        <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
                                 🚚
                             </div>
