@@ -1,16 +1,35 @@
 // src/pages/LandingPage.jsx | DO NOT REMOVE THIS
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import Navbar from '../components/Navbar';
+import { getAccessToken } from '../utils/auth';
+import { jwtDecode } from 'jwt-decode';
 
 const LandingPage = () => {
     const navigate = useNavigate();
 
+    const token = getAccessToken();
+    let isAdmin = false;
+    if (token) {
+        try {
+            const decoded = jwtDecode(token);
+            isAdmin = !!decoded?.is_staff;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
     useEffect(() => {
-        AOS.init({ duration: 1000, once: true, offset: 100 });
-    }, []);
+        if (!isAdmin) {
+            AOS.init({ duration: 1000, once: true, offset: 100 });
+        }
+    }, [isAdmin]);
+
+    if (isAdmin) {
+        return <Navigate to="/admin" replace />;
+    }
 
     const cakeItems = [
         { id: 1, name: "Ube Macapuno", price: "₱350", img: "https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=400" },

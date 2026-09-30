@@ -159,7 +159,7 @@ function Navbar() {
 
                     {/* Center Logo Branding */}
                     <div className="absolute left-1/2 transform -translate-x-1/2 flex justify-center items-center pointer-events-auto">
-                        <Link to="/" className="block">
+                        <Link to={isAdmin ? "/admin" : "/"} className="block">
                             <img src={logoImg} alt="Smiley Page Corner" className="h-14 w-14 sm:h-16 sm:w-16 object-contain drop-shadow-sm hover:scale-105 transition-transform duration-200" />
                         </Link>
                     </div>

@@ -1,6 +1,7 @@
 // src/pages.Login.jsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import { saveTokens } from "../utils/auth";
 import { useCart } from "../context/CartContext";
 
@@ -36,7 +37,18 @@ function Login() {
                 saveTokens(data);
                 await fetchCart();
                 setMsg("✅ Login Successful! Redirecting...");
-                setTimeout(() => nav("/"), 1200);
+
+                let redirectPath = "/";
+                try {
+                    const decoded = jwtDecode(data.access);
+                    if (decoded?.is_staff) {
+                        redirectPath = "/admin";
+                    }
+                } catch (err) {
+                    console.error("Token decode error:", err);
+                }
+
+                setTimeout(() => nav(redirectPath), 1200);
             } else {
                 setMsg(data.detail || "❌ Login Failed. Invalid credentials.");
             }

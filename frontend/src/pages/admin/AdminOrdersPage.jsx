@@ -12,13 +12,14 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Inspiration Toolbar Controls State
+  // Control Toolbar State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("id_desc");
-  const [viewMode, setViewMode] = useState("table");
+  const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
+  const [onlyUnread, setOnlyUnread] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,11 +57,29 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     fetchOrders();
     fetchUnreadOrders();
+
+    // Auto sync every 30 seconds
+    const interval = setInterval(() => {
+      fetchOrders();
+      fetchUnreadOrders();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  // Total Unread Count across all orders
+  const totalUnreadCount = useMemo(() => {
+    return Object.values(unreadOrders).reduce((acc, count) => acc + (count || 0), 0);
+  }, [unreadOrders]);
 
   // Filter & Sort Logic
   const filteredOrders = useMemo(() => {
     let list = [...orders];
+
+    // Filter by unread button toggle
+    if (onlyUnread) {
+      list = list.filter((o) => (unreadOrders[o.id] || 0) > 0);
+    }
 
     // Search filter
     if (searchQuery.trim()) {
@@ -91,10 +110,10 @@ export default function AdminOrdersPage() {
     });
 
     return list;
-  }, [orders, searchQuery, statusFilter, sortBy]);
+  }, [orders, searchQuery, statusFilter, sortBy, onlyUnread, unreadOrders]);
 
   // Pagination Slice
-  const totalPages = Math.ceil(filteredOrders.length / perPage) || 1;
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / perPage));
   const paginatedOrders = useMemo(() => {
     const start = (currentPage - 1) * perPage;
     return filteredOrders.slice(start, start + perPage);
@@ -141,60 +160,101 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const getStatusClass = (status) => {
+  const getStatusBadgeStyle = (status) => {
     switch (status) {
       case "pending_review":
-        return "bg-[#FFF7EA] text-[#C05A11] border-[#ECD9B4]";
-      case "awaiting_customer_response":
-        return "bg-sky-50 text-sky-800 border-sky-200";
+        return "bg-[#FFFBEB] text-[#D97706] border-[#FCD34D]";
       case "awaiting_downpayment":
-        return "bg-orange-50 text-orange-800 border-orange-200";
+        return "bg-[#FFF7ED] text-[#AD4313] border-[#F5D5C8]";
       case "processing":
-        return "bg-amber-50 text-amber-800 border-amber-200";
+        return "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]";
       case "ready_for_delivery":
-        return "bg-emerald-50 text-emerald-800 border-emerald-200";
       case "delivered":
       case "completed":
-        return "bg-[#E6F4EA] text-[#137333] border-[#A7F3D0]";
+        return "bg-[#EDFDF3] text-[#16A34A] border-[#BBF7D0]";
       case "rejected":
       case "cancelled":
-        return "bg-rose-50 text-rose-800 border-rose-200";
+        return "bg-[#FEE2E2] text-[#991B1B] border-[#FCA5A5]";
       default:
-        return "bg-[#FDF6E2] text-[#6E473B] border-[#E6CCA2]";
+        return "bg-[#FDF6E2] text-[#5C3D2E] border-[#E6DBCB]";
     }
   };
 
+  const getPaymentBadgeStyle = (status) => {
+    const st = (status || "").toLowerCase();
+    if (st === "paid") {
+      return "bg-[#EDFDF3] text-[#16A34A] border-[#BBF7D0]";
+    }
+    if (st === "partial" || st === "downpayment_paid") {
+      return "bg-[#FFF7ED] text-[#D97706] border-[#FDE68A]";
+    }
+    if (st === "cancelled" || st === "failed") {
+      return "bg-stone-100 text-stone-400 border-stone-200";
+    }
+    return "bg-stone-100 text-stone-500 border-stone-200";
+  };
+
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FCF8EE] text-[#6E473B]">
-      <div className="w-12 h-12 border-4 border-[#C05A11] border-t-transparent rounded-full animate-spin mb-4" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FCF8EE] text-[#3D251E]">
+      <div className="w-12 h-12 border-4 border-[#AD4313] border-t-transparent rounded-full animate-spin mb-4" />
       <p className="font-extrabold text-lg animate-pulse tracking-wide">Loading order vault...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#FCF8EE] pb-16 text-[#6E473B]">
+    <div className="min-h-screen bg-[#FCF8EE] pb-16 text-[#3D251E] font-sans antialiased">
       <div className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-6">
 
-        {/* ── Page Header ── */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* ── Header Row ── */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black text-[#6E473B] tracking-tight">Customer Orders</h1>
-            <p className="text-[#A07060] font-medium text-sm mt-0.5">Manage incoming custom requests, status updates, and customer chats.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-3xl font-black text-[#3D251E] tracking-tight">Customer Orders</h1>
+              <span className="px-3 py-0.5 rounded-full bg-[#FDF0EB] text-[#AD4313] border border-[#F5D5C8] text-xs font-bold">
+                Live Orders
+              </span>
+            </div>
+            <p className="text-[#8C6D58] font-medium text-sm mt-1">
+              Manage incoming custom requests, status updates, and customer chats.
+            </p>
+          </div>
+
+          {/* Unread Chats Button */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyUnread(!onlyUnread);
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs ${onlyUnread
+                  ? "bg-[#AD4313] text-white border-[#AD4313]"
+                  : "bg-white hover:bg-[#FCF8EE] border-[#E6DBCB] text-[#3D251E]"
+                }`}
+            >
+              <span>💬 Unread Chats</span>
+              {totalUnreadCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-[#AD4313] text-white text-[10px] font-black flex items-center justify-center leading-none border border-white">
+                  {totalUnreadCount}
+                </span>
+              )}
+            </button>
           </div>
         </header>
 
-        {/* ── Inspiration Control Toolbar ── */}
-        <div className="bg-[#FFFDF9] border border-[#E6CCA2] rounded-2xl p-3.5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Left Controls: View, Filter, Sort, Search */}
-          <div className="flex flex-wrap items-center gap-2.5 text-xs font-bold">
-            {/* View Switcher Dropdown */}
+        {/* ── Inspiration Control Toolbar (Responsive) ── */}
+        <div className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Left Controls */}
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+            {/* View Mode Button */}
             <button
               type="button"
               onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
-              className="flex items-center gap-2 px-3.5 py-2 bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] rounded-xl text-[#6E473B] transition-all cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
             >
-              <span>{viewMode === "table" ? "⊞ Table View" : "☷ Grid View"}</span>
-              <span className="text-[10px] text-[#A07060]">▾</span>
+              <span className="text-sm">田</span>
+              <span>{viewMode === "table" ? "Table View" : "Grid View"}</span>
+              <span className="text-[10px] text-[#8C6D58]">▾</span>
             </button>
 
             {/* Filter Dropdown */}
@@ -202,21 +262,21 @@ export default function AdminOrdersPage() {
               <button
                 type="button"
                 onClick={() => { setIsFilterOpen(!isFilterOpen); setIsSortOpen(false); }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all cursor-pointer ${statusFilter !== "all"
-                    ? "bg-[#C05A11] text-white border-[#C05A11]"
-                    : "bg-[#FDF6E2] hover:bg-[#F8EDD4] border-[#ECD9B4] text-[#6E473B]"
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all cursor-pointer font-medium ${statusFilter !== "all"
+                    ? "bg-[#AD4313] text-white border-[#AD4313]"
+                    : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border-[#E6DBCB] text-[#5C3D2E]"
                   }`}
               >
                 <span>⚡ Filter</span>
                 {statusFilter !== "all" && (
-                  <span className="bg-white text-[#C05A11] rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-black">1</span>
+                  <span className="bg-white text-[#AD4313] rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-black">1</span>
                 )}
                 <span className="text-[10px]">▾</span>
               </button>
 
               {isFilterOpen && (
-                <div className="absolute left-0 mt-2 w-56 bg-white border border-[#E6CCA2] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
-                  <div className="text-[10px] font-black uppercase text-[#A07060] px-2 py-1">Filter by Status</div>
+                <div className="absolute left-0 mt-2 w-56 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
+                  <div className="text-[10px] font-black uppercase text-[#8C6D58] px-2 py-1">Filter by Status</div>
                   {[
                     { id: "all", label: "All Statuses" },
                     { id: "pending_review", label: "Pending Review" },
@@ -229,7 +289,7 @@ export default function AdminOrdersPage() {
                     <button
                       key={opt.id}
                       type="button"
-                      className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${statusFilter === opt.id ? "bg-[#FDF6E2] text-[#C05A11] font-bold" : "hover:bg-[#FCF8EE] text-[#6E473B]"}`}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${statusFilter === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
                       onClick={() => { setStatusFilter(opt.id); setIsFilterOpen(false); setCurrentPage(1); }}
                     >
                       {opt.label}
@@ -244,15 +304,15 @@ export default function AdminOrdersPage() {
               <button
                 type="button"
                 onClick={() => { setIsSortOpen(!isSortOpen); setIsFilterOpen(false); }}
-                className="flex items-center gap-2 px-3.5 py-2 bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] rounded-xl text-[#6E473B] transition-all cursor-pointer"
+                className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
               >
                 <span>⇅ Sort</span>
-                <span className="text-[10px] text-[#A07060]">▾</span>
+                <span className="text-[10px] text-[#8C6D58]">▾</span>
               </button>
 
               {isSortOpen && (
-                <div className="absolute left-0 mt-2 w-48 bg-white border border-[#E6CCA2] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
-                  <div className="text-[10px] font-black uppercase text-[#A07060] px-2 py-1">Sort Orders</div>
+                <div className="absolute left-0 mt-2 w-48 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
+                  <div className="text-[10px] font-black uppercase text-[#8C6D58] px-2 py-1">Sort Orders</div>
                   {[
                     { id: "id_desc", label: "Order ID (Newest)" },
                     { id: "id_asc", label: "Order ID (Oldest)" },
@@ -263,7 +323,7 @@ export default function AdminOrdersPage() {
                     <button
                       key={opt.id}
                       type="button"
-                      className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === opt.id ? "bg-[#FDF6E2] text-[#C05A11] font-bold" : "hover:bg-[#FCF8EE] text-[#6E473B]"}`}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
                       onClick={() => { setSortBy(opt.id); setIsSortOpen(false); }}
                     >
                       {opt.label}
@@ -273,21 +333,21 @@ export default function AdminOrdersPage() {
               )}
             </div>
 
-            {/* Search Input */}
-            <div className="relative min-w-[180px] sm:min-w-[220px]">
+            {/* Search Input Box */}
+            <div className="relative min-w-[200px] sm:min-w-[260px] flex-1 sm:flex-initial">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 placeholder="Search name, phone, email, #ID..."
-                className="w-full pl-8 pr-3 py-1.5 bg-[#FDF6E2] border border-[#ECD9B4] rounded-xl text-xs font-medium text-[#6E473B] placeholder-[#A07060] focus:outline-none focus:border-[#C05A11]"
+                className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
               />
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A07060] text-xs">🔍</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A07060] hover:text-[#6E473B] text-xs"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] text-xs"
                 >
                   ✕
                 </button>
@@ -296,16 +356,17 @@ export default function AdminOrdersPage() {
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2 text-xs font-bold">
+          <div className="flex items-center gap-2 text-xs font-semibold justify-end">
             <button
               type="button"
               onClick={() => {
                 setStatusFilter("all");
                 setSearchQuery("");
                 setSortBy("id_desc");
+                setOnlyUnread(false);
                 setCurrentPage(1);
               }}
-              className="px-3.5 py-2 bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] rounded-xl text-[#6E473B] transition-all cursor-pointer"
+              className="px-4 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer"
             >
               Reset
             </button>
@@ -313,102 +374,120 @@ export default function AdminOrdersPage() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="px-3.5 py-2 bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] rounded-xl text-[#6E473B] transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <span>📥 Export CSV</span>
+              <span>⤓</span> Export CSV
             </button>
           </div>
         </div>
 
-        {/* ── Table & Queue Section ── */}
-        <div className="bg-white rounded-2xl border border-[#E6CCA2] shadow-sm p-6 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E6CCA2]/30">
+        {/* ── Main Orders Card Container ── */}
+        <div className="bg-white rounded-2xl border border-[#E6DBCB] shadow-xs p-4 sm:p-6 flex flex-col gap-5">
+
+          {/* Section Sub-header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E6DBCB]/30">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-[#6E473B]">All Customer Orders</h2>
-              <span className="px-2.5 py-0.5 bg-[#FDF6E2] text-[#C05A11] border border-[#ECD9B4] text-xs font-black rounded-full">
+              <h2 className="text-lg font-black text-[#3D251E]">All Customer Orders</h2>
+              <span className="px-2.5 py-0.5 bg-[#FDF0EB] text-[#AD4313] rounded-full text-xs font-bold">
                 {filteredOrders.length}
               </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-[#8C6D58] font-medium">
+              <span>Auto-syncing every 30s</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
           </div>
 
           {filteredOrders.length === 0 ? (
-            <div className="p-12 text-center text-[#A07060]">
+            <div className="p-12 text-center text-[#8C6D58]">
               <span className="text-4xl block mb-3">📦</span>
-              <h3 className="font-black text-[#6E473B] text-lg">No orders found</h3>
-              <p className="text-xs mt-1">Try clearing filters or searching for another term.</p>
+              <h3 className="font-bold text-[#3D251E] text-lg">No orders found</h3>
+              <p className="text-xs mt-1">Try resetting search filters or unread toggle.</p>
             </div>
           ) : viewMode === "table" ? (
-            <div className="overflow-x-auto rounded-xl border border-[#E6CCA2]/60">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-[#FCF8EE] text-[#A07060] uppercase text-[11px] font-black tracking-wider border-b border-[#E6CCA2]">
+            /* Desktop / Scrollable Table View */
+            <div className="overflow-x-auto rounded-xl border border-[#E6DBCB]/60">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead className="bg-[#FFFDF9] text-[#8C6D58] uppercase text-[11px] font-bold tracking-wider border-b border-[#E6DBCB]">
                   <tr>
-                    <th className="p-3.5">Order ID</th>
-                    <th className="p-3.5">Customer</th>
-                    <th className="p-3.5">Contact &amp; Address</th>
-                    <th className="p-3.5">Total Amount</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5">Payment</th>
-                    <th className="p-3.5 text-right">Action</th>
+                    <th className="p-3.5">ORDER ID</th>
+                    <th className="p-3.5">CUSTOMER</th>
+                    <th className="p-3.5">CONTACT &amp; ADDRESS</th>
+                    <th className="p-3.5">TOTAL AMOUNT</th>
+                    <th className="p-3.5 text-center">STATUS</th>
+                    <th className="p-3.5 text-center">PAYMENT</th>
+                    <th className="p-3.5 text-right">ACTION</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E6CCA2]/20 text-xs font-semibold text-[#6E473B]">
+                <tbody className="divide-y divide-[#E6DBCB]/40 text-xs font-semibold text-[#3D251E]">
                   {paginatedOrders.map((order) => {
+                    const hasUnread = (unreadOrders[order.id] || 0) > 0;
                     return (
                       <tr
                         key={order.id}
                         onClick={() => navigate(`/admin/orders/${order.id}`)}
                         className="transition-colors cursor-pointer hover:bg-[#FCF8EE]/70"
                       >
-                        <td className="p-3.5 font-black text-[#6E473B]">
+                        {/* ORDER ID */}
+                        <td className="p-3.5 font-bold text-[#3D251E]">
                           <div className="flex items-center gap-2">
                             <span>#{order.id}</span>
-                            {unreadOrders[order.id] > 0 && (
-                              <span className="px-2 py-0.5 rounded-full bg-[#C05A11] text-white text-[10px] font-black whitespace-nowrap">
+                            {hasUnread && (
+                              <span className="px-2 py-0.5 rounded-full bg-[#AD4313] text-white text-[10px] font-bold whitespace-nowrap">
                                 {unreadOrders[order.id]} unread
                               </span>
                             )}
                           </div>
                         </td>
 
-                        <td className="p-3.5 text-sm font-bold text-[#6E473B]">
-                          {order.user_name}
+                        {/* CUSTOMER */}
+                        <td className="p-3.5 font-bold text-[#3D251E] text-sm">
+                          {order.user_name || "—"}
                         </td>
 
-                        <td className="p-3.5 text-xs text-[#A07060]">
-                          <div className="font-medium text-[#6E473B]">
+                        {/* CONTACT & ADDRESS */}
+                        <td className="p-3.5">
+                          <div className="font-bold text-[#3D251E]">
                             {order.formatted_phone || order.phone || "—"}
                           </div>
-                          <div className="text-[11px] truncate max-w-[200px]">
+                          <div className="text-[11px] text-[#8C6D58] font-normal truncate max-w-[240px]">
                             {order.full_address || `${order.street || ''} ${order.city || ''}` || "—"}
                           </div>
                         </td>
 
-                        <td className="p-3.5 font-black text-[#6E473B] text-sm">
+                        {/* TOTAL AMOUNT */}
+                        <td className="p-3.5 font-black text-[#3D251E] text-sm whitespace-nowrap">
                           ₱{Number(order.total_amount || 0).toLocaleString()}
                         </td>
 
-                        <td className="p-3.5">
+                        {/* STATUS */}
+                        <td className="p-3.5 text-center">
                           <span
-                            className={`inline-flex items-center whitespace-nowrap px-2.5 py-1 text-[10px] font-black rounded-full border uppercase ${getStatusClass(order.status)}`}
+                            className={`inline-block whitespace-nowrap px-3 py-1 text-[10px] font-bold rounded-full border uppercase ${getStatusBadgeStyle(order.status)}`}
                           >
                             {getOrderStatusLabel(order.status, true)}
                           </span>
                         </td>
 
-                        <td className="p-3.5">
-                          <span className="px-2.5 py-1 text-[10px] font-black rounded-full border bg-gray-50 text-gray-700 border-gray-200 uppercase">
-                            {order.payment_status}
+                        {/* PAYMENT */}
+                        <td className="p-3.5 text-center">
+                          <span
+                            className={`inline-block whitespace-nowrap px-3 py-1 text-[10px] font-bold rounded-full border uppercase ${getPaymentBadgeStyle(order.payment_status)}`}
+                          >
+                            {(order.payment_status || "PENDING").replace(/_/g, " ")}
                           </span>
                         </td>
 
-                        <td className="p-3.5 text-right">
+                        {/* ACTION */}
+                        <td className="p-3.5 text-right whitespace-nowrap">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(`/admin/orders/${order.id}`);
                             }}
-                            className="px-3.5 py-1.5 bg-[#C05A11] hover:bg-[#A04A0E] text-white text-xs font-bold rounded-lg transition-colors"
+                            className="px-4 py-2 bg-[#AD4313] hover:bg-[#8F350E] text-white text-xs font-bold rounded-xl transition-all shadow-2xs"
                           >
                             View Details
                           </button>
@@ -420,58 +499,71 @@ export default function AdminOrdersPage() {
               </table>
             </div>
           ) : (
-            /* Grid Cards View */
+            /* Responsive Grid Cards View */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {paginatedOrders.map((order) => (
-                <div
-                  key={order.id}
-                  onClick={() => navigate(`/admin/orders/${order.id}`)}
-                  className="p-5 bg-[#FFFDF9] hover:bg-[#FCF8EE] border border-[#E6CCA2] rounded-2xl cursor-pointer transition-all shadow-2xs hover:shadow-md flex flex-col justify-between gap-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] font-black tracking-wider text-[#A07060] uppercase">
-                        Order #{order.id}
+              {paginatedOrders.map((order) => {
+                const hasUnread = (unreadOrders[order.id] || 0) > 0;
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => navigate(`/admin/orders/${order.id}`)}
+                    className="p-5 bg-white border border-[#E6DBCB] rounded-2xl cursor-pointer transition-all shadow-2xs hover:shadow-md flex flex-col justify-between gap-4"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black tracking-wider text-[#8C6D58] uppercase">
+                            ORDER #{order.id}
+                          </span>
+                          {hasUnread && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#AD4313] text-white text-[9px] font-bold">
+                              {unreadOrders[order.id]} unread
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-bold text-[#3D251E] text-base mt-0.5">{order.user_name}</h3>
+                      </div>
+
+                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border uppercase ${getStatusBadgeStyle(order.status)}`}>
+                        {getOrderStatusLabel(order.status, true)}
                       </span>
-                      <h3 className="font-bold text-[#6E473B] text-base">{order.user_name}</h3>
                     </div>
 
-                    <span className={`px-2.5 py-0.5 text-[10px] font-black rounded-full border uppercase ${getStatusClass(order.status)}`}>
-                      {getOrderStatusLabel(order.status, true)}
-                    </span>
-                  </div>
+                    <div className="text-xs text-[#8C6D58] space-y-1">
+                      <p className="font-semibold text-[#3D251E]">📞 {order.formatted_phone || order.phone || "—"}</p>
+                      <p className="truncate">📍 {order.full_address || "—"}</p>
+                    </div>
 
-                  <div className="text-xs text-[#A07060] space-y-1">
-                    <p>📞 {order.formatted_phone || order.phone || "—"}</p>
-                    <p className="truncate">📍 {order.full_address || "—"}</p>
-                  </div>
+                    <div className="pt-3 border-t border-[#E6DBCB]/40 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs text-[#8C6D58] block">Total Amount</span>
+                        <span className="text-base font-black text-[#3D251E]">
+                          ₱{Number(order.total_amount || 0).toLocaleString()}
+                        </span>
+                      </div>
 
-                  <div className="pt-3 border-t border-[#E6CCA2]/30 flex items-center justify-between">
-                    <span className="text-base font-black text-[#6E473B]">
-                      ₱{Number(order.total_amount || 0).toLocaleString()}
-                    </span>
-
-                    <button
-                      type="button"
-                      className="px-3 py-1 bg-[#C05A11] text-white font-bold text-xs rounded-lg hover:bg-[#A04A0E]"
-                    >
-                      View →
-                    </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-[#AD4313] hover:bg-[#8F350E] text-white font-bold text-xs rounded-xl shadow-2xs"
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* ── Bottom Pagination Bar ── */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E6CCA2]/40 text-xs font-bold text-[#6E473B]">
+          {/* ── Bottom Responsive Pagination Bar ── */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E6DBCB]/40 text-xs font-medium text-[#8C6D58]">
             {/* Per Page Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-[#A07060]">Showing per page:</span>
+              <span>Showing per page:</span>
               <select
                 value={perPage}
                 onChange={(e) => { setPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                className="bg-[#FDF6E2] border border-[#ECD9B4] rounded-lg px-2.5 py-1 font-bold text-xs text-[#6E473B] cursor-pointer focus:outline-none"
+                className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg px-2.5 py-1 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -480,18 +572,19 @@ export default function AdminOrdersPage() {
               </select>
             </div>
 
-            {/* Page Numbers */}
+            {/* Page Pill Controls */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={currentPage <= 1}
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] text-[#6E473B] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                aria-label="Previous Page"
               >
                 ‹
               </button>
 
-              <div className="px-3.5 py-1 bg-[#C05A11] text-white rounded-lg font-black text-xs">
+              <div className="px-4 py-1 bg-[#AD4313] text-white rounded-full font-bold text-xs shadow-2xs">
                 Page {currentPage} of {totalPages}
               </div>
 
@@ -499,7 +592,8 @@ export default function AdminOrdersPage() {
                 type="button"
                 disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] text-[#6E473B] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                aria-label="Next Page"
               >
                 ›
               </button>
@@ -507,7 +601,7 @@ export default function AdminOrdersPage() {
 
             {/* Jump to Page */}
             <form onSubmit={handleJumpPage} className="flex items-center gap-2">
-              <span className="text-[#A07060]">Go to page:</span>
+              <span>Go to page:</span>
               <input
                 type="number"
                 min="1"
@@ -515,16 +609,17 @@ export default function AdminOrdersPage() {
                 value={jumpPageInput}
                 onChange={(e) => setJumpPageInput(e.target.value)}
                 placeholder="#"
-                className="w-12 px-2 py-1 bg-[#FDF6E2] border border-[#ECD9B4] rounded-lg text-xs font-bold text-[#6E473B] text-center focus:outline-none focus:border-[#C05A11]"
+                className="w-12 px-2 py-1 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
               />
               <button
                 type="submit"
-                className="px-3 py-1 bg-[#FDF6E2] hover:bg-[#F8EDD4] border border-[#ECD9B4] rounded-lg text-xs font-bold text-[#6E473B] cursor-pointer"
+                className="px-3 py-1 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer"
               >
                 Go ›
               </button>
             </form>
           </div>
+
         </div>
 
       </div>

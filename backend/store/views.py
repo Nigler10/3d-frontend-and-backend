@@ -8,7 +8,7 @@ from .token_serializers import MyTokenObtainPairSerializer
 from django.db import transaction
 from django.core.files.storage import default_storage
 from django.utils import timezone
-from .models import (AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile, calculate_custom_cake_price, UploadedCakeRequest,)
+from .models import (AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile, calculate_custom_cake_price, UploadedCakeRequest, DEFAULT_CUSTOM_CAKE_PRICES, DEFAULT_ADDON_PRICES,)
 from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer
 from .serializers import (AddonPricingSerializer, CakeCustomizationSerializer, CustomCakePricingSerializer, RegisterSerializer, UserProfileSerializer, UserSerializer, UploadedCakeRequestSerializer,)
 from .models_verification import SMSVerification
@@ -42,6 +42,32 @@ def get_categories(request):
 
 @api_view(['GET'])
 def get_custom_pricing(request):
+    if not CustomCakePricing.objects.exists():
+        for tier_name, tier_info in DEFAULT_CUSTOM_CAKE_PRICES.items():
+            for size_name in tier_info["sizes"]:
+                for flavor_name, price_val in tier_info["prices"].items():
+                    CustomCakePricing.objects.get_or_create(
+                        tier=tier_name,
+                        size=size_name,
+                        flavor=flavor_name,
+                        defaults={"price": price_val}
+                    )
+
+    if not AddonPricing.objects.exists():
+        addon_names = {
+            "candle": "Candle",
+            "chocolate": "Chocolate",
+            "balls": "Balls",
+            "nuts": "Nuts",
+            "cherry": "Cherry",
+            "sprinkles": "Sprinkles",
+        }
+        for key, price_val in DEFAULT_ADDON_PRICES.items():
+            AddonPricing.objects.get_or_create(
+                key=key,
+                defaults={"name": addon_names.get(key, key.capitalize()), "price": price_val}
+            )
+
     base_prices = CustomCakePricing.objects.all().order_by('tier', 'size', 'flavor')
     addon_prices = AddonPricing.objects.all().order_by('name')
 
