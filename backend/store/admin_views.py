@@ -56,17 +56,18 @@ def admin_delete_product(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def admin_get_custom_pricing(request):
-    if not CustomCakePricing.objects.exists():
-        for tier_name, tier_info in DEFAULT_CUSTOM_CAKE_PRICES.items():
+    for shape_key, shape_config in DEFAULT_CUSTOM_CAKE_PRICES.items():
+        for tier_name, tier_info in shape_config.items():
             for size_name in tier_info["sizes"]:
                 for flavor_name, price_val in tier_info["prices"].items():
                     CustomCakePricing.objects.get_or_create(
+                        shape=shape_key,
                         tier=tier_name,
                         size=size_name,
                         flavor=flavor_name,
                         defaults={"price": price_val}
                     )
-    pricing = CustomCakePricing.objects.all().order_by('tier', 'size', 'flavor')
+    pricing = CustomCakePricing.objects.all().order_by('shape', 'tier', 'size', 'flavor')
     serializer = CustomCakePricingSerializer(pricing, many=True)
     return Response(serializer.data)
 
@@ -108,12 +109,23 @@ def admin_delete_custom_pricing(request, pk):
 @permission_classes([IsAdminUser])
 def admin_get_addon_pricing(request):
     addon_names = {
+        "candle_single": "Candle (Single)",
+        "candle_number": "Candle (Number)",
+        "chocolate_small": "Chocolate (Small)",
+        "chocolate_medium": "Chocolate (Medium)",
+        "chocolate_large": "Chocolate (Large)",
+        "balls_small": "Balls (Small)",
+        "balls_medium": "Balls (Medium)",
+        "balls_large": "Balls (Large)",
+        "cherry_small": "Cherry (Small)",
+        "cherry_medium": "Cherry (Medium)",
+        "cherry_large": "Cherry (Large)",
+        "nuts": "Nuts",
+        "sprinkles": "Sprinkles",
         "candle": "Candle",
         "chocolate": "Chocolate",
         "balls": "Balls",
-        "nuts": "Nuts",
         "cherry": "Cherry",
-        "sprinkles": "Sprinkles",
     }
     for key, price_val in DEFAULT_ADDON_PRICES.items():
         AddonPricing.objects.get_or_create(

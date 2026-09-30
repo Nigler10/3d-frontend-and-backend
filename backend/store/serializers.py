@@ -13,7 +13,7 @@ phone_validator = RegexValidator(
 class CustomCakePricingSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomCakePricing
-        fields = ['id', 'tier', 'size', 'flavor', 'price']
+        fields = ['id', 'shape', 'tier', 'size', 'flavor', 'price']
         read_only_fields = ['id']
 
 class AddonPricingSerializer(serializers.ModelSerializer):

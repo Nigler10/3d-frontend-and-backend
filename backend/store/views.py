@@ -42,33 +42,44 @@ def get_categories(request):
 
 @api_view(['GET'])
 def get_custom_pricing(request):
-    if not CustomCakePricing.objects.exists():
-        for tier_name, tier_info in DEFAULT_CUSTOM_CAKE_PRICES.items():
+    for shape_key, shape_config in DEFAULT_CUSTOM_CAKE_PRICES.items():
+        for tier_name, tier_info in shape_config.items():
             for size_name in tier_info["sizes"]:
                 for flavor_name, price_val in tier_info["prices"].items():
                     CustomCakePricing.objects.get_or_create(
+                        shape=shape_key,
                         tier=tier_name,
                         size=size_name,
                         flavor=flavor_name,
                         defaults={"price": price_val}
                     )
 
-    if not AddonPricing.objects.exists():
-        addon_names = {
-            "candle": "Candle",
-            "chocolate": "Chocolate",
-            "balls": "Balls",
-            "nuts": "Nuts",
-            "cherry": "Cherry",
-            "sprinkles": "Sprinkles",
-        }
-        for key, price_val in DEFAULT_ADDON_PRICES.items():
-            AddonPricing.objects.get_or_create(
-                key=key,
-                defaults={"name": addon_names.get(key, key.capitalize()), "price": price_val}
-            )
+    addon_names = {
+        "candle_single": "Candle (Single)",
+        "candle_number": "Candle (Number)",
+        "chocolate_small": "Chocolate (Small)",
+        "chocolate_medium": "Chocolate (Medium)",
+        "chocolate_large": "Chocolate (Large)",
+        "balls_small": "Balls (Small)",
+        "balls_medium": "Balls (Medium)",
+        "balls_large": "Balls (Large)",
+        "cherry_small": "Cherry (Small)",
+        "cherry_medium": "Cherry (Medium)",
+        "cherry_large": "Cherry (Large)",
+        "nuts": "Nuts",
+        "sprinkles": "Sprinkles",
+        "candle": "Candle",
+        "chocolate": "Chocolate",
+        "balls": "Balls",
+        "cherry": "Cherry",
+    }
+    for key, price_val in DEFAULT_ADDON_PRICES.items():
+        AddonPricing.objects.get_or_create(
+            key=key,
+            defaults={"name": addon_names.get(key, key.capitalize()), "price": price_val}
+        )
 
-    base_prices = CustomCakePricing.objects.all().order_by('tier', 'size', 'flavor')
+    base_prices = CustomCakePricing.objects.all().order_by('shape', 'tier', 'size', 'flavor')
     addon_prices = AddonPricing.objects.all().order_by('name')
 
     return Response({

@@ -108,13 +108,66 @@ function AdminProductList() {
         return Array.from(set);
     }, [basePrices]);
 
+    const ADDON_ORDER = useMemo(() => [
+        "candle_single",
+        "candle_number",
+        "chocolate_small",
+        "chocolate_medium",
+        "chocolate_large",
+        "balls_small",
+        "balls_medium",
+        "balls_large",
+        "cherry_small",
+        "cherry_medium",
+        "cherry_large",
+        "nuts",
+        "sprinkles",
+        "candle",
+        "chocolate",
+        "balls",
+        "cherry",
+    ], []);
+
+    const getAddonSpec = (key = "") => {
+        const k = key.toLowerCase();
+        if (k === "candle_single") return { spec: "Single Candle", badgeColor: "bg-amber-50 text-amber-900 border-amber-200" };
+        if (k === "candle_number") return { spec: "Number Candle", badgeColor: "bg-amber-50 text-amber-900 border-amber-200" };
+        if (k.startsWith("chocolate_")) {
+            const sz = k.replace("chocolate_", "").toUpperCase();
+            return { spec: `${sz} Size`, badgeColor: "bg-amber-900/10 text-amber-950 border-amber-900/20" };
+        }
+        if (k.startsWith("balls_")) {
+            const sz = k.replace("balls_", "").toUpperCase();
+            return { spec: `${sz} Size`, badgeColor: "bg-yellow-50 text-yellow-900 border-yellow-200" };
+        }
+        if (k.startsWith("cherry_")) {
+            const sz = k.replace("cherry_", "").toUpperCase();
+            return { spec: `${sz} Size`, badgeColor: "bg-rose-50 text-rose-900 border-rose-200" };
+        }
+        if (k === "nuts") return { spec: "Standard", badgeColor: "bg-orange-50 text-orange-900 border-orange-200" };
+        if (k === "sprinkles") return { spec: "Standard", badgeColor: "bg-purple-50 text-purple-900 border-purple-200" };
+
+        return { spec: "Standard", badgeColor: "bg-gray-50 text-gray-800 border-gray-200" };
+    };
+
+    const sortedAddonPrices = useMemo(() => {
+        return [...addonPrices].sort((a, b) => {
+            const idxA = ADDON_ORDER.indexOf(a.key);
+            const idxB = ADDON_ORDER.indexOf(b.key);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return (a.name || "").localeCompare(b.name || "");
+        });
+    }, [addonPrices, ADDON_ORDER]);
+
     // Filter Pricing Rules Matrix
     const filteredBasePrices = useMemo(() => {
         let list = [...basePrices];
 
         // Filter by Shape
         if (selectedShapeFilter !== "all") {
-            list = list.filter((p) => (p.shape || "round") === selectedShapeFilter);
+            list = list.filter((p) => (p.shape || "round").toLowerCase() === selectedShapeFilter.toLowerCase());
         }
 
         // Filter by Tier
@@ -149,12 +202,27 @@ function AdminProductList() {
         return filteredBasePrices.slice(start, start + pricingPerPage);
     }, [filteredBasePrices, pricingPage, pricingPerPage]);
 
+    const shapeFilteredPrices = useMemo(() => {
+        if (selectedShapeFilter === "all") return basePrices;
+        return basePrices.filter((p) => (p.shape || "round").toLowerCase() === selectedShapeFilter.toLowerCase());
+    }, [basePrices, selectedShapeFilter]);
+
     // Counts per Tier for filter buttons
     const tierCounts = useMemo(() => {
         const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-        basePrices.forEach((bp) => {
+        shapeFilteredPrices.forEach((bp) => {
             const t = getTierNumber(bp.tier);
             if (counts[t] !== undefined) counts[t]++;
+        });
+        return counts;
+    }, [shapeFilteredPrices]);
+
+    // Counts per Shape for filter buttons
+    const shapeCounts = useMemo(() => {
+        const counts = { all: basePrices.length, round: 0, rectangle: 0 };
+        basePrices.forEach((bp) => {
+            const sh = (bp.shape || "round").toLowerCase();
+            if (counts[sh] !== undefined) counts[sh]++;
         });
         return counts;
     }, [basePrices]);
@@ -312,8 +380,8 @@ function AdminProductList() {
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-4 py-2 text-xs font-extrabold rounded-lg transition-all cursor-pointer flex-1 sm:flex-initial text-center ${activeTab === tab.id
-                                        ? "bg-[#AD4313] text-white shadow-2xs"
-                                        : "text-[#8C6D58] hover:text-[#3D251E]"
+                                    ? "bg-[#AD4313] text-white shadow-2xs"
+                                    : "text-[#8C6D58] hover:text-[#3D251E]"
                                     }`}
                             >
                                 {tab.label}
@@ -438,31 +506,31 @@ function AdminProductList() {
                                         type="button"
                                         onClick={() => { setSelectedShapeFilter("all"); setPricingPage(1); }}
                                         className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "all"
-                                                ? "bg-[#AD4313] text-white shadow-2xs"
-                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            ? "bg-[#AD4313] text-white shadow-2xs"
+                                            : "text-[#5C3D2E] hover:text-[#3D251E]"
                                             }`}
                                     >
-                                        All Shapes
+                                        All Shapes ({shapeCounts.all})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => { setSelectedShapeFilter("round"); setPricingPage(1); }}
                                         className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "round"
-                                                ? "bg-[#AD4313] text-white shadow-2xs"
-                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            ? "bg-[#AD4313] text-white shadow-2xs"
+                                            : "text-[#5C3D2E] hover:text-[#3D251E]"
                                             }`}
                                     >
-                                        ◯ Round
+                                        ◯ Round ({shapeCounts.round})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => { setSelectedShapeFilter("rectangle"); setPricingPage(1); }}
                                         className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "rectangle"
-                                                ? "bg-[#AD4313] text-white shadow-2xs"
-                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            ? "bg-[#AD4313] text-white shadow-2xs"
+                                            : "text-[#5C3D2E] hover:text-[#3D251E]"
                                             }`}
                                     >
-                                        ▭ Rectangle
+                                        ▭ Rectangle ({shapeCounts.rectangle})
                                     </button>
                                 </div>
 
@@ -472,11 +540,11 @@ function AdminProductList() {
                                         type="button"
                                         onClick={() => { setSelectedTierFilter("all"); setPricingPage(1); }}
                                         className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${selectedTierFilter === "all"
-                                                ? "bg-[#AD4313] text-white shadow-2xs"
-                                                : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
+                                            ? "bg-[#AD4313] text-white shadow-2xs"
+                                            : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
                                             }`}
                                     >
-                                        All Tiers ({basePrices.length})
+                                        All Tiers ({shapeFilteredPrices.length})
                                     </button>
                                     {[1, 2, 3, 4].map((tierNum) => (
                                         <button
@@ -484,8 +552,8 @@ function AdminProductList() {
                                             type="button"
                                             onClick={() => { setSelectedTierFilter(String(tierNum)); setPricingPage(1); }}
                                             className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${String(selectedTierFilter) === String(tierNum)
-                                                    ? "bg-[#AD4313] text-white shadow-2xs"
-                                                    : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
+                                                ? "bg-[#AD4313] text-white shadow-2xs"
+                                                : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
                                                 }`}
                                         >
                                             {tierNum} Tier ({tierCounts[tierNum] || 0})
@@ -560,7 +628,7 @@ function AdminProductList() {
                             {/* Table Header Bar */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E6DBCB]/30">
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-base font-black text-[#3D251E]">🎂 Base Tier Pricing Matrix</h2>
+                                    <h2 className="text-base font-black text-[#3D251E]">Base Tier Pricing Matrix</h2>
                                     <span className="px-2.5 py-0.5 bg-[#F9F4EC] text-[#8C6D58] border border-[#E6DBCB] rounded-full text-xs font-bold">
                                         {paginatedBasePrices.length} of {filteredBasePrices.length} displayed
                                     </span>
@@ -606,11 +674,10 @@ function AdminProductList() {
                                                     <tr key={item.id} className="hover:bg-[#FCF8EE]/60 transition-colors">
                                                         {/* SHAPE */}
                                                         <td className="p-3.5">
-                                                            <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${
-                                                                (item.shape || "round") === "rectangle"
-                                                                    ? "bg-amber-50 text-amber-900 border-amber-200"
-                                                                    : "bg-rose-50 text-rose-900 border-rose-200"
-                                                            }`}>
+                                                            <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${(item.shape || "round") === "rectangle"
+                                                                ? "bg-amber-50 text-amber-900 border-amber-200"
+                                                                : "bg-rose-50 text-rose-900 border-rose-200"
+                                                                }`}>
                                                                 {item.shape === "rectangle" ? "▭ Rectangle" : "◯ Round"}
                                                             </span>
                                                         </td>
@@ -734,8 +801,8 @@ function AdminProductList() {
                                                 type="button"
                                                 onClick={() => setPricingPage(p)}
                                                 className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${isActive
-                                                        ? "bg-[#AD4313] text-white shadow-2xs"
-                                                        : "bg-white border border-[#E6DBCB] text-[#3D251E] hover:bg-[#FCF8EE]"
+                                                    ? "bg-[#AD4313] text-white shadow-2xs"
+                                                    : "bg-white border border-[#E6DBCB] text-[#3D251E] hover:bg-[#FCF8EE]"
                                                     }`}
                                             >
                                                 {p}
@@ -791,25 +858,28 @@ function AdminProductList() {
                                     <thead className="bg-[#FFFDF9] text-[#8C6D58] text-[11px] font-bold uppercase tracking-wider border-b border-[#E6DBCB]">
                                         <tr>
                                             <th className="p-3.5">TOPPING / ADD-ON NAME</th>
-                                            <th className="p-3.5">KEY IDENTIFIER</th>
+                                            <th className="p-3.5">PRICING TYPE / VARIANT SPEC</th>
                                             <th className="p-3.5">PRICE (PHP)</th>
                                             <th className="p-3.5 text-right">ACTIONS</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#E6DBCB]/40 text-xs font-semibold text-[#3D251E]">
-                                        {addonPrices.map((item) => {
+                                        {sortedAddonPrices.map((item) => {
                                             const draft = getAddonDraftValue(item);
                                             const isChanged = draft != item.price;
                                             const savingId = `addon-${item.id}`;
                                             const isSaving = savingKey === savingId;
+                                            const { spec, badgeColor } = getAddonSpec(item.key);
 
                                             return (
                                                 <tr key={item.id} className="hover:bg-[#FCF8EE]/60 transition-colors">
                                                     <td className="p-3.5 font-bold text-[#3D251E] text-sm">
                                                         {item.name}
                                                     </td>
-                                                    <td className="p-3.5 text-xs text-[#8C6D58] font-mono">
-                                                        {item.key}
+                                                    <td className="p-3.5">
+                                                        <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${badgeColor}`}>
+                                                            {spec}
+                                                        </span>
                                                     </td>
                                                     <td className="p-3.5">
                                                         <div className="flex items-center gap-1.5">
