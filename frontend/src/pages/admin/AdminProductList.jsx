@@ -23,6 +23,7 @@ function AdminProductList() {
     const [productSortBy, setProductSortBy] = useState("default");
 
     // Pricing Rules Filter State
+    const [selectedShapeFilter, setSelectedShapeFilter] = useState("all");
     const [selectedTierFilter, setSelectedTierFilter] = useState("all");
     const [pricingSearch, setPricingSearch] = useState("");
     const [selectedFlavorFilter, setSelectedFlavorFilter] = useState("all");
@@ -111,6 +112,11 @@ function AdminProductList() {
     const filteredBasePrices = useMemo(() => {
         let list = [...basePrices];
 
+        // Filter by Shape
+        if (selectedShapeFilter !== "all") {
+            list = list.filter((p) => (p.shape || "round") === selectedShapeFilter);
+        }
+
         // Filter by Tier
         if (selectedTierFilter !== "all") {
             list = list.filter((p) => getTierNumber(p.tier) === String(selectedTierFilter));
@@ -126,6 +132,7 @@ function AdminProductList() {
             const q = pricingSearch.toLowerCase();
             list = list.filter(
                 (p) =>
+                    (p.shape && p.shape.toLowerCase().includes(q)) ||
                     (p.size && p.size.toLowerCase().includes(q)) ||
                     (p.flavor && p.flavor.toLowerCase().includes(q)) ||
                     (p.tier && p.tier.toLowerCase().includes(q))
@@ -133,7 +140,7 @@ function AdminProductList() {
         }
 
         return list;
-    }, [basePrices, selectedTierFilter, selectedFlavorFilter, pricingSearch]);
+    }, [basePrices, selectedShapeFilter, selectedTierFilter, selectedFlavorFilter, pricingSearch]);
 
     // Paginated Pricing Rules
     const totalPricingPages = Math.max(1, Math.ceil(filteredBasePrices.length / pricingPerPage));
@@ -198,8 +205,9 @@ function AdminProductList() {
             return;
         }
 
-        const headers = ["Tier", "Size Spec", "Flavor Option", "Base Retail Price (PHP)"];
+        const headers = ["Shape", "Tier", "Size Spec", "Flavor Option", "Base Retail Price (PHP)"];
         const rows = filteredBasePrices.map((p) => [
+            `"${(p.shape || "round").replace(/"/g, '""')}"`,
             `"${(p.tier || "").replace(/"/g, '""')}"`,
             `"${(p.size || "").replace(/"/g, '""')}"`,
             `"${(p.flavor || "").replace(/"/g, '""')}"`,
@@ -246,15 +254,6 @@ function AdminProductList() {
         if (t === "3") return "Wedding & grand banquet";
         if (t === "4") return "Signature grand tier";
         return "Custom tier spec";
-    };
-
-    const getLeadTime = (tierStr) => {
-        const t = getTierNumber(tierStr);
-        if (t === "1") return "2 Days Lead";
-        if (t === "2") return "4 Days Lead";
-        if (t === "3") return "5 Days Lead";
-        if (t === "4") return "7 Days Lead";
-        return "3 Days Lead";
     };
 
     if (loading) return (
@@ -431,31 +430,68 @@ function AdminProductList() {
 
                         {/* 2. Control Toolbar for Pricing Rules */}
                         <div className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl p-3.5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                            {/* Left Side: Tier Filter Pills */}
-                            <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-                                <button
-                                    type="button"
-                                    onClick={() => { setSelectedTierFilter("all"); setPricingPage(1); }}
-                                    className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${selectedTierFilter === "all"
-                                            ? "bg-[#AD4313] text-white shadow-2xs"
-                                            : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
-                                        }`}
-                                >
-                                    All ({basePrices.length})
-                                </button>
-                                {[1, 2, 3, 4].map((tierNum) => (
+                            {/* Left Side: Shape & Tier Filter Pills */}
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
+                                {/* Shape Filter Pills */}
+                                <div className="flex items-center bg-[#F9F4EC] p-1 rounded-xl border border-[#E6DBCB] gap-1">
                                     <button
-                                        key={tierNum}
                                         type="button"
-                                        onClick={() => { setSelectedTierFilter(String(tierNum)); setPricingPage(1); }}
-                                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${String(selectedTierFilter) === String(tierNum)
+                                        onClick={() => { setSelectedShapeFilter("all"); setPricingPage(1); }}
+                                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "all"
+                                                ? "bg-[#AD4313] text-white shadow-2xs"
+                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            }`}
+                                    >
+                                        All Shapes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedShapeFilter("round"); setPricingPage(1); }}
+                                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "round"
+                                                ? "bg-[#AD4313] text-white shadow-2xs"
+                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            }`}
+                                    >
+                                        ◯ Round
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedShapeFilter("rectangle"); setPricingPage(1); }}
+                                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${selectedShapeFilter === "rectangle"
+                                                ? "bg-[#AD4313] text-white shadow-2xs"
+                                                : "text-[#5C3D2E] hover:text-[#3D251E]"
+                                            }`}
+                                    >
+                                        ▭ Rectangle
+                                    </button>
+                                </div>
+
+                                {/* Tier Filter Pills */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedTierFilter("all"); setPricingPage(1); }}
+                                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${selectedTierFilter === "all"
                                                 ? "bg-[#AD4313] text-white shadow-2xs"
                                                 : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
                                             }`}
                                     >
-                                        {tierNum} Tier ({tierCounts[tierNum] || 0})
+                                        All Tiers ({basePrices.length})
                                     </button>
-                                ))}
+                                    {[1, 2, 3, 4].map((tierNum) => (
+                                        <button
+                                            key={tierNum}
+                                            type="button"
+                                            onClick={() => { setSelectedTierFilter(String(tierNum)); setPricingPage(1); }}
+                                            className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${String(selectedTierFilter) === String(tierNum)
+                                                    ? "bg-[#AD4313] text-white shadow-2xs"
+                                                    : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] text-[#5C3D2E]"
+                                                }`}
+                                        >
+                                            {tierNum} Tier ({tierCounts[tierNum] || 0})
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Right Side: Search, Flavor Filter, Reset & Export */}
@@ -466,7 +502,7 @@ function AdminProductList() {
                                         type="text"
                                         value={pricingSearch}
                                         onChange={(e) => { setPricingSearch(e.target.value); setPricingPage(1); }}
-                                        placeholder="Search size, flavor, or lead time..."
+                                        placeholder="Search shape, size, or flavor..."
                                         className="w-full pl-8 pr-3 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
                                     />
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
@@ -497,6 +533,7 @@ function AdminProductList() {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setSelectedShapeFilter("all");
                                         setSelectedTierFilter("all");
                                         setPricingSearch("");
                                         setSelectedFlavorFilter("all");
@@ -540,7 +577,7 @@ function AdminProductList() {
                                 <div className="p-12 text-center text-[#8C6D58]">
                                     <span className="text-4xl block mb-2">🍰</span>
                                     <h3 className="font-bold text-[#3D251E] text-base">No cake pricing rules match your filters</h3>
-                                    <p className="text-xs mt-1">Try resetting search or tier selection.</p>
+                                    <p className="text-xs mt-1">Try resetting search, shape, or tier selection.</p>
                                 </div>
                             ) : (
                                 /* Matrix Data Table */
@@ -548,11 +585,11 @@ function AdminProductList() {
                                     <table className="w-full text-left border-collapse min-w-[750px]">
                                         <thead className="bg-[#FFFDF9] text-[#8C6D58] uppercase text-[11px] font-bold tracking-wider border-b border-[#E6DBCB]">
                                             <tr>
+                                                <th className="p-3.5">SHAPE</th>
                                                 <th className="p-3.5">CAKE TIER</th>
                                                 <th className="p-3.5">SIZE SPEC</th>
                                                 <th className="p-3.5">FLAVOR OPTION</th>
                                                 <th className="p-3.5">BASE RETAIL PRICE (PHP)</th>
-                                                <th className="p-3.5">LEAD TIME / STATUS</th>
                                                 <th className="p-3.5 text-right">ACTIONS</th>
                                             </tr>
                                         </thead>
@@ -567,6 +604,17 @@ function AdminProductList() {
 
                                                 return (
                                                     <tr key={item.id} className="hover:bg-[#FCF8EE]/60 transition-colors">
+                                                        {/* SHAPE */}
+                                                        <td className="p-3.5">
+                                                            <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${
+                                                                (item.shape || "round") === "rectangle"
+                                                                    ? "bg-amber-50 text-amber-900 border-amber-200"
+                                                                    : "bg-rose-50 text-rose-900 border-rose-200"
+                                                            }`}>
+                                                                {item.shape === "rectangle" ? "▭ Rectangle" : "◯ Round"}
+                                                            </span>
+                                                        </td>
+
                                                         {/* CAKE TIER */}
                                                         <td className="p-3.5">
                                                             <div className="flex items-center gap-3">
@@ -613,13 +661,6 @@ function AdminProductList() {
                                                                     className="w-32 px-3 py-1.5 bg-[#FFFDF9] rounded-xl border border-[#E6DBCB] text-xs font-extrabold text-[#AD4313] focus:outline-none focus:border-[#AD4313] shadow-2xs"
                                                                 />
                                                             </div>
-                                                        </td>
-
-                                                        {/* LEAD TIME / STATUS */}
-                                                        <td className="p-3.5">
-                                                            <span className="px-3 py-1 bg-[#EDFDF3] text-[#16A34A] border border-[#BBF7D0] rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 whitespace-nowrap">
-                                                                {getLeadTime(item.tier)} <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                            </span>
                                                         </td>
 
                                                         {/* ACTIONS */}

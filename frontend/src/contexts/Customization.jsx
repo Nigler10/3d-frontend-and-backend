@@ -173,12 +173,23 @@ const DEFAULT_CAKE_PRICES = {
 };
 
 const DEFAULT_ADDON_PRICES = {
-    candle: 100,
-    chocolate: 200,
-    balls: 100,
+    candle_single: 50,
+    candle_number: 100,
+    chocolate_small: 100,
+    chocolate_medium: 150,
+    chocolate_large: 200,
+    balls_small: 75,
+    balls_medium: 100,
+    balls_large: 125,
+    cherry_small: 30,
+    cherry_medium: 50,
+    cherry_large: 70,
     nuts: 75,
-    cherry: 50,
     sprinkles: 50,
+    candle: 100,
+    chocolate: 150,
+    balls: 100,
+    cherry: 50,
 };
 
 const CustomizationContext = createContext({});
@@ -407,7 +418,9 @@ export const CustomizationProvider = (props) => {
     }, [BASEURL]);
 
     const getBasePrice = () => {
+        const currentShape = form === 2 ? "rectangle" : "round";
         const configuredPrice = basePrices.find((item) =>
+            (item.shape || "round") === currentShape &&
             item.tier === tier.tier &&
             item.size === selectedSize &&
             item.flavor === pricingFlavor
@@ -420,17 +433,73 @@ export const CustomizationProvider = (props) => {
     const getAddonPrice = (key) => {
         const configuredAddon = addonPrices.find((item) => item.key === key);
         if (configuredAddon) return Number(configuredAddon.price);
+
+        // Fallbacks if specific key not present
+        if (key === "candle_single" || key === "candle_number") {
+            const fallback = addonPrices.find((item) => item.key === "candle");
+            if (fallback) return Number(fallback.price);
+        }
+        if (key.startsWith("chocolate_")) {
+            const fallback = addonPrices.find((item) => item.key === "chocolate");
+            if (fallback) return Number(fallback.price);
+        }
+        if (key.startsWith("balls_")) {
+            const fallback = addonPrices.find((item) => item.key === "balls");
+            if (fallback) return Number(fallback.price);
+        }
+        if (key.startsWith("cherry_")) {
+            const fallback = addonPrices.find((item) => item.key === "cherry");
+            if (fallback) return Number(fallback.price);
+        }
+
         return DEFAULT_ADDON_PRICES[key] ?? 0;
     };
 
     const calculatePrice = () => {
         let addonsPrice = 0;
-        if (candle) addonsPrice += getAddonPrice("candle");
-        if (chocolate) addonsPrice += getAddonPrice("chocolate");
-        if (balls) addonsPrice += getAddonPrice("balls");
-        if (nuts) addonsPrice += getAddonPrice("nuts");
-        if (cherry) addonsPrice += getAddonPrice("cherry") * cherryLayouts.length;
-        if (sprinkles) addonsPrice += getAddonPrice("sprinkles");
+
+        // Candle pricing: single vs number
+        if (candle) {
+            const candleKey = candleMode === "number" ? "candle_number" : "candle_single";
+            addonsPrice += getAddonPrice(candleKey);
+        }
+
+        // Chocolate pricing: small, medium, large
+        if (chocolate) {
+            const chocSize = (toppingLayout.chocolate?.size || "medium").toLowerCase();
+            const key = `chocolate_${chocSize}`;
+            addonsPrice += getAddonPrice(key);
+        }
+
+        // Balls pricing: small, medium, large
+        if (balls) {
+            const ballsSize = (toppingLayout.balls?.size || "medium").toLowerCase();
+            const key = `balls_${ballsSize}`;
+            addonsPrice += getAddonPrice(key);
+        }
+
+        // Nuts pricing
+        if (nuts) {
+            addonsPrice += getAddonPrice("nuts");
+        }
+
+        // Cherry pricing: per cherry, based on size
+        if (cherry) {
+            if (cherryLayouts.length > 0) {
+                cherryLayouts.forEach((chLayout) => {
+                    const cSize = (chLayout.size || "medium").toLowerCase();
+                    const key = `cherry_${cSize}`;
+                    addonsPrice += getAddonPrice(key);
+                });
+            } else {
+                addonsPrice += getAddonPrice("cherry_medium");
+            }
+        }
+
+        // Sprinkles pricing
+        if (sprinkles) {
+            addonsPrice += getAddonPrice("sprinkles");
+        }
 
         return getBasePrice() + addonsPrice;
     };

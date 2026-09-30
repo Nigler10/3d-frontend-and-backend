@@ -31,12 +31,18 @@ class Product(models.Model):
         return self.name
 
 class CustomCakePricing(models.Model):
+    SHAPE_CHOICES = [
+        ("round", "Round"),
+        ("rectangle", "Rectangle"),
+    ]
+
     FLAVOR_CHOICES = [
         ("Choco Moist", "Choco Moist"),
         ("Vanilla Chiffon", "Vanilla Chiffon"),
         ("Ube Chiffon", "Ube Chiffon"),
     ]
 
+    shape = models.CharField(max_length=20, choices=SHAPE_CHOICES, default="round")
     tier = models.CharField(max_length=50)
     size = models.CharField(max_length=100)
     flavor = models.CharField(max_length=50, choices=FLAVOR_CHOICES)
@@ -45,27 +51,18 @@ class CustomCakePricing(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["tier", "size", "flavor"],
+                fields=["shape", "tier", "size", "flavor"],
                 name="unique_custom_cake_pricing",
             )
         ]
-        ordering = ["tier", "size", "flavor"]
+        ordering = ["shape", "tier", "size", "flavor"]
 
     def __str__(self):
-        return f"{self.tier} - {self.size} - {self.flavor}: {self.price}"
+        return f"{self.shape.capitalize()} - {self.tier} - {self.size} - {self.flavor}: {self.price}"
 
 class AddonPricing(models.Model):
-    ADDON_CHOICES = [
-        ("candle", "Candle"),
-        ("chocolate", "Chocolate"),
-        ("balls", "Balls"),
-        ("nuts", "Nuts"),
-        ("cherry", "Cherry"),
-        ("sprinkles", "Sprinkles"),
-    ]
-
-    key = models.CharField(max_length=30, choices=ADDON_CHOICES, unique=True)
-    name = models.CharField(max_length=50)
+    key = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
@@ -75,51 +72,95 @@ class AddonPricing(models.Model):
         return f"{self.name}: {self.price}"
 
 DEFAULT_CUSTOM_CAKE_PRICES = {
-    "1 Tier Cake": {
-        "sizes": ["Bento Cake", "Tall Bento Cake", "Standard", "Tall Cake"],
-        "prices": {
-            "Choco Moist": Decimal("1000.00"),
-            "Vanilla Chiffon": Decimal("900.00"),
-            "Ube Chiffon": Decimal("900.00"),
+    "round": {
+        "1 Tier Cake": {
+            "sizes": ["Bento Cake", "Tall Bento Cake", "Standard", "Tall Cake"],
+            "prices": {
+                "Choco Moist": Decimal("1000.00"),
+                "Vanilla Chiffon": Decimal("900.00"),
+                "Ube Chiffon": Decimal("900.00"),
+            },
+        },
+        "Mini 2 Tier": {
+            "sizes": ["6x4 & 4x4", "6x6 Cake", "6x8 Cake", "8x5 Cake"],
+            "prices": {
+                "Choco Moist": Decimal("1800.00"),
+                "Vanilla Chiffon": Decimal("1600.00"),
+                "Ube Chiffon": Decimal("1600.00"),
+            },
+        },
+        "3 Tier Cake": {
+            "sizes": ["4x5, 6x6 & 8x5"],
+            "prices": {
+                "Choco Moist": Decimal("2800.00"),
+                "Vanilla Chiffon": Decimal("2500.00"),
+                "Ube Chiffon": Decimal("2500.00"),
+            },
+        },
+        "4 Tier Cake": {
+            "sizes": ["4x4 & 6x6, 8x5 & 10x4"],
+            "prices": {
+                "Choco Moist": Decimal("3800.00"),
+                "Vanilla Chiffon": Decimal("3400.00"),
+                "Ube Chiffon": Decimal("3400.00"),
+            },
         },
     },
-    "Mini 2 Tier": {
-        "sizes": ["6x4 & 4x4", "6x6 Cake", "6x8 Cake", "8x5 Cake"],
-        "prices": {
-            "Choco Moist": Decimal("1800.00"),
-            "Vanilla Chiffon": Decimal("1600.00"),
-            "Ube Chiffon": Decimal("1600.00"),
+    "rectangle": {
+        "1 Tier Cake": {
+            "sizes": ["Bento Cake", "Tall Bento Cake", "Standard", "Tall Cake"],
+            "prices": {
+                "Choco Moist": Decimal("1150.00"),
+                "Vanilla Chiffon": Decimal("1050.00"),
+                "Ube Chiffon": Decimal("1050.00"),
+            },
         },
-    },
-    "3 Tier Cake": {
-        "sizes": ["4x5, 6x6 & 8x5"],
-        "prices": {
-            "Choco Moist": Decimal("2800.00"),
-            "Vanilla Chiffon": Decimal("2500.00"),
-            "Ube Chiffon": Decimal("2500.00"),
+        "Mini 2 Tier": {
+            "sizes": ["6x4 & 4x4", "6x6 Cake", "6x8 Cake", "8x5 Cake"],
+            "prices": {
+                "Choco Moist": Decimal("2000.00"),
+                "Vanilla Chiffon": Decimal("1800.00"),
+                "Ube Chiffon": Decimal("1800.00"),
+            },
         },
-    },
-    "4 Tier Cake": {
-        "sizes": ["4x4 & 6x6, 8x5 & 10x4"],
-        "prices": {
-            "Choco Moist": Decimal("3800.00"),
-            "Vanilla Chiffon": Decimal("3400.00"),
-            "Ube Chiffon": Decimal("3400.00"),
+        "3 Tier Cake": {
+            "sizes": ["4x5, 6x6 & 8x5"],
+            "prices": {
+                "Choco Moist": Decimal("3100.00"),
+                "Vanilla Chiffon": Decimal("2800.00"),
+                "Ube Chiffon": Decimal("2800.00"),
+            },
         },
-    },
+        "4 Tier Cake": {
+            "sizes": ["4x4 & 6x6, 8x5 & 10x4"],
+            "prices": {
+                "Choco Moist": Decimal("4200.00"),
+                "Vanilla Chiffon": Decimal("3800.00"),
+                "Ube Chiffon": Decimal("3800.00"),
+            },
+        },
+    }
 }
 
 DEFAULT_ADDON_PRICES = {
-    "candle": Decimal("100.00"),
-    "chocolate": Decimal("200.00"),
-    "balls": Decimal("100.00"),
+    "candle_single": Decimal("50.00"),
+    "candle_number": Decimal("100.00"),
+    "chocolate_small": Decimal("150.00"),
+    "chocolate_medium": Decimal("200.00"),
+    "chocolate_large": Decimal("250.00"),
+    "balls_small": Decimal("75.00"),
+    "balls_medium": Decimal("100.00"),
+    "balls_large": Decimal("150.00"),
+    "cherry_small": Decimal("40.00"),
+    "cherry_medium": Decimal("50.00"),
+    "cherry_large": Decimal("75.00"),
     "nuts": Decimal("75.00"),
-    "cherry": Decimal("50.00"),
     "sprinkles": Decimal("50.00"),
 }
 
-def get_default_custom_cake_price(*, tier, size, flavor):
-    tier_config = DEFAULT_CUSTOM_CAKE_PRICES.get(tier)
+def get_default_custom_cake_price(*, shape="round", tier, size, flavor):
+    shape_config = DEFAULT_CUSTOM_CAKE_PRICES.get(shape, DEFAULT_CUSTOM_CAKE_PRICES["round"])
+    tier_config = shape_config.get(tier)
     if not tier_config or size not in tier_config["sizes"]:
         raise CustomCakePricing.DoesNotExist
 
@@ -128,17 +169,22 @@ def get_default_custom_cake_price(*, tier, size, flavor):
     except KeyError:
         raise CustomCakePricing.DoesNotExist
 
-def calculate_custom_cake_price(*, tier, size, flavor, has_candle=False,
-                                has_chocolate=False, has_balls=False, has_nuts=False,
-                                has_cherry=False, cherry_count=1, has_sprinkles=False):
+def calculate_custom_cake_price(*, shape="round", tier, size, flavor, has_candle=False, candle_mode="gold",
+                                has_chocolate=False, chocolate_size="medium",
+                                has_balls=False, balls_size="medium",
+                                has_nuts=False,
+                                has_cherry=False, cherry_size="medium", cherry_count=1,
+                                has_sprinkles=False):
     try:
         base_price = CustomCakePricing.objects.get(
+            shape=shape,
             tier=tier,
             size=size,
             flavor=flavor,
         ).price
     except CustomCakePricing.DoesNotExist:
         base_price = get_default_custom_cake_price(
+            shape=shape,
             tier=tier,
             size=size,
             flavor=flavor,
@@ -146,15 +192,15 @@ def calculate_custom_cake_price(*, tier, size, flavor, has_candle=False,
 
     selected_addons = []
     if has_candle:
-        selected_addons.append("candle")
+        selected_addons.append("candle_number" if candle_mode == "number" else "candle_single")
     if has_chocolate:
-        selected_addons.append("chocolate")
+        selected_addons.append(f"chocolate_{chocolate_size}")
     if has_balls:
-        selected_addons.append("balls")
+        selected_addons.append(f"balls_{balls_size}")
     if has_nuts:
         selected_addons.append("nuts")
     if has_cherry:
-        selected_addons.append("cherry")
+        selected_addons.append(f"cherry_{cherry_size}")
     if has_sprinkles:
         selected_addons.append("sprinkles")
 
@@ -165,7 +211,7 @@ def calculate_custom_cake_price(*, tier, size, flavor, has_candle=False,
     )
     addon_total = sum(
         configured_addon_prices.get(key, DEFAULT_ADDON_PRICES.get(key, Decimal("0.00")))
-        * (max(1, int(cherry_count)) if key == "cherry" else 1)
+        * (max(1, int(cherry_count)) if "cherry" in key else 1)
         for key in selected_addons
     )
 
