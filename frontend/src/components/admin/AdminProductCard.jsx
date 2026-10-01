@@ -1,5 +1,5 @@
 // src/components/admin/AdminProductCard.jsx
-import { getAccessToken } from "../../utils/auth";
+import { getMediaUrl } from "../../utils/media";
 import { useNavigate } from "react-router-dom";
 import "./AdminProductCard.css";
 
@@ -11,8 +11,10 @@ function AdminProductCard({ product }) {
         <div className="admin-card">
             <div className="admin-card-image-wrapper">
                 <img
-                    src={`${BASEURL}${product.image}`}
+                    src={getMediaUrl(product.image, BASEURL)}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                     className="admin-card-img"
                 />
             </div>
@@ -22,7 +24,7 @@ function AdminProductCard({ product }) {
                     <h2 className="admin-card-title">{product.name}</h2>
                     <p className="admin-card-price">₱{Number(product.price).toLocaleString()}</p>
                 </div>
-                
+
                 <p className="admin-card-desc">
                     {product.description.length > 60
                         ? product.description.slice(0, 60) + "..."
