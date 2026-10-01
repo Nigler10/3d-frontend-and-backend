@@ -1,4 +1,5 @@
 // src/pages/customer/CustomerProfileUpdate.jsx
+import { getMediaUrl } from "../../utils/media";
 import { useState, useEffect } from "react";
 import { authFetch } from "../../utils/auth";
 import { useNavigate } from "react-router-dom";
@@ -59,7 +60,7 @@ function CustomerProfileUpdate() {
             });
 
             if (data.profile_picture) {
-                setPreview(`${BASE}${data.profile_picture}`);
+                setPreview(getMediaUrl(data.profile_picture, BASE));
             }
         };
         fetchProfile();

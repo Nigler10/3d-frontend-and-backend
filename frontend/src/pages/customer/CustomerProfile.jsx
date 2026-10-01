@@ -1,4 +1,5 @@
 // src/pages/customer/CustomerProfile.jsx
+import { getMediaUrl } from "../../utils/media";
 import { useEffect, useState } from "react";
 import { authFetch } from "../../utils/auth";
 import { Link } from "react-router-dom";
@@ -43,7 +44,14 @@ function CustomerProfile() {
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                     <div className="w-24 h-24 rounded-full overflow-hidden bg-[#FCF8EE] border-4 border-[#E6CCA2] flex items-center justify-center shrink-0 shadow-inner">
                         {profile.profile_picture ? (
-                            <img src={`${BASE}${profile.profile_picture}`} alt="Profile" className="w-full h-full object-cover" />
+                            <img
+                                src={getMediaUrl(profile.profile_picture, BASE)}
+                                alt="Profile"
+                                className="w-full h-full object-cover"
+                                decoding="async"
+                                width="96"
+                                height="96"
+                            />
                         ) : (
                             <span className="text-4xl font-black text-[#E6CCA2]">
                                 {profile.user.username[0].toUpperCase()}
