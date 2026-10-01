@@ -8,6 +8,14 @@ from datetime import timedelta
 
 load_dotenv()
 
+# ========CLOUDFLARE R2========
+
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+R2_PUBLIC_DOMAIN = os.getenv("R2_PUBLIC_DOMAIN")
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ========CORE========
@@ -98,6 +106,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "storages",
 
     "store",
     "orders",
@@ -223,7 +232,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": R2_ACCESS_KEY_ID,
+            "secret_key": R2_SECRET_ACCESS_KEY,
+            "bucket_name": R2_BUCKET_NAME,
+            "endpoint_url": R2_ENDPOINT_URL,
+            "region_name": "auto",
+            "custom_domain": R2_PUBLIC_DOMAIN,
+            "querystring_auth": False,
+            "file_overwrite": False,
+        },
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -232,8 +251,7 @@ STORAGES = {
 
 # ========MEDIA========
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = f"https://{R2_PUBLIC_DOMAIN}/"
 
 # ========CORS / CSRF========
 
