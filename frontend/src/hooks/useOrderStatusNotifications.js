@@ -1,29 +1,55 @@
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 import { getAccessToken } from "../utils/auth";
-import { getOrderStatusLabel } from "../utils/orderStatus";
 
 const STATUS_TOASTS = {
-    pending_review: { label: "Pending Review", method: "info" },
-    cancelled: { label: "Cancelled", method: "error" },
+    pending_review: { label: "Pending Review", tone: "success", icon: CircleCheck },
+    cancelled: { label: "Cancelled", tone: "error", icon: CircleAlert },
+    rejected: { label: "Order Rejected", tone: "error", icon: CircleAlert },
     awaiting_downpayment: {
-        label: "Awaiting for Downpayment",
-        method: "warning",
+        label: "Awaiting for your Downpayment",
+        tone: "pending",
+        icon: LoaderCircle,
     },
-    processing: { label: "Processing", method: "info" },
-    delivered: { label: "Delivered", method: "success" },
+    processing: { label: "Processing", tone: "pending", icon: LoaderCircle },
+    delivered: { label: "Delivered", tone: "success", icon: CircleCheck },
 };
 
 function showOrderStatusToast(update) {
     const status = STATUS_TOASTS[update?.status];
     if (!status) return;
 
+    const StatusIcon = status.icon;
     const orderLabel = update.order_id ? `Order #${update.order_id}` : "Your order";
-    const message = update.message
-        || `${orderLabel}: ${status.label}. Your order status is now ${getOrderStatusLabel(update.status)}.`;
+    const rejectionReason = update.status === "rejected"
+        ? String(update.rejection_reason || "").trim()
+        : "";
+    const message = update.status === "rejected"
+        ? createElement(
+            "div",
+            { className: "order-status-toast__content" },
+            createElement("strong", null, `${orderLabel}: ${status.label}`),
+            rejectionReason && createElement(
+                "p",
+                { className: "order-status-toast__reason" },
+                `Reason: ${rejectionReason}`,
+            ),
+        )
+        : update.message || `${orderLabel}: ${status.label}`;
 
-    toast[status.method](message);
+    toast(message, {
+        type: status.tone === "pending" ? "default" : status.tone,
+        icon: createElement(StatusIcon, {
+            "aria-hidden": true,
+            className: status.tone === "pending" ? "order-status-toast__spinner" : "",
+        }),
+        className: `order-status-toast order-status-toast--${status.tone}`,
+        progressClassName: `order-status-toast__progress--${status.tone}`,
+        hideProgressBar: status.tone === "pending",
+        autoClose: 6000,
+    });
 }
 
 export default function useOrderStatusNotifications() {
@@ -38,9 +64,10 @@ export default function useOrderStatusNotifications() {
     useEffect(() => {
         if (!accessToken) return undefined;
 
+        let isAdmin;
         try {
             const user = jwtDecode(accessToken);
-            if (user.is_staff || user.is_superuser) return undefined;
+            isAdmin = Boolean(user.is_staff || user.is_superuser);
         } catch {
             return undefined;
         }
@@ -58,7 +85,9 @@ export default function useOrderStatusNotifications() {
         const handleMessage = (event) => {
             try {
                 const update = JSON.parse(event.data);
-                if (update?.type === "order_status") showOrderStatusToast(update);
+                if (update?.type !== "order_status") return;
+                if (isAdmin && update.status !== "cancelled") return;
+                showOrderStatusToast(update);
             } catch (error) {
                 console.error("Invalid order status websocket payload:", error);
             }

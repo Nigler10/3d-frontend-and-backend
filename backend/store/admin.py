@@ -7,7 +7,15 @@ admin.site.register(Product)
 admin.site.register(CustomCakePricing)
 admin.site.register(AddonPricing)
 admin.site.register(UserProfile)
-admin.site.register(Order)
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+	class Media:
+		js = ("store/js/order_status_notifications.js",)
+		css = {"all": ("store/css/order_status_notifications.css",)}
+
+
 admin.site.register(OrderItem)
 admin.site.register(CakeCustomization)
 

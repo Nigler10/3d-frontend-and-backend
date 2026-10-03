@@ -1,0 +1,86 @@
+#order-status-toast-container {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 100000;
+    display: flex;
+    width: min(24rem, calc(100vw - 40px));
+    flex-direction: column;
+    gap: 10px;
+}
+
+.order-status-admin-toast {
+    position: relative;
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden;
+    padding: 12px 42px 16px 14px;
+    border: 1px solid #e6cca2;
+    border-left: 4px solid #dc3f32;
+    border-radius: 8px;
+    background: #fffdf9;
+    color: #6e473b;
+    box-shadow: 0 8px 24px rgba(45, 27, 20, 0.16);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.order-status-admin-toast__icon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    place-items: center;
+    border: 2px solid #dc3f32;
+    border-radius: 50%;
+    color: #dc3f32;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.order-status-admin-toast__message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.order-status-admin-toast__close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    border: 0;
+    background: transparent;
+    color: #756d66;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.order-status-admin-toast__progress {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    transform-origin: left;
+    animation: order-status-admin-toast-progress 6s linear forwards;
+    background: #e7463a;
+}
+
+@keyframes order-status-admin-toast-progress {
+    to {
+        transform: scaleX(0);
+    }
+}
+
+@media (max-width: 480px) {
+    #order-status-toast-container {
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        width: auto;
+    }
+}

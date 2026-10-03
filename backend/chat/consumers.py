@@ -122,11 +122,15 @@ class OrderStatusConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         user = self.scope["user"]
 
-        if user.is_anonymous or user.is_staff or user.is_superuser:
+        if user.is_anonymous:
             await self.close(code=4003)
             return
 
-        self.group_name = f"customer_{user.id}"
+        self.group_name = (
+            "admins"
+            if user.is_staff or user.is_superuser
+            else f"customer_{user.id}"
+        )
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
@@ -139,4 +143,5 @@ class OrderStatusConsumer(AsyncWebsocketConsumer):
             "type": "order_status",
             "order_id": event["order_id"],
             "status": event["status"],
+            "rejection_reason": event.get("rejection_reason", ""),
         }))

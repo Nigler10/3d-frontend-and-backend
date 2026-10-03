@@ -1,0 +1,89 @@
+.Toastify__toast.order-status-toast {
+    min-height: 58px;
+    padding: 12px 14px;
+    border: 1px solid #e6cca2;
+    border-inline-start-width: 4px;
+    border-radius: 8px;
+    background: #fffdf9;
+    color: #6e473b;
+    box-shadow: 0 8px 24px rgba(45, 27, 20, 0.16);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.order-status-toast .Toastify__toast-icon {
+    width: 20px;
+    margin-inline-end: 12px;
+}
+
+.order-status-toast .Toastify__toast-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2.5;
+}
+
+.order-status-toast__content {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.order-status-toast__reason {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.order-status-toast--success {
+    border-inline-start-color: #16a34a !important;
+}
+
+.order-status-toast--success .Toastify__toast-icon {
+    color: #16a34a;
+}
+
+.order-status-toast--error {
+    border-inline-start-color: #dc3f32 !important;
+}
+
+.order-status-toast--error .Toastify__toast-icon {
+    color: #dc3f32;
+}
+
+.order-status-toast--pending {
+    border-inline-start-color: #c7c0b7 !important;
+}
+
+.order-status-toast--pending .Toastify__toast-icon {
+    color: #8b8177;
+}
+
+.order-status-toast__spinner {
+    animation: order-status-toast-spin 1s linear infinite;
+}
+
+.order-status-toast__progress--success {
+    background: #22c55e;
+}
+
+.order-status-toast__progress--error {
+    background: #e7463a;
+}
+
+@keyframes order-status-toast-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 480px) {
+    .Toastify__toast-container--bottom-right {
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        width: auto;
+    }
+}

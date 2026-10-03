@@ -112,9 +112,6 @@ class ChatService:
 
     @staticmethod
     def broadcast_order_status(order):
-        if not order.user_id:
-            return
-
         channel_layer = get_channel_layer()
         if channel_layer is None:
             logger.warning(
@@ -123,14 +120,31 @@ class ChatService:
             )
             return
 
-        try:
-            async_to_sync(channel_layer.group_send)(
-                f"customer_{order.user_id}",
-                {
-                    "type": "order_status_update",
-                    "order_id": order.id,
-                    "status": order.status,
-                },
-            )
-        except Exception:
-            logger.exception("Failed to broadcast status for order %s", order.id)
+        event = {
+            "type": "order_status_update",
+            "order_id": order.id,
+            "status": order.status,
+        }
+        if order.status == "rejected":
+            event["rejection_reason"] = order.rejection_reason
+
+        if order.user_id:
+            try:
+                async_to_sync(channel_layer.group_send)(
+                    f"customer_{order.user_id}",
+                    event,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to broadcast status for order %s to its customer",
+                    order.id,
+                )
+
+        if order.status == "cancelled":
+            try:
+                async_to_sync(channel_layer.group_send)("admins", event)
+            except Exception:
+                logger.exception(
+                    "Failed to broadcast cancellation for order %s to admins",
+                    order.id,
+                )
