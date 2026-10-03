@@ -1,5 +1,7 @@
 // src/App.jsx
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { CartProvider } from "./context/CartContext";
 import { OrderProvider } from "./context/OrderContext";
 
@@ -31,13 +33,17 @@ import CustomerOrderDetailPage from "./pages/customer/CustomerOrderDetailPage";
 
 // Chat
 import { UnreadProvider } from "./context/UnreadContext";
+import useOrderStatusNotifications from "./hooks/useOrderStatusNotifications";
 
 function App() {
+  useOrderStatusNotifications();
+
   return (
     <CartProvider>
       <OrderProvider>
         <UnreadProvider>
           <Router>
+            <ToastContainer position="bottom-right" autoClose={6000} newestOnTop />
             <Routes>
               <Route path="/" element={<LandingPage />} />
 

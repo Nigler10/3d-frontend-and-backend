@@ -109,3 +109,28 @@ class ChatService:
                 "Failed to broadcast chat message %s",
                 message.id,
             )
+
+    @staticmethod
+    def broadcast_order_status(order):
+        if not order.user_id:
+            return
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.warning(
+                "Unable to broadcast status for order %s: no channel layer configured.",
+                order.id,
+            )
+            return
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"customer_{order.user_id}",
+                {
+                    "type": "order_status_update",
+                    "order_id": order.id,
+                    "status": order.status,
+                },
+            )
+        except Exception:
+            logger.exception("Failed to broadcast status for order %s", order.id)

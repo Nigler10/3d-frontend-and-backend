@@ -4,11 +4,13 @@ const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 export const saveTokens = (tokens) => {
     localStorage.setItem("access_token", tokens.access);
     localStorage.setItem("refresh_token", tokens.refresh);
+    window.dispatchEvent(new Event("auth:changed"));
 };
 
 export const clearTokens = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    window.dispatchEvent(new Event("auth:changed"));
 };
 
 export const getAccessToken = () => localStorage.getItem("access_token");
@@ -52,6 +54,7 @@ export const refreshAccessToken = async () => {
             localStorage.setItem("refresh_token", data.refresh);
         }
 
+        window.dispatchEvent(new Event("auth:changed"));
         return data.access;
     } catch (err) {
         console.error("Token refresh error:", err);

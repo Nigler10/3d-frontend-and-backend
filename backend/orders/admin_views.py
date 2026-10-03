@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from store.models import Order
 from chat.models import Conversation, Message, Quotation
+from chat.services import ChatService
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
 from .serializers import OrderSerializer, QuotationSerializer
@@ -183,6 +184,7 @@ def admin_review_order(request, order_id):
         sms_sent = False
 
         if old_status != order.status:
+            ChatService.broadcast_order_status(order)
             try:
                 send_order_status_sms(order)
                 sms_sent = True
@@ -227,6 +229,7 @@ def admin_review_order(request, order_id):
     sms_sent = False
 
     if old_status != new_status:
+        ChatService.broadcast_order_status(order)
         try:
             send_order_status_sms(order)
             sms_sent = True
@@ -416,6 +419,7 @@ def admin_update_order_status(request, order_id):
     sms_sent = False
 
     if old_status != new_status:
+        ChatService.broadcast_order_status(order)
         try:
             send_order_status_sms(order)
             sms_sent = True
