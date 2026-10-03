@@ -6,6 +6,7 @@ import 'aos/dist/aos.css';
 import Navbar from '../components/Navbar';
 import { getAccessToken } from '../utils/auth';
 import { jwtDecode } from 'jwt-decode';
+import { FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -207,9 +208,15 @@ const LandingPage = () => {
                                 Your favorite artisan bento cake shop in Cavite. We specialize in making your celebrations extra sweet with 3D-customized designs and premium local flavors.
                             </p>
                             <div className="flex items-center gap-3 text-xs font-bold text-white/80 mt-2">
-                                <span className="hover:text-white cursor-pointer transition-colors">FB</span>
-                                <span className="hover:text-white cursor-pointer transition-colors">IG</span>
-                                <span className="hover:text-white cursor-pointer transition-colors">TT</span>
+                                <a href="https://www.facebook.com/profile.php?id=100076422399215" target="_blank" rel="noopener noreferrer">
+                                    <FaFacebook />
+                                </a>
+                                 <a href="https://www.instagram.com/smileypagecorner/" target="_blank" rel="noopener noreferrer">
+                                    <FaInstagram />
+                                </a>
+                                <a href="https://www.tiktok.com/@smileypagecorner" target="_blank" rel="noopener noreferrer">
+                                    <FaTiktok />
+                                </a>
                             </div>
                         </div>
 
@@ -218,8 +225,8 @@ const LandingPage = () => {
                             <ul className="flex flex-col gap-2.5 text-xs text-[#E6CCA2]">
                                 <li onClick={() => navigate('/products')} className="hover:text-white cursor-pointer transition-colors">Our Menu</li>
                                 <li onClick={() => navigate('/build')} className="hover:text-white cursor-pointer transition-colors">3D Cake Builder</li>
-                                <li className="hover:text-white cursor-pointer transition-colors">Bulk Orders</li>
-                                <li className="hover:text-white cursor-pointer transition-colors">Track Order</li>
+                            
+                                <li onClick={() => navigate('/orders')} className="hover:text-white cursor-pointer transition-colors">Track Order</li>
                             </ul>
                         </div>
 

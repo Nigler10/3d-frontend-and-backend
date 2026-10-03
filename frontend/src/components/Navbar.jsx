@@ -33,6 +33,10 @@ function Navbar() {
         }
     }
 
+    const isCurrentNav = (path) => location.pathname === path
+        || (path !== "/admin" && location.pathname.startsWith(`${path}/`));
+    const navLinkClass = (isActive) => `relative text-sm font-semibold tracking-wide uppercase transition-colors after:absolute after:left-0 after:-bottom-2 after:h-[3px] after:w-full after:origin-left after:bg-[#d67b27] after:transition-transform ${isActive ? "text-[#844414] after:scale-x-100" : "text-stone-600 after:scale-x-0 hover:text-[#844414] hover:after:scale-x-100"}`;
+
     const hideNavbarRoutes = [
         "/build",
     ];
@@ -81,25 +85,26 @@ function Navbar() {
 
                         {!isAdmin ? (
                             <>
-                                <Link to="/" className="text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors" onClick={() => setIsMenuOpen(false)}>Home</Link>
-                                <Link to="/products" className="text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors" onClick={() => setIsMenuOpen(false)}>Menu</Link>
+                                <Link to="/" className={navLinkClass(isCurrentNav("/"))} aria-current={isCurrentNav("/") ? "page" : undefined} onClick={() => setIsMenuOpen(false)}>Home</Link>
+                                <Link to="/products" className={navLinkClass(isCurrentNav("/products"))} aria-current={isCurrentNav("/products") ? "page" : undefined} onClick={() => setIsMenuOpen(false)}>Menu</Link>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setIsMenuOpen(false);
                                         setShowBuilderModal(true);
                                     }}
-                                    className="text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors"
+                                    className={navLinkClass(false)}
                                 >
                                     Builder
                                 </button>
                             </>
                         ) : (
                             <>
-                                <Link to="/admin" className="text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
+                                <Link to="/admin" className={navLinkClass(isCurrentNav("/admin"))} aria-current={isCurrentNav("/admin") ? "page" : undefined} onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
                                 <Link
                                     to="/admin/orders"
-                                    className="relative text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors"
+                                    className={`${navLinkClass(isCurrentNav("/admin/orders"))} relative`}
+                                    aria-current={isCurrentNav("/admin/orders") ? "page" : undefined}
                                     onClick={() => setIsMenuOpen(false)}
                                 >
                                     Orders
@@ -110,7 +115,7 @@ function Navbar() {
                                         </span>
                                     )}
                                 </Link>
-                                <Link to="/admin/products" className="text-sm font-semibold tracking-wide uppercase text-stone-600 hover:text-[#d67b27] transition-colors" onClick={() => setIsMenuOpen(false)}>Products</Link>
+                                <Link to="/admin/products" className={navLinkClass(isCurrentNav("/admin/products"))} aria-current={isCurrentNav("/admin/products") ? "page" : undefined} onClick={() => setIsMenuOpen(false)}>Products</Link>
                             </>
                         )}
 
