@@ -161,7 +161,7 @@ const getToppingPosition = (
             TIER_TOP_Y[selectedTierIndex] ??
             TIER_TOP_Y[0];
 
-        return [x, topSurfaceY + (isCherry ? -0.15 : config.yOffset), z];
+        return [x, topSurfaceY + (isCherry ? -0.04 : config.yOffset), z];
     }
 
 
@@ -662,6 +662,18 @@ function RealisticLighting() {
 }
 
 // ───── CakeModel ─────
+function CherryTextureLoader({ onLoad }) {
+    const texture = useTexture(TIER1_CHERRY_TEXTURE);
+
+    useEffect(() => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        onLoad(texture);
+    }, [texture, onLoad]);
+
+    return null;
+}
+
 export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
     const activeTierUrl = TIER_MODEL_URLS[`tier${selectedTierIndex + 1}`] || TIER_MODEL_URLS.tier1;
     const activeTier = useGLTF(activeTierUrl);
@@ -692,20 +704,28 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
     } = useCustomization();
 
     const baseFlavor = selectedTierFlavors?.[0] || flavor;
-
-    // Load all flavor texture sets unconditionally (keeps hook order stable)
-    const chocoTexture = useTexture(TEXTURE_URLS.choco);
-    const vanillaTexture = useTexture(TEXTURE_URLS.vanilla);
-    const ubeTexture = useTexture(TEXTURE_URLS.ube);
-    const textureSetsByKey = useMemo(() => ({
-        choco: chocoTexture,
-        vanilla: vanillaTexture,
-        ube: ubeTexture,
-    }), [chocoTexture, vanillaTexture, ubeTexture]);
-
     const activeTextureKey = flavorTextureMap[baseFlavor] || "choco";
+    const flavorTextureKeys = useMemo(() => [...new Set(
+        [baseFlavor, ...(selectedTierFlavors || [])]
+            .map((flavorName) => flavorTextureMap[flavorName] || "choco")
+    )], [baseFlavor, selectedTierFlavors, flavorTextureMap]);
+    const flavorTextureUrls = useMemo(() => Object.fromEntries(
+        flavorTextureKeys.flatMap((key) => Object.entries(TEXTURE_URLS[key]).map(
+            ([property, url]) => [`${key}_${property}`, url]
+        ))
+    ), [flavorTextureKeys]);
+    const loadedFlavorTextures = useTexture(flavorTextureUrls);
+    const textureSetsByKey = useMemo(() => Object.fromEntries(
+        flavorTextureKeys.map((key) => [
+            key,
+            Object.fromEntries(Object.keys(TEXTURE_URLS[key]).map((property) => [
+                property,
+                loadedFlavorTextures[`${key}_${property}`],
+            ])),
+        ])
+    ), [flavorTextureKeys, loadedFlavorTextures]);
     const activeTexture = textureSetsByKey[activeTextureKey];
-    const cherryTexture = useTexture(TIER1_CHERRY_TEXTURE);
+    const [cherryTexture, setCherryTexture] = useState(null);
     const activeTierScene = activeTier.scene;
 
     const activeTierBounds = useMemo(() => {
@@ -823,12 +843,6 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         cherry,
         sprinkles,
     ]);
-
-    useEffect(() => {
-        if (!cherryTexture) return;
-        cherryTexture.colorSpace = THREE.SRGBColorSpace;
-        cherryTexture.needsUpdate = true;
-    }, [cherryTexture]);
 
     useEffect(() => {
         applyMaterialsToScene(activeTier.scene, {
@@ -1078,6 +1092,11 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
 
     return (
         <group ref={cakeGroupRef} dispose={null} position={[0, -0.8, 0]}>
+            {cherry && (
+                <Suspense fallback={null}>
+                    <CherryTextureLoader onLoad={setCherryTexture} />
+                </Suspense>
+            )}
             <primitive
                 object={activeTier.scene}
                 position={selectedTierIndex === 0 ? [0, 0, 0] : [0, -0.95, 0]}
