@@ -468,20 +468,23 @@ def admin_dashboard(request):
     end = start + page_size
 
     total_count = all_upcoming_qs.count()
+    import math
+    total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
 
     all_upcoming_orders = OrderSerializer(all_upcoming_qs[start:end], many=True).data
     upcoming_orders = OrderSerializer(upcoming_orders_qs, many=True).data
 
     # ── Trend calculations ──
-    # Helper to compute percentage change
     def calc_trend(current, previous):
+        """Return (percentage_string, raw_change)."""
+        raw_change = current - previous
         if previous == 0:
-            if current > 0:
-                return "+100%"
-            return "0%"
-        change = ((current - previous) / previous) * 100
-        sign = "+" if change >= 0 else ""
-        return f"{sign}{change:.0f}%"
+            pct = "+100%" if current > 0 else "0%"
+        else:
+            change = ((current - previous) / previous) * 100
+            sign = "+" if change >= 0 else ""
+            pct = f"{sign}{change:.0f}%"
+        return pct, raw_change
 
     # Month-over-month boundaries
     first_of_this_month = today.replace(day=1)
@@ -542,6 +545,20 @@ def admin_dashboard(request):
         created_at__date__lt=first_of_this_month,
     ).aggregate(total=Sum("total_amount"))["total"] or 0
 
+    # Compute all trends
+    total_pct, total_change = calc_trend(total_this_month, total_last_month)
+    pending_pct, pending_change = calc_trend(pending_this_week, pending_last_week)
+    awaiting_pct, awaiting_change = calc_trend(awaiting_this_week, awaiting_last_week)
+    completed_pct, completed_change = calc_trend(completed_this_month, completed_last_month)
+    revenue_pct, revenue_change = calc_trend(float(revenue_this_month), float(revenue_last_month))
+
+    # Overdue orders: delivery_date is in the past, not yet delivered/cancelled/rejected
+    overdue_count = Order.objects.filter(
+        delivery_date__lt=today
+    ).exclude(
+        status__in=["delivered", "cancelled", "rejected"]
+    ).count()
+
     data = {
         "total_orders": orders.count(),
         "pending_review": orders.filter(status="pending_review").count(),
@@ -552,25 +569,52 @@ def admin_dashboard(request):
             total=Sum("total_amount")
         )["total"] or 0,
 
-        # Trend data
-        "total_orders_trend": calc_trend(total_this_month, total_last_month),
+        # Trend data with raw changes
+        "total_orders_trend": total_pct,
+        "total_orders_change": total_change,
+        "total_orders_previous": total_last_month,
         "total_orders_trend_period": "vs last month",
-        "pending_review_trend": calc_trend(pending_this_week, pending_last_week),
+
+        "pending_review_trend": pending_pct,
+        "pending_review_change": pending_change,
+        "pending_review_previous": pending_last_week,
         "pending_review_trend_period": "vs last week",
-        "awaiting_downpayment_trend": calc_trend(awaiting_this_week, awaiting_last_week),
+
+        "awaiting_downpayment_trend": awaiting_pct,
+        "awaiting_downpayment_change": awaiting_change,
+        "awaiting_downpayment_previous": awaiting_last_week,
         "awaiting_downpayment_trend_period": "vs last week",
-        "completed_trend": calc_trend(completed_this_month, completed_last_month),
+
+        "completed_trend": completed_pct,
+        "completed_change": completed_change,
+        "completed_previous": completed_last_month,
         "completed_trend_period": "vs last month",
-        "total_revenue_trend": calc_trend(float(revenue_this_month), float(revenue_last_month)),
+
+        "total_revenue_trend": revenue_pct,
+        "total_revenue_change": float(revenue_change),
+        "total_revenue_previous": float(revenue_last_month),
         "total_revenue_trend_period": "vs last month",
+
+        "overdue_count": overdue_count,
+
+        "status_breakdown": {
+            "pending_review": orders.filter(status="pending_review").count(),
+            "awaiting_downpayment": orders.filter(status="awaiting_downpayment").count(),
+            "processing": orders.filter(status="processing").count(),
+            "ready_for_delivery": orders.filter(status="ready_for_delivery").count(),
+            "delivered": orders.filter(status="delivered").count(),
+            "cancelled": orders.filter(status__in=["cancelled", "rejected"]).count(),
+        },
 
         "upcoming_orders": upcoming_orders,
         "all_upcoming_orders": all_upcoming_orders,
         "all_upcoming_total": total_count,
+        "all_upcoming_total_pages": total_pages,
         "all_upcoming_page": page,
         "all_upcoming_has_next": end < total_count,
         "all_upcoming_has_prev": page > 1,
     }
 
     return Response(data)
+
 
