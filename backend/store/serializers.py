@@ -1,6 +1,7 @@
 # store/serializers.py
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
+from django.db.models import Avg
 from rest_framework import serializers
 
 from .models import ( AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Product, UserProfile, UploadedCakeRequest, )
@@ -32,9 +33,39 @@ class ProductSerializer(serializers.ModelSerializer):
         queryset=Category.objects.all()
     )
 
+    category_name = serializers.CharField(
+        source="category.name",
+        read_only=True
+    )
+
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = '__all__'
+        fields = [
+            "id",
+            "category",
+            "category_name",
+            "name",
+            "description",
+            "price",
+            "image",
+            "average_rating",
+            "review_count",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_average_rating(self, obj):
+        value = obj.reviews.aggregate(
+            average=Avg("rating")
+        )["average"]
+
+        return round(value or 0, 1)
+
+    def get_review_count(self, obj):
+        return obj.reviews.count()
 
 class CakeCustomizationSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)

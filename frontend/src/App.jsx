@@ -24,6 +24,7 @@ import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProductList from "./pages/admin/AdminProductList";
 import AdminProductCreate from "./pages/admin/AdminProductCreate";
+import AdminProductDetailPage from "./pages/admin/AdminProductDetailPage";
 import AdminProductEdit from "./pages/admin/AdminProductEdit";
 
 // Customer Page
@@ -68,6 +69,7 @@ function App() {
                   <Route path="/admin/orders/:id" element={<AdminOrderDetailPage />} />
                   <Route path="/admin/products" element={<AdminProductList />} />
                   <Route path="/admin/products/create" element={<AdminProductCreate />} />
+                  <Route path="/admin/products/:id" element={<AdminProductDetailPage />} />
                   <Route path="/admin/products/:id/edit" element={<AdminProductEdit />} />
                 </Route>
 
