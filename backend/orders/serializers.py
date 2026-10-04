@@ -3,6 +3,7 @@ from rest_framework import serializers
 from payments.serializers import PaymentSerializer
 from store.models import Order, OrderItem, Product
 from chat.models import Quotation
+from .models import OrderStatusHistory
         
 class QuotationSerializer(serializers.ModelSerializer):
 
@@ -21,10 +22,20 @@ class QuotationSerializer(serializers.ModelSerializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.SerializerMethodField()
     product_price = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
-    
+    product_image = serializers.SerializerMethodField()
+        
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'product_price', 'quantity', 'price', 'customization', 'subtotal']
+        fields = ['id', 'product', 'product_name', "product_image", 'product_price', 'quantity', 'price', 'customization', 'subtotal']
+
+    def get_product_image(self, obj):
+        if not obj.product:
+            return None
+
+        if not obj.product.image:
+            return None
+
+        return obj.product.image.url
 
     def get_product_name(self, obj):
         if obj.product:
@@ -37,6 +48,17 @@ class OrderItemSerializer(serializers.ModelSerializer):
     
         return "Custom Cake"
 
+class OrderStatusHistorySerializer(
+    serializers.ModelSerializer
+):
+    class Meta:
+        model = OrderStatusHistory
+        fields = [
+            "id",
+            "status",
+            "created_at",
+        ]
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
@@ -47,11 +69,17 @@ class OrderSerializer(serializers.ModelSerializer):
     formatted_phone = serializers.SerializerMethodField()
     payments = PaymentSerializer(many=True, read_only=True)
     quotations = QuotationSerializer(many=True, read_only=True)
+    status_history = (
+        OrderStatusHistorySerializer(
+            many=True,
+            read_only=True
+        )
+    )
     
     class Meta:
         model = Order
         fields = [
-            'id', 'user', 'user_name', 'customer_email', 'created_at', 'full_name', 'phone', 'formatted_phone', 'street', 'city', 'province', 'postal_code', 'full_address', 'delivery_date', 'delivery_time', 'order_notes', 'total_amount', 'status', 'payment_status', 'total_paid', 'remaining_balance', 'items', 'rejection_reason', 'quoted_price', 'quotations', 'payments',
+            'id', 'user', 'user_name', 'customer_email', 'created_at', 'full_name', 'phone', 'formatted_phone', 'street', 'city', 'province', 'postal_code', 'full_address', 'delivery_date', 'delivery_time', 'order_notes', 'total_amount', 'status', 'payment_status', 'total_paid', 'remaining_balance', 'items', 'rejection_reason', 'quoted_price', 'quotations', 'payments', "status_history",
         ]
         
     def get_total_paid(self, obj):

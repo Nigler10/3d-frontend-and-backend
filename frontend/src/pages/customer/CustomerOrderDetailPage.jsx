@@ -29,7 +29,6 @@ export default function CustomerOrderDetailPage() {
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
-    const [receiptPage, setReceiptPage] = useState(1);
     const roundMoney = (value) =>
         Math.round(
             (Number(value) + Number.EPSILON) * 100
@@ -352,50 +351,6 @@ export default function CustomerOrderDetailPage() {
 
     if (!order) return null;
 
-    const successfulPayments = [...(order.payments || [])]
-        .filter((payment) => ["partial", "paid"].includes(payment.status))
-        .sort((a, b) => {
-            const dateA = new Date(a.processed_at || a.updated_at || a.created_at);
-            const dateB = new Date(b.processed_at || b.updated_at || b.created_at);
-
-            if (dateA.getTime() === dateB.getTime()) {
-                return a.id - b.id;
-            }
-
-            return dateA - dateB;
-        })
-        .map((payment, index) => ({
-            ...payment,
-            paymentNumber: index + 1,
-        }))
-        .reverse();
-
-    const RECEIPTS_PER_PAGE = 5;
-
-    const totalReceiptPages = Math.max(
-        1,
-        Math.ceil(
-            successfulPayments.length /
-            RECEIPTS_PER_PAGE
-        )
-    );
-
-    const currentReceiptPage = Math.min(
-        receiptPage,
-        totalReceiptPages
-    );
-
-    const receiptStartIndex =
-        (currentReceiptPage - 1) *
-        RECEIPTS_PER_PAGE;
-
-    const paginatedPayments =
-        successfulPayments.slice(
-            receiptStartIndex,
-            receiptStartIndex +
-            RECEIPTS_PER_PAGE
-        );
-
     const isPayable = !["delivered", "completed", "cancelled", "rejected"].includes(order.status);
 
     const canCancelOrder =
@@ -541,115 +496,6 @@ export default function CustomerOrderDetailPage() {
                             </div>
                         )}
 
-                        {successfulPayments.length > 0 && (
-                            <div className="bg-white border border-[#f3e1c6] rounded-2xl p-6 shadow-sm space-y-4">
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-[#844414]">
-                                            Payment History
-                                        </h3>
-
-                                        <p className="mt-1 text-xs text-stone-500">
-                                            View or print receipts for your confirmed payments.
-                                        </p>
-                                    </div>
-
-                                    <span className="text-xs font-bold text-stone-400">
-                                        {successfulPayments.length} confirmed payment{successfulPayments.length !== 1 ? "s" : ""}
-                                    </span>
-                                </div>
-
-                                <div className="divide-y divide-stone-100">
-                                    {paginatedPayments.map((payment) => {
-                                        const amount = Number(payment.amount || 0);
-                                        const tip = Number(payment.tip || 0);
-                                        const charged = amount + tip;
-
-                                        const date = new Date(
-                                            payment.processed_at ||
-                                            payment.updated_at ||
-                                            payment.created_at
-                                        );
-
-                                        return (
-                                            <div key={payment.id} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                                <div>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className="text-sm font-black text-stone-800">
-                                                            Payment #{payment.paymentNumber}
-                                                        </p>
-
-                                                        <span className={`text-[10px] uppercase font-black px-2 py-1 rounded-full border ${payment.status === "paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-sky-50 text-sky-700 border-sky-200"}`}>
-                                                            {payment.status === "paid" ? "Fully Paid" : "Partial"}
-                                                        </span>
-                                                    </div>
-
-                                                    <p className="mt-1 text-xs text-stone-400">
-                                                        {date.toLocaleString("en-PH", {
-                                                            year: "numeric",
-                                                            month: "short",
-                                                            day: "numeric",
-                                                            hour: "numeric",
-                                                            minute: "2-digit",
-                                                        })}
-                                                    </p>
-
-                                                    <p className="mt-1 text-sm font-bold text-[#844414]">
-                                                        ₱{charged.toLocaleString("en-PH", {
-                                                            minimumFractionDigits: 2,
-                                                            maximumFractionDigits: 2,
-                                                        })}
-                                                    </p>
-
-                                                    {tip > 0 && (
-                                                        <p className="mt-0.5 text-[11px] text-stone-400">
-                                                            Payment ₱{amount.toLocaleString("en-PH", {
-                                                                minimumFractionDigits: 2,
-                                                                maximumFractionDigits: 2,
-                                                            })} + ₱{tip.toLocaleString("en-PH", {
-                                                                minimumFractionDigits: 2,
-                                                                maximumFractionDigits: 2,
-                                                            })} tip
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                <button type="button" onClick={() => setSelectedReceiptPayment(payment)} className="w-full sm:w-auto rounded-xl border border-[#d67b27] bg-white hover:bg-orange-50 text-[#d67b27] font-black text-xs uppercase tracking-wider px-5 py-2.5 transition-colors cursor-pointer">
-                                                    View Receipt
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {totalReceiptPages > 1 && (
-                                    <div className="flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setReceiptPage((current) => Math.max(1, current - 1))}
-                                            disabled={currentReceiptPage === 1}
-                                            className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-black text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            ← Previous
-                                        </button>
-
-                                        <span className="text-xs font-bold text-stone-400">
-                                            Page {currentReceiptPage} of {totalReceiptPages}
-                                        </span>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setReceiptPage((current) => Math.min(totalReceiptPages, current + 1))}
-                                            disabled={currentReceiptPage === totalReceiptPages}
-                                            className="px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-black text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            Next →
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {canCancelOrder && (
                             <div className="bg-white border border-rose-200 rounded-2xl p-5 shadow-sm">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -687,32 +533,60 @@ export default function CustomerOrderDetailPage() {
 
                             <div className="divide-y divide-stone-100 max-h-[320px] overflow-y-auto pr-1">
                                 {order.items.map((item) => (
-                                    <div key={item.id} className="py-3 flex justify-between items-start gap-4 text-sm first:pt-0 last:pb-0">
-                                        <div className="space-y-0.5 flex-1">
-                                            <p className="font-bold text-stone-800 leading-tight">{item.product_name}</p>
-
-                                            {item.customization && (
-                                                <button
-                                                    className="text-xs text-[#d67b27] font-semibold underline mt-1 hover:text-[#b56219]"
-                                                    onClick={() => {
-                                                        setSelectedCake(item.customization);
-                                                        setShowCakeModal(true);
-                                                    }}
-                                                >
-                                                    View Customization
-                                                </button>
-                                            )}
-
-                                            <p className="text-xs text-stone-400 font-semibold">Qty: {item.quantity} × ₱{item.price}</p>
-                                            {order.status === "delivered" && item.product && (
-                                                <ProductReviewForm
-                                                    orderId={order.id}
-                                                    item={item}
+                                    <div
+                                        key={item.id}
+                                        className="py-4 flex items-start justify-between gap-4 text-sm first:pt-0 last:pb-0"
+                                    >
+                                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                                            {/* Product Image */}
+                                            {item.product_image ? (
+                                                <img
+                                                    src={getImageUrl(item.product_image)}
+                                                    alt={item.product_name}
+                                                    loading="lazy"
+                                                    className="h-16 w-16 shrink-0 rounded-xl border border-[#f3e1c6] object-cover"
                                                 />
+                                            ) : (
+                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#f3e1c6] bg-[#fffdf9] text-2xl">
+                                                    🎂
+                                                </div>
                                             )}
+
+                                            <div className="min-w-0 flex-1 space-y-0.5">
+                                                <p className="font-bold text-stone-800 leading-tight">
+                                                    {item.product_name}
+                                                </p>
+
+                                                {item.customization && (
+                                                    <button
+                                                        type="button"
+                                                        className="mt-1 text-xs font-semibold text-[#d67b27] underline hover:text-[#b56219] cursor-pointer"
+                                                        onClick={() => {
+                                                            setSelectedCake(item.customization);
+                                                            setShowCakeModal(true);
+                                                        }}
+                                                    >
+                                                        View Customization
+                                                    </button>
+                                                )}
+
+                                                <p className="text-xs font-semibold text-stone-400">
+                                                    Qty: {item.quantity} × ₱
+                                                    {Number(item.price).toLocaleString()}
+                                                </p>
+
+                                                {order.status === "delivered" && item.product && (
+                                                    <ProductReviewForm
+                                                        orderId={order.id}
+                                                        item={item}
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div className="font-extrabold text-[#844414] text-right">₱{item.subtotal}</div>
+                                        <div className="shrink-0 text-right font-extrabold text-[#844414]">
+                                            ₱{Number(item.subtotal).toLocaleString()}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -721,20 +595,76 @@ export default function CustomerOrderDetailPage() {
                         <div className="bg-white border border-[#f3e1c6] rounded-2xl p-6 shadow-sm space-y-4">
                             <h3 className="text-lg font-bold text-[#844414] border-b border-stone-100 pb-2">Delivery Details</h3>
 
-                            <div className="grid grid-cols-2 gap-4 text-xs bg-stone-50 p-3 rounded-xl border border-stone-100 font-bold text-stone-600">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-stone-50 p-4 rounded-xl border border-stone-100 font-bold text-stone-600">
+                                {/* Delivery Date */}
                                 <div>
-                                    <span className="block text-stone-400 uppercase tracking-wider mb-0.5">Date</span>
-                                    <span className="text-stone-800">{order.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : "TBD"}</span>
+                                    <span className="block text-stone-400 uppercase tracking-wider mb-1">
+                                        Date
+                                    </span>
+
+                                    <span className="text-stone-800">
+                                        {order.delivery_date
+                                            ? new Date(order.delivery_date).toLocaleDateString()
+                                            : "TBD"}
+                                    </span>
+                                </div>
+
+                                {/* Delivery Time */}
+                                <div>
+                                    <span className="block text-stone-400 uppercase tracking-wider mb-1">
+                                        Time
+                                    </span>
+
+                                    <span className="text-stone-800">
+                                        {order.delivery_time || "TBD"}
+                                    </span>
                                 </div>
 
                                 <div>
-                                    <span className="block text-stone-400 uppercase tracking-wider mb-0.5">Time</span>
-                                    <span className="text-stone-800">{order.delivery_time || "TBD"}</span>
+                                    <span className="block text-stone-400 uppercase tracking-wider mb-1">
+                                        Recipient
+                                    </span>
+
+                                    <span className="text-stone-800">
+                                        {order.full_name || "N/A"}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <span className="block text-stone-400 uppercase tracking-wider mb-1">
+                                        Contact Number
+                                    </span>
+
+                                    <span className="text-stone-800">
+                                        {order.formatted_phone || order.phone || "N/A"}
+                                    </span>
+                                </div>
+
+                                {/* Delivery Address */}
+                                <div className="sm:col-span-2 border-t border-stone-200 pt-3">
+                                    <span className="block text-stone-400 uppercase tracking-wider mb-1">
+                                        Delivery Address for this Order
+                                    </span>
+
+                                    <span className="block text-stone-800 leading-relaxed">
+                                        {order.full_address ||
+                                            [
+                                                order.street,
+                                                order.barangay,
+                                                order.city,
+                                                order.province,
+                                                order.region,
+                                                order.postal_code,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(", ") ||
+                                            "No delivery address available"}
+                                    </span>
                                 </div>
                             </div>
 
                             <div className="pt-2">
-                                <Logistics order={order} />
+                                <Logistics order={order} onViewReceipt={setSelectedReceiptPayment} />
                             </div>
                         </div>
                     </div>
