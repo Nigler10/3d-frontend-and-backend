@@ -209,7 +209,6 @@ function CheckoutPage() {
 
                                     {useProfileAddress && (
                                         <div className="bg-white border border-[#fdf2e2] rounded-xl p-3 mt-1 space-y-1 shadow-inner text-stone-600">
-                                            <strong className="text-[#844414]">{profileAddress.full_name}</strong>
                                             <strong className="text-[#844414]">
                                                 {profileAddress.full_name}
                                             </strong>

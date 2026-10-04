@@ -1,7 +1,8 @@
 // src/pages/admin/AdminProductEdit.jsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getAccessToken } from "../../utils/auth";
+import { authFetch } from "../../utils/auth";
+import { getMediaUrl } from "../../utils/media";
 
 function AdminProductEdit() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -24,22 +25,27 @@ function AdminProductEdit() {
             fetch(`${BASEURL}/api/products/${id}/`).then(res => res.json()),
             fetch(`${BASEURL}/api/categories/`).then(res => res.json())
         ])
-        .then(([productData, catData]) => {
-            setFormData({
-                name: productData.name,
-                description: productData.description,
-                price: productData.price,
-                category: productData.category,
-                image: null,
+            .then(([productData, catData]) => {
+                setFormData({
+                    name: productData.name,
+                    description: productData.description,
+                    price: productData.price,
+                    category: productData.category,
+                    image: null,
+                });
+                setCategories(catData);
+                setPreview(
+                    getMediaUrl(
+                        productData.image,
+                        BASEURL
+                    )
+                );
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error(err);
+                setLoading(false);
             });
-            setCategories(catData);
-            setPreview(`${BASEURL}${productData.image}`);
-            setLoading(false);
-        })
-        .catch(err => {
-            console.error(err);
-            setLoading(false);
-        });
     }, [id, BASEURL]);
 
     const handleChange = (e) => {
@@ -56,7 +62,6 @@ function AdminProductEdit() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const token = getAccessToken();
             const data = new FormData();
             data.append("name", formData.name);
             data.append("description", formData.description);
@@ -64,11 +69,13 @@ function AdminProductEdit() {
             data.append("category", formData.category);
             if (formData.image) data.append("image", formData.image);
 
-            const res = await fetch(`${BASEURL}/api/admin/products/${id}/update/`, {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${token}` },
-                body: data,
-            });
+            const res = await authFetch(
+                `${BASEURL}/api/admin/products/${id}/update/`,
+                {
+                    method: "PATCH",
+                    body: data,
+                }
+            );
 
             if (!res.ok) throw new Error("Update failed");
             navigate("/admin/products");
@@ -84,7 +91,7 @@ function AdminProductEdit() {
             <div className="max-w-4xl mx-auto px-4 mt-8">
                 <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl border border-[#E6CCA2] shadow-sm">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        
+
                         {/* Visuals */}
                         <div className="space-y-4">
                             <div className="relative w-full aspect-square rounded-2xl overflow-hidden border-2 border-[#E6CCA2]">
@@ -142,7 +149,7 @@ function AdminProductEdit() {
                                     className="flex-1 py-3 border border-[#E6CCA2] text-[#6E473B] font-bold rounded-lg hover:bg-[#F5EEDD]">
                                     Discard
                                 </button>
-                                <button type="submit" 
+                                <button type="submit"
                                     className="flex-1 py-3 bg-[#6E473B] text-white font-bold rounded-lg hover:bg-[#5a3a30]">
                                     Update Details
                                 </button>
