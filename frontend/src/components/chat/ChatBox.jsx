@@ -34,21 +34,46 @@ export default function ChatBox({
         ? quotations[quotations.length - 2]
         : null;
 
+    const [socketStatus, setSocketStatus] = useState("connecting");
+
+    const reconnectTimerRef = useRef(null);
+    const reconnectAttemptsRef = useRef(0);
+    const shouldReconnectRef = useRef(true);
+    const activeOrderIdRef = useRef(orderId);
+
+    const [isSending, setIsSending] = useState(false);
+
+    const pendingMessageRef = useRef(null);
+    const sendTimeoutRef = useRef(null);
+
     useEffect(() => {
         setMessages([]);
         loadConversation();
 
-        const ws = connectSocket();
+        activeOrderIdRef.current = orderId;
+        shouldReconnectRef.current = true;
+        reconnectAttemptsRef.current = 0;
+
+        connectSocket();
 
         return () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            } else if (ws.readyState === WebSocket.CONNECTING) {
-                ws.addEventListener(
-                    "open",
-                    () => ws.close(),
-                    { once: true }
-                );
+            shouldReconnectRef.current = false;
+
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
+
+            if (sendTimeoutRef.current) {
+                clearTimeout(sendTimeoutRef.current);
+                sendTimeoutRef.current = null;
+            }
+
+            if (socket.current) {
+                socket.current.onclose = null;
+                socket.current.onerror = null;
+                socket.current.close();
+                socket.current = null;
             }
         };
     }, [orderId]);
@@ -119,12 +144,39 @@ export default function ChatBox({
 
     function connectSocket() {
         const token = getAccessToken();
+        const socketOrderId = orderId;
 
-        socket.current = new WebSocket(
-            `${WSURL}/ws/chat/orders/${orderId}/?token=${token}`
+        if (!token) {
+            setSocketStatus("disconnected");
+            return;
+        }
+
+        if (
+            socket.current &&
+            (
+                socket.current.readyState === WebSocket.OPEN ||
+                socket.current.readyState === WebSocket.CONNECTING
+            )
+        ) {
+            return;
+        }
+
+        setSocketStatus("connecting");
+
+        const ws = new WebSocket(
+            `${WSURL}/ws/chat/orders/${socketOrderId}/?token=${token}`
         );
 
-        socket.current.onmessage = (event) => {
+        socket.current = ws;
+
+        ws.onopen = () => {
+            console.log("Chat WebSocket connected");
+
+            reconnectAttemptsRef.current = 0;
+            setSocketStatus("connected");
+        };
+
+        ws.onmessage = (event) => {
             let data;
 
             try {
@@ -147,6 +199,28 @@ export default function ChatBox({
                 created_at: data.created_at,
             };
 
+            const expectedSender = isAdmin ? "admin" : "customer";
+
+            if (
+                pendingMessageRef.current &&
+                incomingMessage.sender_type === expectedSender &&
+                incomingMessage.content === pendingMessageRef.current
+            ) {
+                const confirmedMessage = pendingMessageRef.current;
+
+                pendingMessageRef.current = null;
+                setIsSending(false);
+
+                if (sendTimeoutRef.current) {
+                    clearTimeout(sendTimeoutRef.current);
+                    sendTimeoutRef.current = null;
+                }
+
+                setMessage((current) =>
+                    current.trim() === confirmedMessage ? "" : current
+                );
+            }
+
             setMessages((prev) => {
                 const alreadyExists = prev.some(
                     (msg) => msg.id === incomingMessage.id
@@ -168,22 +242,123 @@ export default function ChatBox({
                 fetchUnread();
             }
         };
-        return socket.current;
+
+        ws.onerror = (error) => {
+            console.error(
+                "Chat WebSocket error:",
+                error
+            );
+        };
+
+        ws.onclose = (event) => {
+            console.warn(
+                "Chat WebSocket disconnected:",
+                event.code,
+                event.reason
+            );
+
+            if (socket.current === ws) {
+                socket.current = null;
+            }
+
+            setSocketStatus("disconnected");
+
+            if (!shouldReconnectRef.current) {
+                return;
+            }
+
+            if (activeOrderIdRef.current !== socketOrderId) {
+                return;
+            }
+
+            const attempt = reconnectAttemptsRef.current;
+
+            const delay = Math.min(
+                1000 * Math.pow(2, attempt),
+                10000
+            );
+
+            reconnectAttemptsRef.current += 1;
+
+            clearTimeout(reconnectTimerRef.current);
+
+            reconnectTimerRef.current = setTimeout(() => {
+                connectSocket();
+            }, delay);
+        };
     }
 
     function sendMessage() {
-        if (!message.trim()) return;
+        const trimmedMessage = message.trim();
 
-        if (!socket.current || socket.current.readyState !== WebSocket.OPEN) {
+        if (!trimmedMessage || isSending) {
             return;
         }
 
-        socket.current.send(
-            JSON.stringify({
-                message: message.trim(),
-            })
-        );
-        setMessage("");
+        if (
+            !socket.current ||
+            socket.current.readyState !== WebSocket.OPEN
+        ) {
+            console.warn(
+                "Chat WebSocket is not connected. Reconnecting..."
+            );
+
+            setSocketStatus("connecting");
+            connectSocket();
+
+            return;
+        }
+
+        try {
+            pendingMessageRef.current = trimmedMessage;
+            setIsSending(true);
+
+            socket.current.send(
+                JSON.stringify({
+                    message: trimmedMessage,
+                })
+            );
+
+            if (sendTimeoutRef.current) {
+                clearTimeout(sendTimeoutRef.current);
+            }
+
+            sendTimeoutRef.current = setTimeout(() => {
+                if (
+                    pendingMessageRef.current === trimmedMessage
+                ) {
+                    console.warn(
+                        "Chat message was not confirmed by the server."
+                    );
+
+                    pendingMessageRef.current = null;
+                    setIsSending(false);
+
+                    if (socket.current) {
+                        socket.current.close();
+                    }
+                }
+            }, 8000);
+
+        } catch (error) {
+            console.error(
+                "Failed to send chat message:",
+                error
+            );
+
+            pendingMessageRef.current = null;
+            setIsSending(false);
+            setSocketStatus("disconnected");
+
+            try {
+                socket.current?.close();
+            } catch {
+                // Ignore close error.
+            }
+
+            socket.current = null;
+            connectSocket();
+        }
     }
 
     return (
@@ -248,7 +423,7 @@ export default function ChatBox({
                                                 maximumFractionDigits: 2,
                                             })}`
                                             : msg.content;
-                                            
+
                                     return (
                                         <div
                                             key={msg.id}
@@ -308,6 +483,14 @@ export default function ChatBox({
                         <div ref={bottomRef}></div>
                     </div>
 
+                    {socketStatus !== "connected" && (
+                        <div className="px-4 pt-2 text-xs font-semibold text-amber-600 bg-white">
+                            {socketStatus === "connecting"
+                                ? "Connecting to chat..."
+                                : "Chat disconnected. Reconnecting..."}
+                        </div>
+                    )}
+
                     <div className="flex gap-2 p-4 border-t bg-white">
                         <input
                             value={message}
@@ -316,7 +499,8 @@ export default function ChatBox({
                             placeholder="Type a message..."
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
                                     sendMessage();
                                 }
                             }}
@@ -325,9 +509,17 @@ export default function ChatBox({
 
                         <button
                             onClick={sendMessage}
-                            className="px-4 rounded-lg bg-orange-500 text-white"
+                            disabled={
+                                socketStatus !== "connected" ||
+                                isSending
+                            }
+                            className="px-4 rounded-lg bg-orange-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Send
+                            {socketStatus !== "connected"
+                                ? "Connecting..."
+                                : isSending
+                                    ? "Sending..."
+                                    : "Send"}
                         </button>
                     </div>
                 </div>
