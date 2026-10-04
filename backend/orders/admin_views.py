@@ -471,7 +471,77 @@ def admin_dashboard(request):
 
     all_upcoming_orders = OrderSerializer(all_upcoming_qs[start:end], many=True).data
     upcoming_orders = OrderSerializer(upcoming_orders_qs, many=True).data
-    
+
+    # ── Trend calculations ──
+    # Helper to compute percentage change
+    def calc_trend(current, previous):
+        if previous == 0:
+            if current > 0:
+                return "+100%"
+            return "0%"
+        change = ((current - previous) / previous) * 100
+        sign = "+" if change >= 0 else ""
+        return f"{sign}{change:.0f}%"
+
+    # Month-over-month boundaries
+    first_of_this_month = today.replace(day=1)
+    first_of_last_month = (first_of_this_month - timedelta(days=1)).replace(day=1)
+
+    # Week-over-week boundaries (Monday-based)
+    start_of_this_week = today - timedelta(days=today.weekday())
+    start_of_last_week = start_of_this_week - timedelta(days=7)
+
+    # Total orders: this month vs last month
+    total_this_month = orders.filter(created_at__date__gte=first_of_this_month).count()
+    total_last_month = orders.filter(
+        created_at__date__gte=first_of_last_month,
+        created_at__date__lt=first_of_this_month,
+    ).count()
+
+    # Pending review: this week vs last week
+    pending_this_week = orders.filter(
+        status="pending_review",
+        created_at__date__gte=start_of_this_week,
+    ).count()
+    pending_last_week = orders.filter(
+        status="pending_review",
+        created_at__date__gte=start_of_last_week,
+        created_at__date__lt=start_of_this_week,
+    ).count()
+
+    # Awaiting downpayment: this week vs last week
+    awaiting_this_week = orders.filter(
+        status="awaiting_downpayment",
+        created_at__date__gte=start_of_this_week,
+    ).count()
+    awaiting_last_week = orders.filter(
+        status="awaiting_downpayment",
+        created_at__date__gte=start_of_last_week,
+        created_at__date__lt=start_of_this_week,
+    ).count()
+
+    # Completed (delivered): this month vs last month
+    completed_this_month = orders.filter(
+        status="delivered",
+        created_at__date__gte=first_of_this_month,
+    ).count()
+    completed_last_month = orders.filter(
+        status="delivered",
+        created_at__date__gte=first_of_last_month,
+        created_at__date__lt=first_of_this_month,
+    ).count()
+
+    # Revenue: this month vs last month
+    revenue_this_month = orders.filter(
+        payment_status="paid",
+        created_at__date__gte=first_of_this_month,
+    ).aggregate(total=Sum("total_amount"))["total"] or 0
+    revenue_last_month = orders.filter(
+        payment_status="paid",
+        created_at__date__gte=first_of_last_month,
+        created_at__date__lt=first_of_this_month,
+    ).aggregate(total=Sum("total_amount"))["total"] or 0
+
     data = {
         "total_orders": orders.count(),
         "pending_review": orders.filter(status="pending_review").count(),
@@ -482,6 +552,18 @@ def admin_dashboard(request):
             total=Sum("total_amount")
         )["total"] or 0,
 
+        # Trend data
+        "total_orders_trend": calc_trend(total_this_month, total_last_month),
+        "total_orders_trend_period": "vs last month",
+        "pending_review_trend": calc_trend(pending_this_week, pending_last_week),
+        "pending_review_trend_period": "vs last week",
+        "awaiting_downpayment_trend": calc_trend(awaiting_this_week, awaiting_last_week),
+        "awaiting_downpayment_trend_period": "vs last week",
+        "completed_trend": calc_trend(completed_this_month, completed_last_month),
+        "completed_trend_period": "vs last month",
+        "total_revenue_trend": calc_trend(float(revenue_this_month), float(revenue_last_month)),
+        "total_revenue_trend_period": "vs last month",
+
         "upcoming_orders": upcoming_orders,
         "all_upcoming_orders": all_upcoming_orders,
         "all_upcoming_total": total_count,
@@ -491,3 +573,4 @@ def admin_dashboard(request):
     }
 
     return Response(data)
+

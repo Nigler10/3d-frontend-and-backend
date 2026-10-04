@@ -3,6 +3,44 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import {
+    LayoutDashboard,
+    Plus,
+    LayoutGrid,
+    LayoutList,
+    Filter,
+    ArrowUpDown,
+    Search,
+    X,
+    RotateCcw,
+    Download,
+    ChevronLeft,
+    ChevronRight,
+    CalendarDays,
+    Clock,
+    ExternalLink,
+    Info,
+    TrendingUp,
+    Package,
+    ShoppingCart,
+    Hourglass,
+    CreditCard,
+    CheckCircle2,
+    DollarSign,
+    BarChart3,
+    Inbox,
+    PartyPopper,
+} from "lucide-react";
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    Cell,
+} from "recharts";
 
 export default function AdminDashboard() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -136,14 +174,56 @@ export default function AdminDashboard() {
         }
     };
 
+    // ── Chart data from existing metrics ──
+    const chartData = data
+        ? [
+              {
+                  name: "Pending Review",
+                  value: data.pending_review ?? 0,
+                  fill: "#C05A11",
+              },
+              {
+                  name: "Awaiting Payment",
+                  value: data.awaiting_downpayment ?? 0,
+                  fill: "#D97706",
+              },
+              {
+                  name: "Completed",
+                  value: data.completed ?? 0,
+                  fill: "#16A34A",
+              },
+          ]
+        : [];
+
+    // ── Loading State ──
     if (!data) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-[#FCF8EE] text-[#4A2E2B]">
-            <div className="w-12 h-12 border-4 border-[#AD4313] border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="font-extrabold text-lg animate-pulse tracking-wide">Loading management console...</p>
+            <div className="relative w-16 h-16 mb-6">
+                <div className="absolute inset-0 rounded-full border-4 border-[#E6DBCB]" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#AD4313] border-t-transparent animate-spin" />
+                <LayoutDashboard className="absolute inset-0 m-auto w-6 h-6 text-[#AD4313] opacity-60" />
+            </div>
+            <p className="font-bold text-base animate-pulse tracking-wide text-[#3D251E]">Loading management console...</p>
+            <p className="text-xs text-[#8C6D58] mt-1.5">Fetching your latest data</p>
         </div>
     );
 
     const totalPages = Math.max(1, data.all_upcoming_total_pages || 1);
+
+    // ── Custom Tooltip for Chart ──
+    const CustomChartTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white border border-[#E6DBCB] rounded-xl shadow-lg px-4 py-3 text-xs">
+                    <p className="font-bold text-[#3D251E] mb-0.5">{payload[0].payload.name}</p>
+                    <p className="text-[#8C6D58]">
+                        Count: <span className="font-black text-[#AD4313]">{payload[0].value}</span>
+                    </p>
+                </div>
+            );
+        }
+        return null;
+    };
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] pb-16 text-[#3D251E] font-sans antialiased">
@@ -153,10 +233,12 @@ export default function AdminDashboard() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#AD4313] to-[#8F350E] flex items-center justify-center shadow-md">
+                                <LayoutDashboard className="w-5 h-5 text-white" />
+                            </div>
                             <h1 className="text-3xl font-black text-[#3D251E] tracking-tight">Business Overview</h1>
-
                         </div>
-                        <p className="text-[#8C6D58] font-medium text-sm mt-1">Welcome back, Chef! Here's what's happening today.</p>
+                        <p className="text-[#8C6D58] font-medium text-sm mt-1.5 ml-[52px]">Welcome back, Chef! Here's what's happening today.</p>
                     </div>
 
                     {/* Quick action button */}
@@ -164,29 +246,31 @@ export default function AdminDashboard() {
                         <button
                             type="button"
                             onClick={() => navigate("/admin/products/create")}
-                            className="px-4 py-2.5 bg-[#AD4313] hover:bg-[#8F350E] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                            className="px-5 py-2.5 bg-[#AD4313] hover:bg-[#8F350E] text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                         >
-                            <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">⊕</span> Add Product
+                            <Plus className="w-4 h-4" /> Add Product
                         </button>
                     </div>
                 </header>
 
-                {/* ── Toolbar & Control Bar (Exact Image Matching) ── */}
+                {/* ── Toolbar & Control Bar ── */}
                 <div className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl p-3 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    {/* Left Controls: View, Filter, Sort, Search, Stats Toggle */}
+                    {/* Left Controls */}
                     <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                        {/* View Switcher Dropdown */}
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
-                                className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
-                            >
-                                <span className="text-sm">田</span>
-                                <span>{viewMode === "table" ? "Table View" : "Cards View"}</span>
-                                <span className="text-[10px] text-[#8C6D58]">▾</span>
-                            </button>
-                        </div>
+                        {/* View Switcher */}
+                        <button
+                            type="button"
+                            onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
+                            className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
+                        >
+                            {viewMode === "table" ? (
+                                <LayoutList className="w-3.5 h-3.5" />
+                            ) : (
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            )}
+                            <span>{viewMode === "table" ? "Table View" : "Cards View"}</span>
+                            <ChevronRight className="w-3 h-3 text-[#8C6D58] rotate-90" />
+                        </button>
 
                         {/* Filter Button */}
                         <div className="relative">
@@ -198,17 +282,20 @@ export default function AdminDashboard() {
                                     : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border-[#E6DBCB] text-[#5C3D2E]"
                                     }`}
                             >
-                                <span>⚡ Filter</span>
+                                <Filter className="w-3.5 h-3.5" />
+                                <span>Filter</span>
                                 {statusFilter !== "all" && (
                                     <span className="bg-white text-[#AD4313] rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-black">1</span>
                                 )}
-                                <span className="text-[10px]">▾</span>
+                                <ChevronRight className="w-3 h-3 rotate-90 opacity-60" />
                             </button>
 
                             {/* Filter Dropdown */}
                             {isFilterOpen && (
-                                <div className="absolute left-0 mt-2 w-48 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
-                                    <div className="text-[10px] font-black uppercase text-[#8C6D58] px-2 py-1">Filter by Status</div>
+                                <div className="absolute left-0 mt-2 w-52 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-0.5 animate-[fadeSlideDown_0.15s_ease-out]">
+                                    <div className="text-[10px] font-black uppercase text-[#8C6D58] px-3 py-1.5 flex items-center gap-1.5">
+                                        <Filter className="w-3 h-3" /> Filter by Status
+                                    </div>
                                     {[
                                         { id: "all", label: "All Statuses" },
                                         { id: "pending_review", label: "Pending Review" },
@@ -219,7 +306,7 @@ export default function AdminDashboard() {
                                         <button
                                             key={opt.id}
                                             type="button"
-                                            className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${statusFilter === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
+                                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${statusFilter === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
                                             onClick={() => { setStatusFilter(opt.id); setIsFilterOpen(false); }}
                                         >
                                             {opt.label}
@@ -236,14 +323,17 @@ export default function AdminDashboard() {
                                 onClick={() => { setIsSortOpen(!isSortOpen); setIsFilterOpen(false); }}
                                 className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
                             >
-                                <span>⇅ Sort</span>
-                                <span className="text-[10px] text-[#8C6D58]">▾</span>
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                                <span>Sort</span>
+                                <ChevronRight className="w-3 h-3 text-[#8C6D58] rotate-90" />
                             </button>
 
                             {/* Sort Dropdown */}
                             {isSortOpen && (
-                                <div className="absolute left-0 mt-2 w-48 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-1">
-                                    <div className="text-[10px] font-black uppercase text-[#8C6D58] px-2 py-1">Sort Orders</div>
+                                <div className="absolute left-0 mt-2 w-52 bg-white border border-[#E6DBCB] rounded-xl shadow-xl z-30 p-2 text-xs font-semibold flex flex-col gap-0.5 animate-[fadeSlideDown_0.15s_ease-out]">
+                                    <div className="text-[10px] font-black uppercase text-[#8C6D58] px-3 py-1.5 flex items-center gap-1.5">
+                                        <ArrowUpDown className="w-3 h-3" /> Sort Orders
+                                    </div>
                                     {[
                                         { id: "date_asc", label: "Delivery Date (Earliest)" },
                                         { id: "date_desc", label: "Delivery Date (Latest)" },
@@ -253,7 +343,7 @@ export default function AdminDashboard() {
                                         <button
                                             key={opt.id}
                                             type="button"
-                                            className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
+                                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${sortBy === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
                                             onClick={() => { setSortBy(opt.id); setIsSortOpen(false); }}
                                         >
                                             {opt.label}
@@ -263,30 +353,31 @@ export default function AdminDashboard() {
                             )}
                         </div>
 
-                        {/* Search Input Box */}
+                        {/* Search Input */}
                         <div className="relative min-w-[200px] sm:min-w-[240px]">
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search customer, ID, or dish..."
-                                className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
+                                className="w-full pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313] focus:ring-1 focus:ring-[#AD4313]/20 transition-all"
                             />
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A48B78] w-3.5 h-3.5" />
                             {searchQuery && (
                                 <button
                                     type="button"
                                     onClick={() => setSearchQuery("")}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] text-xs"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] transition-colors"
                                 >
-                                    ✕
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
 
-                        {/* Show Statistics Toggle Switch */}
-                        <label className="flex items-center gap-2 px-3 py-2 border border-transparent rounded-xl cursor-pointer select-none">
-                            <span className="text-[#8C6D58] font-medium text-xs">Show Statistics</span>
+                        {/* Statistics Toggle */}
+                        <label className="flex items-center gap-2.5 px-3 py-2 border border-transparent rounded-xl cursor-pointer select-none">
+                            <BarChart3 className="w-3.5 h-3.5 text-[#8C6D58]" />
+                            <span className="text-[#8C6D58] font-medium text-xs">Statistics</span>
                             <div className="relative inline-block w-9 h-5 transition-all">
                                 <input
                                     type="checkbox"
@@ -299,7 +390,7 @@ export default function AdminDashboard() {
                         </label>
                     </div>
 
-                    {/* Right Controls: Reset & Export */}
+                    {/* Right Controls */}
                     <div className="flex items-center gap-2 text-xs font-semibold">
                         <button
                             type="button"
@@ -310,7 +401,7 @@ export default function AdminDashboard() {
                             }}
                             className="px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                            <span>↻</span> Reset Controls
+                            <RotateCcw className="w-3.5 h-3.5" /> Reset
                         </button>
 
                         <button
@@ -318,60 +409,109 @@ export default function AdminDashboard() {
                             onClick={handleExportCSV}
                             className="px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                            <span>⤓</span> Export
+                            <Download className="w-3.5 h-3.5" /> Export
                         </button>
                     </div>
                 </div>
 
-                {/* ── Stat Metric Cards Row (5 Cards) ── */}
+                {/* ── Stat Metric Cards + Chart Row ── */}
                 {showStats && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 transition-all duration-300">
-                        <MetricCard
-                            title="TOTAL ORDERS"
-                            value={data.total_orders ?? 40}
-                            trend="+12%"
-                            trendPeriod="vs last month"
-                            infoTooltip="Total lifetime orders received."
-                        />
-                        <MetricCard
-                            title="PENDING REVIEW"
-                            value={data.pending_review ?? 6}
-                            trend="+4%"
-                            trendPeriod="vs last week"
-                            infoTooltip="Custom cake requests awaiting admin review."
-                            badgeColor="amber"
-                        />
-                        <MetricCard
-                            title="AWAITING PAYMENT"
-                            value={data.awaiting_downpayment ?? 4}
-                            trend="+2%"
-                            trendPeriod="vs last week"
-                            infoTooltip="Orders pending customer downpayment verification."
-                            badgeColor="orange"
-                        />
-                        <MetricCard
-                            title="COMPLETED"
-                            value={data.completed ?? 7}
-                            trend="+8%"
-                            trendPeriod="vs last month"
-                            infoTooltip="Orders successfully fulfilled and delivered."
-                            badgeColor="green"
-                        />
-                        <MetricCard
-                            title="TOTAL REVENUE"
-                            value={`₱${Number(data.total_revenue || 13505).toLocaleString()}`}
-                            trend="+15%"
-                            trendPeriod="vs last month"
-                            infoTooltip="Total gross revenue earned."
-                            isHighlight={true}
-                        />
+                    <div className="flex flex-col gap-5">
+                        {/* Metric Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 transition-all duration-300">
+                            <MetricCard
+                                title="TOTAL ORDERS"
+                                value={data.total_orders ?? 0}
+                                trend={data.total_orders_trend ?? "0%"}
+                                trendPeriod={data.total_orders_trend_period ?? "vs last month"}
+                                infoTooltip="Total lifetime orders received."
+                                icon={<ShoppingCart className="w-5 h-5" />}
+                            />
+                            <MetricCard
+                                title="PENDING REVIEW"
+                                value={data.pending_review ?? 0}
+                                trend={data.pending_review_trend ?? "0%"}
+                                trendPeriod={data.pending_review_trend_period ?? "vs last week"}
+                                infoTooltip="Custom cake requests awaiting admin review."
+                                badgeColor="amber"
+                                icon={<Hourglass className="w-5 h-5" />}
+                            />
+                            <MetricCard
+                                title="AWAITING PAYMENT"
+                                value={data.awaiting_downpayment ?? 0}
+                                trend={data.awaiting_downpayment_trend ?? "0%"}
+                                trendPeriod={data.awaiting_downpayment_trend_period ?? "vs last week"}
+                                infoTooltip="Orders pending customer downpayment verification."
+                                badgeColor="orange"
+                                icon={<CreditCard className="w-5 h-5" />}
+                            />
+                            <MetricCard
+                                title="COMPLETED"
+                                value={data.completed ?? 0}
+                                trend={data.completed_trend ?? "0%"}
+                                trendPeriod={data.completed_trend_period ?? "vs last month"}
+                                infoTooltip="Orders successfully fulfilled and delivered."
+                                badgeColor="green"
+                                icon={<CheckCircle2 className="w-5 h-5" />}
+                            />
+                            <MetricCard
+                                title="TOTAL REVENUE"
+                                value={`₱${Number(data.total_revenue || 0).toLocaleString()}`}
+                                trend={data.total_revenue_trend ?? "0%"}
+                                trendPeriod={data.total_revenue_trend_period ?? "vs last month"}
+                                infoTooltip="Total gross revenue earned."
+                                isHighlight={true}
+                                icon={<DollarSign className="w-5 h-5" />}
+                            />
+                        </div>
+
+                        {/* Bar Chart */}
+                        <div className="bg-white border border-[#E6DBCB] rounded-2xl p-6 shadow-xs">
+                            <div className="flex items-center gap-2 mb-5">
+                                <BarChart3 className="w-4.5 h-4.5 text-[#AD4313]" />
+                                <h3 className="text-sm font-black text-[#3D251E] tracking-tight">Order Status Breakdown</h3>
+                            </div>
+                            <div className="h-[220px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData} barCategoryGap="30%">
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#E6DBCB" vertical={false} />
+                                        <XAxis
+                                            dataKey="name"
+                                            tick={{ fontSize: 11, fontWeight: 600, fill: "#8C6D58" }}
+                                            axisLine={{ stroke: "#E6DBCB" }}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            allowDecimals={false}
+                                            tick={{ fontSize: 11, fontWeight: 600, fill: "#8C6D58" }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip content={<CustomChartTooltip />} cursor={{ fill: "#FCF8EE", radius: 8 }} />
+                                        <Bar
+                                            dataKey="value"
+                                            radius={[8, 8, 0, 0]}
+                                            animationDuration={900}
+                                            animationEasing="ease-out"
+                                        >
+                                            {chartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {/* ── Upcoming Deliveries Section (Next 7 Days) ── */}
                 <div className="bg-white border border-[#E6DBCB] rounded-2xl p-6 shadow-xs flex flex-col gap-4">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-[#FDF0EB] flex items-center justify-center">
+                                <CalendarDays className="w-4 h-4 text-[#AD4313]" />
+                            </div>
                             <h2 className="text-lg font-black text-[#3D251E]">Upcoming Deliveries (Next 7 Days)</h2>
                             <span className="px-2.5 py-0.5 bg-[#FDF0EB] text-[#AD4313] border border-[#F5D5C8] text-xs font-black rounded-full">
                                 {data.upcoming_orders?.length || 0}
@@ -380,20 +520,22 @@ export default function AdminDashboard() {
                     </div>
 
                     {!data.upcoming_orders || data.upcoming_orders.length === 0 ? (
-                        <div className="p-8 text-center bg-[#FCF8EE] rounded-xl border border-dashed border-[#E6DBCB]">
-                            <p className="text-[#8C6D58] font-medium text-sm">No urgent deliveries scheduled for the next 7 days 🎉</p>
+                        <div className="p-10 text-center bg-[#FCF8EE] rounded-xl border border-dashed border-[#E6DBCB]">
+                            <PartyPopper className="w-10 h-10 text-[#AD4313]/40 mx-auto mb-3" />
+                            <p className="text-[#3D251E] font-bold text-sm">All Clear!</p>
+                            <p className="text-[#8C6D58] font-medium text-xs mt-1">No urgent deliveries scheduled for the next 7 days.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {data.upcoming_orders.map((order) => (
                                 <div
                                     key={order.id}
-                                    className="p-4 bg-white border border-[#E6DBCB] rounded-2xl cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-2xs hover:shadow-md group"
+                                    className="p-4 bg-white border border-[#E6DBCB] rounded-2xl cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-2xs hover:shadow-md hover:border-[#AD4313]/30 group"
                                     onClick={() => navigate(`/admin/orders/${order.id}`)}
                                 >
                                     <div className="flex items-start justify-between gap-2">
-                                        <span className="text-[10px] font-black tracking-wider text-[#8C6D58] uppercase">
-                                            ORDER #{order.id}
+                                        <span className="text-[10px] font-black tracking-wider text-[#8C6D58] uppercase flex items-center gap-1">
+                                            <Package className="w-3 h-3" /> ORDER #{order.id}
                                         </span>
 
                                         <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border uppercase ${getStatusBadgeStyle(order.status)}`}>
@@ -409,11 +551,15 @@ export default function AdminDashboard() {
 
                                     <div className="flex items-center justify-between text-xs text-[#8C6D58] font-medium pt-2 border-t border-[#E6DBCB]/40">
                                         <div className="flex items-center gap-3">
-                                            <span>📅 {order.delivery_date}</span>
-                                            <span>🕒 {order.delivery_time || "17:00:00"}</span>
+                                            <span className="flex items-center gap-1">
+                                                <CalendarDays className="w-3 h-3" /> {order.delivery_date}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Clock className="w-3 h-3" /> {order.delivery_time || "17:00:00"}
+                                            </span>
                                         </div>
-                                        <span className="text-[#AD4313] font-bold text-xs hover:underline">
-                                            View Order →
+                                        <span className="text-[#AD4313] font-bold text-xs flex items-center gap-1 group-hover:gap-2 transition-all">
+                                            View <ExternalLink className="w-3 h-3" />
                                         </span>
                                     </div>
                                 </div>
@@ -425,15 +571,20 @@ export default function AdminDashboard() {
                 {/* ── Scheduled Orders Queue Data Table ── */}
                 <div className="bg-white border border-[#E6DBCB] rounded-2xl p-6 shadow-xs flex flex-col gap-5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E6DBCB]/30">
-                        <div>
-                            <h2 className="text-lg font-black text-[#3D251E]">All Scheduled Orders (Queue)</h2>
-                            <p className="text-xs text-[#8C6D58] font-medium">Manage and track live customer order queue.</p>
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-[#FDF0EB] flex items-center justify-center">
+                                <LayoutList className="w-4 h-4 text-[#AD4313]" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black text-[#3D251E]">All Scheduled Orders (Queue)</h2>
+                                <p className="text-xs text-[#8C6D58] font-medium">Manage and track live customer order queue.</p>
+                            </div>
                         </div>
                     </div>
 
                     {processedQueueOrders.length === 0 ? (
                         <div className="p-12 text-center bg-[#FCF8EE] rounded-xl border border-dashed border-[#E6DBCB]">
-                            <span className="text-3xl block mb-2">📦</span>
+                            <Inbox className="w-10 h-10 text-[#AD4313]/30 mx-auto mb-3" />
                             <h3 className="font-bold text-[#3D251E] text-sm">No queue orders match your filter criteria</h3>
                             <p className="text-xs text-[#8C6D58] mt-1">Try resetting search or status filters.</p>
                         </div>
@@ -443,17 +594,17 @@ export default function AdminDashboard() {
                                 {/* Table Header */}
                                 <thead className="bg-[#FFFDF9] text-[#8C6D58] text-[11px] font-bold uppercase tracking-wider border-b border-[#E6DBCB]">
                                     <tr>
-                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E]" onClick={() => setSortBy(sortBy === "id_desc" ? "date_asc" : "id_desc")}>
-                                            ORDER &amp; CUSTOMER ↕
+                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => setSortBy(sortBy === "id_desc" ? "date_asc" : "id_desc")}>
+                                            <span className="flex items-center gap-1.5">ORDER & CUSTOMER <ArrowUpDown className="w-3 h-3 opacity-50" /></span>
                                         </th>
-                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E]" onClick={() => setSortBy(sortBy === "date_asc" ? "date_desc" : "date_asc")}>
-                                            DELIVERY DATE ↕
+                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => setSortBy(sortBy === "date_asc" ? "date_desc" : "date_asc")}>
+                                            <span className="flex items-center gap-1.5">DELIVERY DATE <ArrowUpDown className="w-3 h-3 opacity-50" /></span>
                                         </th>
                                         <th className="p-3.5">
-                                            TIME SLOT
+                                            <span className="flex items-center gap-1.5">TIME SLOT</span>
                                         </th>
-                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E]">
-                                            STATUS ↕
+                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors">
+                                            <span className="flex items-center gap-1.5">STATUS <ArrowUpDown className="w-3 h-3 opacity-50" /></span>
                                         </th>
                                         <th className="p-3.5 text-right">
                                             ACTION
@@ -482,11 +633,15 @@ export default function AdminDashboard() {
                                                 </td>
 
                                                 <td className="p-3.5 text-[#5C3D2E]">
-                                                    📅 {order.delivery_date || "—"}
+                                                    <span className="flex items-center gap-1.5">
+                                                        <CalendarDays className="w-3.5 h-3.5 text-[#8C6D58]" /> {order.delivery_date || "—"}
+                                                    </span>
                                                 </td>
 
                                                 <td className="p-3.5 text-[#5C3D2E]">
-                                                    🕒 {order.delivery_time || "Flexible"}
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Clock className="w-3.5 h-3.5 text-[#8C6D58]" /> {order.delivery_time || "Flexible"}
+                                                    </span>
                                                 </td>
 
                                                 <td className="p-3.5">
@@ -502,9 +657,9 @@ export default function AdminDashboard() {
                                                             e.stopPropagation();
                                                             navigate(`/admin/orders/${order.id}`);
                                                         }}
-                                                        className="px-3.5 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#AD4313] text-xs font-semibold rounded-xl transition-all shadow-2xs"
+                                                        className="px-3.5 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#AD4313] text-xs font-semibold rounded-xl transition-all shadow-2xs hover:shadow-sm flex items-center gap-1.5 ml-auto"
                                                     >
-                                                        Details →
+                                                        Details <ExternalLink className="w-3 h-3" />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -523,7 +678,7 @@ export default function AdminDashboard() {
                             <select
                                 value={perPage}
                                 onChange={(e) => setPerPage(Number(e.target.value))}
-                                className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg px-2.5 py-1 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none"
+                                className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg px-2.5 py-1.5 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none focus:border-[#AD4313]"
                             >
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
@@ -541,7 +696,7 @@ export default function AdminDashboard() {
                                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
                                 aria-label="Previous Page"
                             >
-                                ‹
+                                <ChevronLeft className="w-4 h-4" />
                             </button>
 
                             {[1, 2, 3].map((num) => {
@@ -569,7 +724,7 @@ export default function AdminDashboard() {
                                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
                                 aria-label="Next Page"
                             >
-                                ›
+                                <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
 
@@ -582,13 +737,13 @@ export default function AdminDashboard() {
                                 value={jumpPageInput}
                                 onChange={(e) => setJumpPageInput(e.target.value)}
                                 placeholder="#"
-                                className="w-12 px-2 py-1 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
+                                className="w-12 px-2 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
                             />
                             <button
                                 type="submit"
-                                className="px-3 py-1 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer"
+                                className="px-3 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer flex items-center gap-1"
                             >
-                                Go ›
+                                Go <ChevronRight className="w-3 h-3" />
                             </button>
                         </form>
                     </div>
@@ -600,12 +755,12 @@ export default function AdminDashboard() {
 }
 
 // ── MetricCard Component ──
-function MetricCard({ title, value, trend, trendPeriod, infoTooltip, isHighlight, badgeColor = "green" }) {
+function MetricCard({ title, value, trend, trendPeriod, infoTooltip, isHighlight, badgeColor = "green", icon }) {
     return (
         <div
-            className={`p-5 rounded-2xl border transition-all shadow-2xs flex flex-col justify-between gap-3.5 ${isHighlight
-                ? "bg-[#AD4313] text-white border-[#AD4313]"
-                : "bg-white text-[#3D251E] border-[#E6DBCB]"
+            className={`p-5 rounded-2xl border transition-all shadow-2xs hover:shadow-md flex flex-col justify-between gap-3.5 group ${isHighlight
+                ? "bg-gradient-to-br from-[#AD4313] to-[#8F350E] text-white border-[#AD4313]"
+                : "bg-white text-[#3D251E] border-[#E6DBCB] hover:border-[#AD4313]/30"
                 }`}
         >
             <div className="flex items-center justify-between">
@@ -613,14 +768,25 @@ function MetricCard({ title, value, trend, trendPeriod, infoTooltip, isHighlight
                     {title}
                 </span>
 
-                {infoTooltip && (
-                    <span
-                        title={infoTooltip}
-                        className={`text-xs cursor-help opacity-60 hover:opacity-100 ${isHighlight ? "text-white" : "text-[#8C6D58]"}`}
-                    >
-                        ⓘ
-                    </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                    {infoTooltip && (
+                        <span
+                            title={infoTooltip}
+                            className={`cursor-help opacity-50 hover:opacity-100 transition-opacity ${isHighlight ? "text-white" : "text-[#8C6D58]"}`}
+                        >
+                            <Info className="w-3.5 h-3.5" />
+                        </span>
+                    )}
+                    {icon && (
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isHighlight
+                            ? "bg-white/15"
+                            : "bg-[#FDF0EB]"
+                            }`}
+                        >
+                            <span className={isHighlight ? "text-white" : "text-[#AD4313]"}>{icon}</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div>
@@ -629,7 +795,7 @@ function MetricCard({ title, value, trend, trendPeriod, infoTooltip, isHighlight
 
             <div className="flex items-center gap-2 text-[11px] font-semibold">
                 <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full font-bold ${isHighlight
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${isHighlight
                         ? "bg-white/20 text-white"
                         : badgeColor === "amber"
                             ? "bg-[#FFF7EA] text-[#AD4313]"
@@ -638,7 +804,7 @@ function MetricCard({ title, value, trend, trendPeriod, infoTooltip, isHighlight
                                 : "bg-[#EDFDF3] text-[#16A34A]"
                         }`}
                 >
-                    📈 {trend}
+                    <TrendingUp className="w-3 h-3" /> {trend}
                 </span>
                 <span className={isHighlight ? "text-white/80" : "text-[#8C6D58]"}>
                     {trendPeriod}
