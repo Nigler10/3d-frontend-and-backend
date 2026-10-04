@@ -17,11 +17,23 @@ function AddressSelector({ value, onChange }) {
     };
 
     const regionList = useMemo(() => {
-        return listRegions().map((region) => ({
-            name: region.regionName,
-            psgc_code: region.psgcCode || region.regCode,
-            lookup_code: region.regCode
-        }));
+        return listRegions()
+            .filter((region) => {
+                const name = region.regionName?.toLowerCase() || "";
+
+                return (
+                    name.includes("national capital region") ||
+                    name.includes("ncr") ||
+                    name.includes("calabarzon") ||
+                    name.includes("region iv-a") ||
+                    name.includes("region 4a")
+                );
+            })
+            .map((region) => ({
+                name: region.regionName,
+                psgc_code: region.psgcCode || region.regCode,
+                lookup_code: region.regCode
+            }));
     }, []);
 
     const selectedRegion = regionList.find(
