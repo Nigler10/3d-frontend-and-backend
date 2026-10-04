@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
+import { getMediaUrl } from "../../utils/media";
 import RejectModal from "../../components/admin/RejectModal";
 import Logistics from "../../components/Logistics";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
@@ -95,7 +96,7 @@ export default function AdminOrderDetailPage() {
                     <div className="bg-white p-6 rounded-2xl border border-[#E6CCA2] space-y-4">
                         <h3 className="font-black text-[#6E473B] border-b border-[#E6CCA2]/30 pb-2">Customer Details</h3>
                         {[
-                            { label: "Name", val: order.user_name },
+                            { label: "Name", val: order.full_name || order.user_name },
                             { label: "Email", val: order.customer_email },
                             { label: "Phone", val: order.formatted_phone || order.phone },
                             { label: "Address", val: order.full_address },
@@ -206,10 +207,44 @@ export default function AdminOrderDetailPage() {
                                 {order.items.map((item) => (
                                     <tr key={item.id} className="text-[#6E473B]">
                                         <td className="py-4">
-                                            <div className="font-bold">{item.product_name}</div>
-                                            {item.customization && (
-                                                <button className="text-xs text-[#C05A11] underline mt-1" onClick={() => { setSelectedCake(item.customization); setShowCakeModal(true); }}>View Customization</button>
-                                            )}
+                                            <div className="flex items-center gap-3">
+                                                {item.product_image ? (
+                                                    <img
+                                                        src={getMediaUrl(
+                                                            item.product_image,
+                                                            BASEURL
+                                                        )}
+                                                        alt={item.product_name}
+                                                        loading="lazy"
+                                                        className="h-16 w-16 shrink-0 rounded-xl border border-[#E6CCA2] object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#E6CCA2] bg-[#FCF8EE] text-2xl">
+                                                        🎂
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <div className="font-bold">
+                                                        {item.product_name}
+                                                    </div>
+
+                                                    {item.customization && (
+                                                        <button
+                                                            type="button"
+                                                            className="mt-1 text-xs font-bold text-[#C05A11] underline cursor-pointer"
+                                                            onClick={() => {
+                                                                setSelectedCake(
+                                                                    item.customization
+                                                                );
+                                                                setShowCakeModal(true);
+                                                            }}
+                                                        >
+                                                            View Customization
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </td>
                                         <td>{item.quantity}</td>
                                         <td>₱{Number(item.price).toLocaleString()}</td>

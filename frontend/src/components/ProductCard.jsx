@@ -3,6 +3,7 @@ import { getMediaUrl } from "../utils/media";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useCart } from "../context/CartContext";
+import StarRating from "./StarRating";
 
 function ProductCard({ product }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -46,13 +47,13 @@ function ProductCard({ product }) {
             )}
 
             {/* Image Area */}
-            <div className="relative w-full aspect-square bg-[#fffdf9] rounded-xl border border-stone-100 flex items-center justify-center overflow-hidden">
+            <div className="relative w-full aspect-square bg-[#fffdf9] rounded-xl border border-stone-100 overflow-hidden">
                 <img
                     src={getMediaUrl(product.image, BASEURL)}
                     alt={product.name}
                     loading="lazy"
                     decoding="async"
-                    className="max-h-[85%] max-w-[85%] object-contain transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
                 />
 
                 <div className="absolute inset-0 bg-stone-900/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
@@ -67,6 +68,13 @@ function ProductCard({ product }) {
                 <h3 className="text-base font-bold text-[#844414] tracking-tight mb-1 truncate px-1">
                     {product.name}
                 </h3>
+
+                <div className="flex justify-center mb-2">
+                    <StarRating
+                        rating={product.average_rating}
+                        reviewCount={product.review_count}
+                    />
+                </div>
 
                 <p className="text-sm font-black text-[#d67b27] mb-4">
                     ₱{Number(product.price).toLocaleString()}

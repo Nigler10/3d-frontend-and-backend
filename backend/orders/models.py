@@ -2,6 +2,33 @@
 from django.db import models
 from django.contrib.auth.models import User
 from store.models import Order, OrderItem, Product
+
+class OrderStatusHistory(models.Model):
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="status_history"
+    )
+
+    status = models.CharField(
+        max_length=30
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = [
+            "created_at",
+            "id",
+        ]
+
+    def __str__(self):
+        return (
+            f"Order #{self.order_id} "
+            f"- {self.status}"
+        )
     
 class ProductReview(models.Model):
 
