@@ -16,7 +16,7 @@ import CheckoutPage from './pages/CheckoutPage';
 import PrivateRouter from './components/PrivateRouter';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-
+import SessionTimeout from "./components/SessionTimeout";
 
 // Admin Page
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
@@ -44,6 +44,7 @@ function App() {
       <OrderProvider>
         <UnreadProvider>
           <Router>
+            <SessionTimeout />
             <ToastContainer position="bottom-right" autoClose={6000} newestOnTop />
             <Routes>
               <Route path="/" element={<LandingPage />} />
