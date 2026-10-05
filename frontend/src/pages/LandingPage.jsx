@@ -1,16 +1,26 @@
 // src/pages/LandingPage.jsx | DO NOT REMOVE THIS
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import Navbar from '../components/Navbar';
 import { getAccessToken } from '../utils/auth';
+import { getMediaUrl } from '../utils/media';
+import { useCart } from '../context/CartContext';
 import { jwtDecode } from 'jwt-decode';
 import { FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
 import { Cake, MapPin, Phone, Mail } from 'lucide-react';
 
 const LandingPage = () => {
     const navigate = useNavigate();
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const { addToCart } = useCart();
+    const [cakeItems, setCakeItems] = useState([]);
+    const [menuLoading, setMenuLoading] = useState(true);
+    const [menuError, setMenuError] = useState('');
+    const [addingProductId, setAddingProductId] = useState(null);
+    const [addedProductId, setAddedProductId] = useState(null);
+    const [failedProductId, setFailedProductId] = useState(null);
 
     const token = getAccessToken();
     let isAdmin = false;
@@ -29,15 +39,52 @@ const LandingPage = () => {
         }
     }, [isAdmin]);
 
+    useEffect(() => {
+        const controller = new AbortController();
+
+        fetch(`${BASEURL}/api/best-selling-products/`, { signal: controller.signal })
+            .then((response) => {
+                if (!response.ok) throw new Error('Unable to load the menu.');
+                return response.json();
+            })
+            .then((products) => {
+                setCakeItems(products);
+                setMenuError('');
+                setMenuLoading(false);
+                AOS.refreshHard();
+            })
+            .catch((error) => {
+                if (error.name === 'AbortError') return;
+                setMenuError(error.message);
+                setMenuLoading(false);
+            });
+
+        return () => controller.abort();
+    }, [BASEURL]);
+
     if (isAdmin) {
         return <Navigate to="/admin" replace />;
     }
 
-    const cakeItems = [
-        { id: 1, name: "Ube Macapuno", price: "₱350", img: "https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=400" },
-        { id: 2, name: "Retro Heart", price: "₱380", img: "https://images.unsplash.com/photo-1571115177098-24ec42ed204d?q=80&w=400" },
-        { id: 3, name: "Mango Graham", price: "₱350", img: "https://images.unsplash.com/photo-1535254973040-607b474cb8c2?q=80&w=400" }
-    ];
+    const handleAddToBag = async (productId) => {
+        if (!getAccessToken()) {
+            navigate('/login');
+            return;
+        }
+
+        setAddingProductId(productId);
+        setFailedProductId(null);
+        const result = await addToCart(productId);
+        setAddingProductId(null);
+
+        if (result?.success) {
+            setAddedProductId(productId);
+            window.setTimeout(() => setAddedProductId(null), 1800);
+        } else {
+            setFailedProductId(productId);
+            window.setTimeout(() => setFailedProductId(null), 2500);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] flex flex-col antialiased font-sans">
@@ -87,19 +134,42 @@ const LandingPage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-                        {cakeItems.map((cake, i) => (
+                        {menuLoading && <p className="md:col-span-3 text-center text-[#A07060]">Loading menu...</p>}
+                        {!menuLoading && menuError && <p role="alert" className="md:col-span-3 text-center text-rose-600">{menuError}</p>}
+                        {!menuLoading && !menuError && cakeItems.length === 0 && <p className="md:col-span-3 text-center text-[#A07060]">No cakes are available right now.</p>}
+                        {!menuLoading && !menuError && cakeItems.map((cake, i) => (
                             <div key={cake.id} className="bg-white border border-[#E6CCA2] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col" data-aos="zoom-in" data-aos-delay={i * 100}>
                                 <div className="aspect-square w-full overflow-hidden bg-[#FCF8EE] relative">
-                                    <img src={cake.img} alt={cake.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    {cake.image ? (
+                                        <img src={getMediaUrl(cake.image, BASEURL)} alt={cake.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-sm text-[#A07060]">Image unavailable</div>
+                                    )}
                                 </div>
                                 <div className="p-5 flex flex-col gap-4 flex-1 justify-between">
                                     <div className="flex items-start justify-between gap-2">
                                         <h4 className="font-bold text-lg text-[#6E473B] leading-snug">{cake.name}</h4>
-                                        <span className="font-black text-[#C05A11] text-lg shrink-0">{cake.price}</span>
+                                        <span className="font-black text-[#C05A11] text-lg shrink-0">{Number(cake.price).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</span>
                                     </div>
-                                    <button className="w-full py-2.5 bg-[#C05A11]/10 hover:bg-[#C05A11] text-[#A84E0E] hover:text-white text-xs font-bold tracking-wider uppercase rounded-xl border border-[#C05A11]/20 transition-all active:scale-95 cursor-pointer">
-                                        Add to Bag
-                                    </button>
+                                    <div className="relative w-full mt-auto">
+                                        <button
+                                            onClick={() => handleAddToBag(cake.id)}
+                                            disabled={addingProductId === cake.id}
+                                            className="w-full rounded-full border border-[#C05A11] bg-[#D9781F] px-4 py-3 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#C05A11] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 cursor-pointer"
+                                        >
+                                            {addingProductId === cake.id ? 'Adding...' : addedProductId === cake.id ? 'Added to Bag' : failedProductId === cake.id ? "Couldn't Add. Try Again" : 'Add to Bag'}
+                                        </button>
+                                        {addedProductId === cake.id && (
+                                            <div
+                                                role="status"
+                                                aria-live="polite"
+                                                className="absolute right-0 top-1/2 z-50 flex -translate-y-1/2 items-center gap-2 rounded-xl bg-[#2E7D32] px-5 py-3.5 text-sm font-semibold text-white shadow-xl">
+                                                
+                                                <span aria-hidden="true" className="text-2xl">✓</span>
+                                                <span className="text-center">Added to<br />cart!</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}

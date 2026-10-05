@@ -16,6 +16,7 @@ urlpatterns = [
 
     path('products/', views.get_products, name='product_list'),
     path('products/<int:pk>/', views.get_product),
+    path('best-selling-products/', views.get_best_selling_products, name='best_selling_products'),
     path('categories/', views.get_categories, name='category_list'),
 
     path('custom-pricing/', views.get_custom_pricing),

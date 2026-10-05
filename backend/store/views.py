@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .token_serializers import MyTokenObtainPairSerializer
 from django.db import transaction
+from django.db.models import Q, Sum
 from django.core.files.storage import default_storage
 from django.utils import timezone
 from .models import (AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile, calculate_custom_cake_price, UploadedCakeRequest, DEFAULT_CUSTOM_CAKE_PRICES, DEFAULT_ADDON_PRICES,)
@@ -22,6 +23,18 @@ class MyTokenObtainPairView(TokenObtainPairView):
 def get_products(request):
     products = Product.objects.all()
     serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_best_selling_products(request):
+    products = Product.objects.annotate(
+        total_sales=Sum(
+            'orderitem__quantity',
+            filter=Q(orderitem__order__status='delivered'),
+            default=0,
+        )
+    ).order_by('-total_sales', 'id')[:3]
+    serializer = ProductSerializer(products, many=True, context={'request': request})
     return Response(serializer.data)
 
 @api_view(['GET'])
