@@ -18,7 +18,7 @@ export function Cake(props) {
     const material = flavorTextureMap?.[flavor] || flavor;
     const { gl } = useThree();
 
-    // ✅ Fix 1 — Clone stand materials instead of mutating
+    // Fix 1 — Clone stand materials instead of mutating
     const standMaterials = useMemo(() => {
         const stand_color = new THREE.Color('#2a2424');
         const meshNames = ['Mesh004', 'Mesh004_1', 'Mesh004_2', 'Mesh004_3'];
@@ -33,7 +33,7 @@ export function Cake(props) {
         return cloned;
     }, [nodes]);
 
-    // ✅ Fix 2 — Realistic icing material with MeshPhysicalMaterial
+    // Fix 2 — Realistic icing material with MeshPhysicalMaterial
     const creamMaterial = useMemo(() => {
         if (materials?.icing) {
             const mat = new THREE.MeshPhysicalMaterial({
@@ -154,7 +154,7 @@ export function Cake(props) {
                 </group>
             )}
 
-            {/* ✅ Cream — uses realistic creamMaterial with side-drape positioning */}
+            {/* Cream — uses realistic creamMaterial with side-drape positioning */}
             {nodes.icing_round?.geometry && (
                 <mesh
                     geometry={nodes.icing_round.geometry}

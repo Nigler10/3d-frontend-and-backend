@@ -9,6 +9,22 @@ import { CAKE_SIZES, CustomizationProvider, FLAVOR_VISUALS, INSCRIPTION_COLOR_OP
 import { useCart } from "../context/CartContext";
 import CakeInscription from "../components/CakeInscription";
 import CakeCompass from "../components/CakeCompass";
+import {
+    Cake,
+    Circle,
+    Square,
+    Flame,
+    Cookie,
+    Sparkles,
+    Wheat,
+    Cherry,
+    Hash,
+    Dices,
+    ShoppingCart,
+    CheckCircle2,
+    XCircle,
+    MousePointer,
+} from "lucide-react";
 import './BuildBentoPage.css';
 
 const TIER_MODEL_URLS = {
@@ -605,7 +621,7 @@ class CanvasErrorBoundary extends Component {
         if (this.state.hasError) {
             return (
                 <div className="flex flex-col items-center justify-center h-full text-[#6E473B] gap-3 bg-[#FCF8EE] rounded-2xl border border-[#E6CCA2]">
-                    <span className="text-5xl animate-pulse">🎂</span>
+                    <Cake className="w-12 h-12 text-[#C05A11] animate-pulse" />
                     <p className="text-sm font-medium text-[#A07060]">3D preview couldn't load.</p>
                     <button
                         onClick={() => this.setState({ hasError: false })}
@@ -1542,23 +1558,23 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                 <div className="flex gap-2">
                     <button
                         type="button"
-                        className={`flex-1 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 cursor-pointer focus:outline-none active:scale-95 ${form === 1
+                        className={`flex-1 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 cursor-pointer focus:outline-none active:scale-95 flex items-center justify-center gap-1.5 ${form === 1
                             ? "bg-[#C05A11] border-[#C05A11] text-white font-semibold shadow-md shadow-[#C05A11]/20"
                             : "bg-white border-[#E6CCA2] text-[#6E473B] hover:bg-[#FDF6E2]"
                             }`}
                         onClick={() => handleShapeChange(1)}
                     >
-                        ⭕ Round
+                        <Circle className="w-4 h-4" /> Round
                     </button>
                     <button
                         type="button"
-                        className={`flex-1 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 cursor-pointer focus:outline-none active:scale-95 ${form === 2
+                        className={`flex-1 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 cursor-pointer focus:outline-none active:scale-95 flex items-center justify-center gap-1.5 ${form === 2
                             ? "bg-[#C05A11] border-[#C05A11] text-white font-semibold shadow-md shadow-[#C05A11]/20"
                             : "bg-white border-[#E6CCA2] text-[#6E473B] hover:bg-[#FDF6E2]"
                             }`}
                         onClick={() => handleShapeChange(2)}
                     >
-                        ⬜ Rectangle
+                        <Square className="w-4 h-4" /> Rectangle
                     </button>
                 </div>
             </ConfiguratorSection>
@@ -1736,13 +1752,13 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
             >
                 <div className="grid grid-cols-2 gap-2">
                     {[
-                        { label: "🕯️ Candle", value: candle, set: setCandle },
-                        { label: "🍫 Chocolate", value: chocolate, set: setChocolate },
-                        { label: "🔮 Balls", value: balls, set: setBalls },
-                        { label: "🥜 Nuts", value: nuts, set: setNuts },
-                        { label: "🍒 Cherry", value: cherry, set: setCherry },
-                        { label: "✨ Sprinkles", value: sprinkles, set: setSprinkles },
-                    ].map(({ label, value, set }) => (
+                        { label: "Candle", Icon: Flame, value: candle, set: setCandle },
+                        { label: "Chocolate", Icon: Cookie, value: chocolate, set: setChocolate },
+                        { label: "Balls", Icon: Sparkles, value: balls, set: setBalls },
+                        { label: "Nuts", Icon: Wheat, value: nuts, set: setNuts },
+                        { label: "Cherry", Icon: Cherry, value: cherry, set: setCherry },
+                        { label: "Sprinkles", Icon: Sparkles, value: sprinkles, set: setSprinkles },
+                    ].map(({ label, Icon, value, set }) => (
                         <button
                             key={label}
                             type="button"
@@ -1752,7 +1768,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                 }`}
                             onClick={() => set(!value)}
                         >
-                            <span>{label}</span>
+                            <span className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {label}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${value ? "bg-[#C05A11] text-white" : "bg-[#E6CCA2] text-[#6E473B]"}`}>
                                 {value ? "ON" : "OFF"}
                             </span>
@@ -1765,7 +1781,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                     <div className="mt-3 p-3 bg-white rounded-xl border border-[#E6CCA2] shadow-sm">
                         <div className="flex items-center justify-between gap-3 mb-3">
                             <span className="text-xs font-semibold text-[#6E473B] flex items-center gap-1.5">
-                                🕯️ Candle Style
+                                <Flame className="w-3.5 h-3.5 text-amber-500" /> Candle Style
                             </span>
                             <div className="flex rounded-lg border border-[#E6CCA2] overflow-hidden bg-[#FDF6E2]">
                                 <button
@@ -1816,7 +1832,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                             <>
                                 <label className="flex items-center justify-between gap-3">
                                     <span className="text-xs font-semibold text-[#6E473B] flex items-center gap-1.5">
-                                        🔢 Candle Number
+                                        <Hash className="w-3.5 h-3.5 text-amber-600" /> Candle Number
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <button
@@ -1948,10 +1964,10 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
             {/* ── Randomize ── */}
             <button
                 type="button"
-                className="w-full py-3 text-sm font-semibold text-[#C05A11] bg-white border-2 border-[#C05A11] rounded-xl shadow-sm hover:bg-[#C05A11]/5 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full py-3 text-sm font-semibold text-[#C05A11] bg-white border-2 border-[#C05A11] rounded-xl shadow-sm hover:bg-[#C05A11]/5 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
                 onClick={generateRandomCake}
             >
-                🎲 Randomize My Cake!
+                <Dices className="w-4 h-4" /> Randomize My Cake!
             </button>
 
             {/* ── Price ── */}
@@ -1971,21 +1987,21 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
             {/* ── Add to Cart ── */}
             <button
                 type="button"
-                className="w-full py-3.5 bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold rounded-xl shadow-md shadow-[#C05A11]/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer text-base text-center"
+                className="w-full py-3.5 bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold rounded-xl shadow-md shadow-[#C05A11]/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer text-base text-center flex items-center justify-center gap-2"
                 onClick={handleAddToCart}
                 disabled={isSubmitting || !!pricingError}
             >
-                {isSubmitting ? "Adding..." : "🛒 Add to Cart"}
+                {isSubmitting ? "Adding..." : <><ShoppingCart className="w-5 h-5" /> Add to Cart</>}
             </button>
 
             {orderStatus === "success" && (
                 <div className="fixed bottom-6 right-6 z-50 bg-[#2E7D32] text-white font-semibold text-sm px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2 animate-bounce">
-                    ✅ Added to cart! Redirecting...
+                    <CheckCircle2 className="w-5 h-5 text-white" /> Added to cart! Redirecting...
                 </div>
             )}
             {orderStatus === "error" && (
                 <div className="fixed bottom-6 right-6 z-50 bg-[#C62828] text-white font-semibold text-sm px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2">
-                    ❌ {errorMessage}
+                    <XCircle className="w-5 h-5 text-white" /> {errorMessage}
                 </div>
             )}
         </aside>
@@ -2131,8 +2147,8 @@ function BuildBentoContent() {
                             </CanvasErrorBoundary>
                         </div>
 
-                        <div className="cake-view-instruction absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-[#FFFDF9]/90 backdrop-blur border border-[#E6CCA2] px-4 py-1.5 rounded-full text-[11px] font-medium text-[#A05A2C] shadow-sm select-none pointer-events-none tracking-wide uppercase whitespace-nowrap">
-                            🖱️ Drag to rotate · Scroll to zoom
+                        <div className="cake-view-instruction absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-[#FFFDF9]/90 backdrop-blur border border-[#E6CCA2] px-4 py-1.5 rounded-full text-[11px] font-medium text-[#A05A2C] shadow-sm select-none pointer-events-none tracking-wide uppercase whitespace-nowrap flex items-center gap-1.5">
+                            <MousePointer className="w-3.5 h-3.5" /> Drag to rotate · Scroll to zoom
                         </div>
                         <CakeCompass
                             cakeGroupRef={cakeGroupRef}

@@ -1,4 +1,3 @@
-// src/pages/customer/CustomerOrderDetailPage.jsx | DO NOT REMOVE THIS!
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
@@ -10,6 +9,7 @@ import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
 import PrintablePaymentReceipt from "../../components/customer/PrintablePaymentReceipt";
+import { AlertTriangle, Cake } from "lucide-react";
 
 export default function CustomerOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -465,7 +465,7 @@ export default function CustomerOrderDetailPage() {
                                 </div>
 
                                 {isInvalid && payAmount !== "" && (
-                                    <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3">⚠️ Please enter an amount between ₱{minAmount} and ₱{maxAmount}</p>
+                                    <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" /> Please enter an amount between ₱{minAmount} and ₱{maxAmount}</p>
                                 )}
 
                                 <div className="flex justify-between items-center p-4 bg-[#fffdf9] border border-[#f3e1c6] rounded-xl">
@@ -547,8 +547,8 @@ export default function CustomerOrderDetailPage() {
                                                     className="h-16 w-16 shrink-0 rounded-xl border border-[#f3e1c6] object-cover"
                                                 />
                                             ) : (
-                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#f3e1c6] bg-[#fffdf9] text-2xl">
-                                                    🎂
+                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#f3e1c6] bg-[#fffdf9]">
+                                                    <Cake className="w-8 h-8 text-[#d67b27]" />
                                                 </div>
                                             )}
 

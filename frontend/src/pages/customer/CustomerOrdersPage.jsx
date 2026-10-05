@@ -1,10 +1,29 @@
-// src/pages/customer/CustomerOrdersPage.jsx
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { CustomizationProvider } from "../../contexts/Customization";
+import {
+    Cake,
+    Heart,
+    Eye,
+    Camera,
+    Pencil,
+    FileText,
+    X,
+    Printer,
+    RefreshCw,
+    Package,
+    Calendar,
+    MapPin,
+    AlertTriangle,
+    MessageSquare,
+    Check,
+    Search,
+    Award,
+    Truck,
+} from "lucide-react";
 
 
 const ACTIVE_STATUSES = new Set([
@@ -91,7 +110,7 @@ function OrderProgressStepper({ status }) {
                                         : "bg-white text-stone-400 border-2 border-[#EFE3CF]"
                                     }`}
                             >
-                                {isCompleted ? "✓" : s.stepNum}
+                                {isCompleted ? <Check className="w-4 h-4" /> : s.stepNum}
                             </div>
                             <span
                                 className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${isActive
@@ -133,14 +152,14 @@ function OrderItemsList({ items = [], orderId, onItemClick }) {
                     >
                         <div className="flex items-center gap-3.5 min-w-0">
                             {/* Thumbnail / Icon Container */}
-                            <div className="w-12 h-12 rounded-xl bg-[#FAF5EB] border border-[#F3E5D0] group-hover:border-[#E6CCA2] group-hover:bg-[#FFF8EF] flex items-center justify-center text-2xl shrink-0 text-[#C05A11] transition-colors">
-                                {cust.shape === "Round" || cust.shape === "round"
-                                    ? "🎂"
-                                    : cust.shape === "Heart" || cust.shape === "heart"
-                                        ? "💖"
-                                        : isCustom
-                                            ? "🧁"
-                                            : "🍰"}
+                            <div className="w-12 h-12 rounded-xl bg-[#FAF5EB] border border-[#F3E5D0] group-hover:border-[#E6CCA2] group-hover:bg-[#FFF8EF] flex items-center justify-center shrink-0 transition-colors">
+                                {cust.shape === "Round" || cust.shape === "round" ? (
+                                    <Cake className="w-6 h-6 text-[#C05A11]" />
+                                ) : cust.shape === "Heart" || cust.shape === "heart" ? (
+                                    <Heart className="w-6 h-6 text-[#C05A11]" />
+                                ) : (
+                                    <Cake className="w-6 h-6 text-[#C05A11]" />
+                                )}
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -149,13 +168,13 @@ function OrderItemsList({ items = [], orderId, onItemClick }) {
                                         {item.product_name || `Custom ${cust.shape || "Cake"}`}
                                     </h4>
                                     {has3DModel && (
-                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded-full border border-[#FCD34D]/40">
-                                            3D Design 👁️
+                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded-full border border-[#FCD34D]/40 flex items-center gap-1">
+                                            3D Design <Eye className="w-3 h-3" />
                                         </span>
                                     )}
                                     {hasUploadedPhoto && !has3DModel && (
-                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#E0F2FE] text-[#0369A1] px-2 py-0.5 rounded-full border border-[#7DD3FC]/40">
-                                            Photo Sample 📷
+                                        <span className="shrink-0 text-[10px] font-extrabold bg-[#E0F2FE] text-[#0369A1] px-2 py-0.5 rounded-full border border-[#7DD3FC]/40 flex items-center gap-1">
+                                            Photo Sample <Camera className="w-3 h-3" />
                                         </span>
                                     )}
                                 </div>
@@ -191,8 +210,9 @@ function OrderItemsList({ items = [], orderId, onItemClick }) {
 
                                 {/* Dedication Message tag */}
                                 {(cust.message || cust.dedication) && (
-                                    <div className="mt-1.5 inline-block text-[11px] bg-[#FFF8EF] border border-[#FCD34D]/40 text-[#B45309] font-medium px-2.5 py-0.5 rounded-md">
-                                        ✍️ Dedication: "{cust.message || cust.dedication}"
+                                    <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] bg-[#FFF8EF] border border-[#FCD34D]/40 text-[#B45309] font-medium px-2.5 py-0.5 rounded-md">
+                                        <Pencil className="w-3 h-3 text-[#B45309]" />
+                                        <span>Dedication: "{cust.message || cust.dedication}"</span>
                                     </div>
                                 )}
                             </div>
@@ -228,7 +248,7 @@ function InvoiceModal({ order, onClose }) {
                 {/* Header */}
                 <div className="flex items-center justify-between bg-[#6E473B] text-white px-6 py-4">
                     <div className="flex items-center gap-2">
-                        <span className="text-2xl">🧾</span>
+                        <FileText className="w-6 h-6 text-[#E6CCA2]" />
                         <div>
                             <h3 className="font-black text-lg leading-tight">Cake Studio Invoice</h3>
                             <p className="text-xs text-[#E6CCA2]">Order #{order.id}</p>
@@ -236,10 +256,10 @@ function InvoiceModal({ order, onClose }) {
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-white hover:text-[#E6CCA2] text-xl font-bold transition-colors"
+                        className="text-white hover:text-[#E6CCA2] transition-colors"
                         aria-label="Close invoice"
                     >
-                        ✕
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
@@ -326,7 +346,7 @@ function InvoiceModal({ order, onClose }) {
                         onClick={handlePrint}
                         className="px-5 py-2 text-xs font-bold text-white bg-[#C05A11] hover:bg-[#A84E0E] rounded-lg shadow transition-all flex items-center gap-1.5"
                     >
-                        🖨️ Print / Save PDF
+                        <Printer className="w-4 h-4" /> Print / Save PDF
                     </button>
                 </div>
             </div>
@@ -350,7 +370,7 @@ function ReorderModal({ order, onClose, onReorder }) {
             >
                 <div className="flex items-start justify-between border-b border-stone-100 bg-[#FAF5EB] px-5 py-4">
                     <h2 id="reorder-title" className="text-sm font-black text-[#6E473B] flex items-center gap-2">
-                        <span>🔄</span> Reorder this custom cake?
+                        <RefreshCw className="w-4 h-4 text-[#C05A11]" /> Reorder this custom cake?
                     </h2>
                     <button
                         type="button"
@@ -465,12 +485,12 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                 <div className="bg-[#FAF5EB] rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] flex flex-col justify-between space-y-4">
                     <div>
                         <h4 className="text-xs font-black uppercase tracking-wider text-[#844414] border-b border-[#EFE3CF] pb-2 flex items-center gap-1.5">
-                            <span>📦</span> Delivery & Event Specs
+                            <Package className="w-4 h-4 text-[#844414]" /> Delivery & Event Specs
                         </h4>
 
                         <div className="mt-3 space-y-2.5 text-xs text-stone-700">
                             <div className="flex items-start gap-2">
-                                <span className="text-base leading-none">📅</span>
+                                <Calendar className="w-4 h-4 text-[#C05A11] shrink-0 mt-0.5" />
                                 <div>
                                     <p className="font-bold text-[#6E473B]">
                                         Bake & Delivery: {formatDate(order.delivery_date || order.created_at)}
@@ -482,7 +502,7 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                             </div>
 
                             <div className="flex items-start gap-2">
-                                <span className="text-base leading-none">📍</span>
+                                <MapPin className="w-4 h-4 text-[#C05A11] shrink-0 mt-0.5" />
                                 <div>
                                     <p className="font-bold text-[#6E473B]">Delivery Location</p>
                                     <p className="text-[11px] text-stone-500 leading-snug">{order.full_address || "Studio Pickup / Customer Address"}</p>
@@ -492,7 +512,7 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                             {order.order_notes && (
                                 <div className="mt-2 p-2.5 bg-[#FFF8EF] rounded-xl border border-[#FCD34D]/30 text-[11px] text-[#B45309]">
                                     <p className="font-bold flex items-center gap-1">
-                                        <span>⚠️</span> Special Instructions:
+                                        <AlertTriangle className="w-3.5 h-3.5 text-[#B45309]" /> Special Instructions:
                                     </p>
                                     <p className="mt-0.5 italic">{order.order_notes}</p>
                                 </div>
@@ -515,14 +535,14 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                         onClick={() => onView(order.id)}
                         className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-bold text-[#844414] bg-[#FAF5EB] hover:bg-[#F5E8D3] border border-[#EFE3CF] transition-colors flex items-center justify-center gap-1.5"
                     >
-                        <span>💬</span> Message Baker {unreadCount > 0 && <span className="bg-[#C05A11] text-white px-1.5 py-0.5 rounded-full text-[10px]">{unreadCount}</span>}
+                        <MessageSquare className="w-3.5 h-3.5" /> Message Baker {unreadCount > 0 && <span className="bg-[#C05A11] text-white px-1.5 py-0.5 rounded-full text-[10px]">{unreadCount}</span>}
                     </button>
 
                     <button
                         onClick={() => onInvoice(order)}
                         className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors flex items-center justify-center gap-1.5"
                     >
-                        <span>📄</span> Invoice PDF
+                        <FileText className="w-3.5 h-3.5" /> Invoice PDF
                     </button>
                 </div>
 
@@ -543,8 +563,8 @@ function PastOrderCard({ order, onReorder, onInvoice, onView, onItemClick }) {
         <article className="rounded-3xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-lg font-bold shrink-0 mt-0.5">
-                        ✓
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                        <Check className="w-5 h-5" />
                     </div>
                     <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -583,9 +603,9 @@ function PastOrderCard({ order, onReorder, onInvoice, onView, onItemClick }) {
                     </button>
                     <button
                         onClick={() => onInvoice(order)}
-                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"
+                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors flex items-center gap-1"
                     >
-                        📄 Invoice
+                        <FileText className="w-3.5 h-3.5" /> Invoice
                     </button>
                 </div>
 
@@ -593,7 +613,7 @@ function PastOrderCard({ order, onReorder, onInvoice, onView, onItemClick }) {
                     onClick={() => onReorder(order)}
                     className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#D97706] hover:bg-[#B45309] text-white text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-1.5"
                 >
-                    <span>🔄</span> Reorder Same Cake
+                    <RefreshCw className="w-3.5 h-3.5" /> Reorder Same Cake
                 </button>
             </div>
         </article>
@@ -840,7 +860,7 @@ export default function CustomerOrdersPage() {
 
                             {/* Find Order Search Box */}
                             <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs">🔍</span>
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 w-3.5 h-3.5" />
                                 <input
                                     type="text"
                                     placeholder="Find Order #"
@@ -856,8 +876,8 @@ export default function CustomerOrdersPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                         {/* Card 1: Active Orders */}
                         <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
-                                🏆
+                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center shrink-0">
+                                <Award className="w-6 h-6 text-[#844414]" />
                             </div>
                             <div>
                                 <p className="text-xl font-black text-[#844414]">{totalActiveCount} Active Orders</p>
@@ -867,8 +887,8 @@ export default function CustomerOrdersPage() {
 
                         {/* Card 2: Upcoming Deliveries */}
                         <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center text-2xl shrink-0">
-                                🚚
+                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center shrink-0">
+                                <Truck className="w-6 h-6 text-[#844414]" />
                             </div>
                             <div>
                                 <p className="text-xl font-black text-[#844414]">
@@ -957,7 +977,7 @@ export default function CustomerOrdersPage() {
 
                         {activeOrders.length === 0 ? (
                             <div className="bg-white rounded-3xl p-10 border border-[#F3E5D0] text-center space-y-4">
-                                <div className="text-4xl">🧁</div>
+                                <Cake className="w-10 h-10 text-stone-300 mx-auto" />
                                 <h3 className="text-base font-bold text-[#6E473B]">No active orders right now</h3>
                                 <p className="text-xs text-stone-500 max-w-sm mx-auto">
                                     Ready to bake something special? Design your custom tiered cake with our 3D builder!

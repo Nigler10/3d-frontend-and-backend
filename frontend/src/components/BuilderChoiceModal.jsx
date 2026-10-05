@@ -1,5 +1,6 @@
 // src/compenents/BuilderChoiceModal.jsx
 import { useNavigate } from "react-router-dom";
+import { Cake, Image } from "lucide-react";
 
 export default function BuilderChoiceModal({
     isOpen,
@@ -41,7 +42,7 @@ export default function BuilderChoiceModal({
                         onClick={handleBuilder}
                         className="w-full rounded-2xl border border-stone-200 p-4 sm:p-5 text-left hover:border-[#d67b27] hover:bg-orange-50 transition cursor-pointer group"
                     >
-                        <div className="text-2xl sm:text-3xl mb-1.5 sm:mb-2">🎂</div>
+                        <Cake className="w-8 h-8 text-[#d67b27] mb-1.5 sm:mb-2" />
 
                         <h3 className="font-bold text-base sm:text-lg text-stone-800 group-hover:text-[#d67b27]">
                             3D Cake Builder
@@ -56,7 +57,7 @@ export default function BuilderChoiceModal({
                         onClick={handleUpload}
                         className="w-full rounded-2xl border border-stone-200 p-4 sm:p-5 text-left hover:border-[#d67b27] hover:bg-orange-50 transition cursor-pointer group"
                     >
-                        <div className="text-2xl sm:text-3xl mb-1.5 sm:mb-2">🖼️</div>
+                        <Image className="w-8 h-8 text-[#d67b27] mb-1.5 sm:mb-2" />
 
                         <h3 className="font-bold text-base sm:text-lg text-stone-800 group-hover:text-[#d67b27]">
                             Upload Sample Cake

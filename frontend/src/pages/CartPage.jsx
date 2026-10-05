@@ -1,6 +1,17 @@
-// src/pages/CartPage.jsx
 import { useCart } from "../context/CartContext";
 import { Link, useNavigate } from "react-router-dom";
+import {
+    ShoppingBag,
+    Cake,
+    Flame,
+    Cookie,
+    Sparkles,
+    Wheat,
+    Cherry,
+    Ruler,
+    MessageSquare,
+    Palette,
+} from "lucide-react";
 
 const INSCRIPTION_COLOR_NAMES = {
     "#EF4444": "Red",
@@ -38,7 +49,7 @@ function CartPage() {
 
                 {cartItems.length === 0 ? (
                     <div className="text-center py-16 bg-white border border-[#f3e1c6] rounded-2xl shadow-sm p-8 max-w-md mx-auto">
-                        <div className="text-6xl mb-4">🛍️</div>
+                        <ShoppingBag className="w-12 h-12 text-[#d67b27] mx-auto mb-4" />
                         <p className="text-xl font-medium text-stone-600 mb-6">Your bag is empty!</p>
                         <Link 
                             to="/products" 
@@ -59,7 +70,7 @@ function CartPage() {
                                         {/* Image wrapper */}
                                         <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-[#fffbf4] border border-[#f5e9d6] rounded-xl flex items-center justify-center overflow-hidden">
                                             {item.is_custom_cake ? (
-                                                <div className="text-4xl animate-bounce">🎂</div>
+                                                <Cake className="w-10 h-10 text-[#d67b27] animate-bounce" />
                                             ) : (
                                                 <img
                                                     src={`${BASEURL}${item.product_image}`}
@@ -93,12 +104,12 @@ function CartPage() {
                                                         : "Single (gold)"
                                                     : null;
                                                 const addons = [
-                                                    d.has_candle    && { label: "🕯️ Candle" },
-                                                    d.has_chocolate && { label: "🍫 Chocolate" },
-                                                    d.has_balls     && { label: "🔮 Balls" },
-                                                    d.has_nuts      && { label: "🥜 Nuts" },
-                                                    d.has_cherry    && { label: "🍒 Cherry" },
-                                                    d.has_sprinkles && { label: "✨ Sprinkles" },
+                                                    d.has_candle    && { label: "Candle", Icon: Flame },
+                                                    d.has_chocolate && { label: "Chocolate", Icon: Cookie },
+                                                    d.has_balls     && { label: "Balls", Icon: Sparkles },
+                                                    d.has_nuts      && { label: "Nuts", Icon: Wheat },
+                                                    d.has_cherry    && { label: "Cherry", Icon: Cherry },
+                                                    d.has_sprinkles && { label: "Sprinkles", Icon: Sparkles },
                                                 ].filter(Boolean);
 
                                                 return (
@@ -106,7 +117,7 @@ function CartPage() {
                                                         {/* Tier & Size */}
                                                         {(d.tier || d.size) && (
                                                             <div className="flex justify-between border-b border-dashed border-stone-200/60 pb-1">
-                                                                <span className="font-medium text-stone-400">📐 Size</span>
+                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Ruler className="w-3.5 h-3.5" /> Size</span>
                                                                 <span className="font-semibold text-stone-700">
                                                                     {d.tier}{d.tier && d.size ? " — " : ""}{d.size}
                                                                 </span>
@@ -115,13 +126,13 @@ function CartPage() {
 
                                                         {/* Shape */}
                                                         <div className="flex justify-between border-b border-dashed border-stone-200/60 pb-1">
-                                                            <span className="font-medium text-stone-400">🎂 Shape</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Cake className="w-3.5 h-3.5" /> Shape</span>
                                                             <span className="font-semibold text-stone-700 capitalize">{d.shape}</span>
                                                         </div>
 
                                                         {/* Flavor */}
                                                         <div className="flex justify-between border-b border-dashed border-stone-200/60 pb-1">
-                                                            <span className="font-medium text-stone-400">🍰 Flavor</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Cake className="w-3.5 h-3.5" /> Flavor</span>
                                                             <span className="font-semibold text-[#844414]">{d.flavor}</span>
                                                         </div>
 
@@ -140,13 +151,13 @@ function CartPage() {
 
                                                         {d.has_candle && (
                                                             <div className="flex justify-between items-center pt-1">
-                                                                <span className="font-medium text-stone-400">🕯️ Candle</span>
+                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Flame className="w-3.5 h-3.5" /> Candle</span>
                                                                 <span className="font-semibold text-stone-700">{candleDescription}</span>
                                                             </div>
                                                         )}
 
                                                         <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1 text-stone-700">
-                                                            <span className="font-bold text-amber-800 mr-1">💬 Message:</span>
+                                                            <span className="font-bold text-amber-800 mr-1 inline-flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Message:</span>
                                                             <span className={messageText ? "italic" : "italic text-stone-400"}>
                                                                 {messageText ? `"${messageText}"` : "No message"}
                                                             </span>
@@ -172,7 +183,7 @@ function CartPage() {
 
                                                         {d.icing_color && (
                                                             <div className="flex justify-between items-center pt-1">
-                                                                <span className="font-medium text-stone-400">🍥 Icing Color</span>
+                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> Icing Color</span>
                                                                 <span className="flex items-center gap-2 font-semibold text-stone-700">
                                                                     <span
                                                                         className="w-4 h-4 rounded-full border border-stone-300 shadow-sm"
@@ -185,7 +196,7 @@ function CartPage() {
 
                                                         {/* Cake Color */}
                                                         <div className="flex justify-between items-center pt-1">
-                                                            <span className="font-medium text-stone-400">🎨 Color</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> Color</span>
                                                             <span className="flex items-center">
                                                                 <span
                                                                     className="w-4 h-4 rounded-full border border-stone-300 shadow-sm"
@@ -196,11 +207,13 @@ function CartPage() {
 
                                                         {/* Add-ons */}
                                                         <div className="flex flex-col gap-1 pt-2 border-t border-stone-200/60">
-                                                            <span className="font-medium text-stone-400">✨ Add-ons</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Add-ons</span>
                                                             <div className="flex flex-wrap gap-1.5 mt-0.5">
                                                                 {addons.length > 0
                                                                     ? addons.map(a => (
-                                                                        <span key={a.label} className="bg-stone-100 text-stone-700 px-2 py-0.5 rounded-md font-medium text-[11px] border border-stone-200">{a.label}</span>
+                                                                        <span key={a.label} className="bg-stone-100 text-stone-700 px-2 py-0.5 rounded-md font-medium text-[11px] border border-stone-200 flex items-center gap-1">
+                                                                            <a.Icon className="w-3 h-3" /> {a.label}
+                                                                        </span>
                                                                     ))
                                                                     : <span className="text-stone-400 italic">None</span>
                                                                 }

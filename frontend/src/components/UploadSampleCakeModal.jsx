@@ -1,6 +1,6 @@
-// src/components/UploadSampleCakeModal.jsx | DO NOT REMOVE THIS!
 import { useEffect, useState } from "react";
 import { authFetch } from "../utils/auth";
+import { Image } from "lucide-react";
 
 export default function UploadSampleCakeModal({ isOpen, onClose, onSuccess }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -96,7 +96,7 @@ export default function UploadSampleCakeModal({ isOpen, onClose, onSuccess }) {
                     <label htmlFor="cake-upload" className="border-2 border-dashed rounded-2xl min-h-36 sm:min-h-48 flex items-center justify-center cursor-pointer hover:border-[#d67b27] transition p-3 sm:p-4">
                         {!previews.length ? (
                             <div className="text-center">
-                                <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🖼️</div>
+                                <Image className="w-10 h-10 sm:w-12 sm:h-12 text-[#d67b27] mx-auto mb-2 sm:mb-3" />
                                 <p className="font-bold text-sm sm:text-base">Click to choose images</p>
                                 <p className="text-[11px] sm:text-xs text-stone-500 mt-1">JPG, PNG, WEBP · Up to 10 images</p>
                             </div>

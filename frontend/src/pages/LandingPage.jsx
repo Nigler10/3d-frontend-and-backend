@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import { getAccessToken } from '../utils/auth';
 import { jwtDecode } from 'jwt-decode';
 import { FaFacebook, FaInstagram, FaTiktok } from 'react-icons/fa';
+import { Cake, MapPin, Phone, Mail } from 'lucide-react';
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -47,11 +48,11 @@ const LandingPage = () => {
                     <source src="https://res.cloudinary.com/dybbeqxrm/video/upload/q_auto/f_auto/v1776255867/hero-cake-video1_kkddin.mp4" type="video/mp4" />
                 </video>
                 <div className="absolute inset-0 bg-black/40 z-10"></div>
-                
+
                 <div className="relative max-w-7xl w-full mx-auto px-4 md:px-6 lg:px-8 z-20 text-center text-white">
                     <div data-aos="fade-up" className="max-w-2xl mx-auto flex flex-col items-center">
-                        <span className="inline-block px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur text-xs font-bold tracking-wider uppercase mb-4 shadow-sm border border-white/10">
-                            🎂 Handmade in Cavite
+                        <span className="inline-block px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur text-xs font-bold tracking-wider uppercase mb-4 shadow-sm border border-white/10 flex items-center gap-1.5">
+                            <Cake className="w-4 h-4 text-[#FFA45B]" /> Handmade in Cavite
                         </span>
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-tight mb-4 filter drop-shadow">
                             Sweetest <span className="text-[#FFA45B]">Smiles</span> In Every Box
@@ -60,13 +61,13 @@ const LandingPage = () => {
                             Artisanal bento cakes handcrafted daily with love. Experience the fun of designing your dream bento in 3D!
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-4">
-                            <button 
+                            <button
                                 className="px-6 py-3 bg-[#C05A11] hover:bg-[#A84E0E] text-white text-sm font-bold rounded-xl shadow-md shadow-[#C05A11]/30 transition-all active:scale-[0.98] cursor-pointer"
                                 onClick={() => navigate('/build')}
                             >
                                 Customize 3D
                             </button>
-                            <button 
+                            <button
                                 className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl shadow-sm border border-white/20 backdrop-blur transition-all active:scale-[0.98] cursor-pointer"
                                 onClick={() => navigate('/products')}
                             >
@@ -84,7 +85,7 @@ const LandingPage = () => {
                         <span className="text-xs font-semibold tracking-wider text-[#A05A2C] uppercase px-3 py-1 bg-[#FDF6E2] border border-[#ECD9B4] rounded-full">Menu</span>
                         <h2 className="text-3xl font-black text-[#6E473B] mt-3">Exclusive Cakes</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
                         {cakeItems.map((cake, i) => (
                             <div key={cake.id} className="bg-white border border-[#E6CCA2] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col" data-aos="zoom-in" data-aos-delay={i * 100}>
@@ -113,7 +114,7 @@ const LandingPage = () => {
                         <span className="text-xs font-semibold tracking-wider text-[#A05A2C] uppercase px-3 py-1 bg-white border border-[#E6CCA2] rounded-full">Process</span>
                         <h2 className="text-3xl font-black text-[#6E473B] mt-3">Experience the Magic</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div className="bg-white border border-[#E6CCA2] p-6 rounded-2xl shadow-sm text-center flex flex-col items-center gap-3" data-aos="fade-up">
                             <div className="w-12 h-12 rounded-xl bg-[#C05A11]/10 flex items-center justify-center"><span className="text-[#C05A11] font-black text-sm">01</span></div>
@@ -201,8 +202,8 @@ const LandingPage = () => {
                 <div className="max-w-7xl w-full mx-auto px-4 md:px-6 lg:px-8 flex flex-col gap-12">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                         <div className="flex flex-col gap-4">
-                            <div className="font-black tracking-wider text-white text-lg">
-                                🍰 SMILEY PAGE <span className="text-[#FFA45B]">CORNER</span>
+                            <div className="font-black tracking-wider text-white text-lg flex items-center gap-1.5">
+                                <Cake className="w-5 h-5 text-[#FFA45B]" /> SMILEY PAGE <span className="text-[#FFA45B]">CORNER</span>
                             </div>
                             <p className="text-xs text-[#E6CCA2] leading-relaxed">
                                 Your favorite artisan bento cake shop in Cavite. We specialize in making your celebrations extra sweet with 3D-customized designs and premium local flavors.
@@ -211,7 +212,7 @@ const LandingPage = () => {
                                 <a href="https://www.facebook.com/profile.php?id=100076422399215" target="_blank" rel="noopener noreferrer">
                                     <FaFacebook />
                                 </a>
-                                 <a href="https://www.instagram.com/smileypagecorner/" target="_blank" rel="noopener noreferrer">
+                                <a href="https://www.instagram.com/smileypagecorner/" target="_blank" rel="noopener noreferrer">
                                     <FaInstagram />
                                 </a>
                                 <a href="https://www.tiktok.com/@smileypagecorner" target="_blank" rel="noopener noreferrer">
@@ -225,7 +226,7 @@ const LandingPage = () => {
                             <ul className="flex flex-col gap-2.5 text-xs text-[#E6CCA2]">
                                 <li onClick={() => navigate('/products')} className="hover:text-white cursor-pointer transition-colors">Our Menu</li>
                                 <li onClick={() => navigate('/build')} className="hover:text-white cursor-pointer transition-colors">3D Cake Builder</li>
-                            
+
                                 <li onClick={() => navigate('/orders')} className="hover:text-white cursor-pointer transition-colors">Track Order</li>
                             </ul>
                         </div>
@@ -233,9 +234,9 @@ const LandingPage = () => {
                         <div className="flex flex-col gap-4">
                             <h4 className="font-bold text-white text-sm tracking-wider uppercase">Visit Us</h4>
                             <div className="flex flex-col gap-2 text-xs text-[#E6CCA2]">
-                                <p>📍 Bacoor, Cavite, Philippines</p>
-                                <p>📞 +63 912 345 6789</p>
-                                <p>✉️ hello@smileypage.com</p>
+                                <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#ffffff]" /> Bacoor, Cavite, Philippines</p>
+                                <p className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#ffffff]" /> +63 912 345 6789</p>
+                                <p className="flex items-center gap-1.5"><Mail className="w-4 h-4 text-[#ffffff]" /> hello@smileypage.com</p>
                             </div>
                         </div>
 

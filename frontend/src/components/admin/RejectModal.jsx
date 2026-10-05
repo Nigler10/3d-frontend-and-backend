@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import "./RejectModal.css";
 
 const reasonsList = [
@@ -33,7 +34,7 @@ export default function RejectModal({ isOpen, onClose, onSubmit }) {
         <div className="modal-overlay" onClick={onClose}>
             {/* stopPropagation prevents the modal from closing when clicking inside the card */}
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-icon-wrap">⚠️</div>
+                <div className="modal-icon-wrap"><AlertTriangle className="w-6 h-6 text-rose-600" /></div>
                 
                 <h2>Reject Order?</h2>
                 <p className="modal-subtitle">Please provide a reason. This will be sent to the customer.</p>

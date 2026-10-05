@@ -1,9 +1,9 @@
-// src/pages.Login.jsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { saveTokens } from "../utils/auth";
 import { useCart } from "../context/CartContext";
+import { Cake, CheckCircle2, AlertTriangle } from "lucide-react";
 
 function Login() {
     const { fetchCart } = useCart();
@@ -11,6 +11,7 @@ function Login() {
     const BASE = import.meta.env.VITE_DJANGO_BASE_URL;
     const [form, setForm] = useState({ username: "", password: "" });
     const [msg, setMsg] = useState("");
+    const [isSuccess, setIsSuccess] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const nav = useNavigate();
 
@@ -21,6 +22,7 @@ function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMsg("");
+        setIsSuccess(false);
         setIsLoading(true);
 
         try {
@@ -36,7 +38,8 @@ function Login() {
             if (response.ok) {
                 saveTokens(data);
                 await fetchCart();
-                setMsg("✅ Login Successful! Redirecting...");
+                setIsSuccess(true);
+                setMsg("Login Successful! Redirecting...");
 
                 let redirectPath = "/";
                 try {
@@ -50,11 +53,13 @@ function Login() {
 
                 setTimeout(() => nav(redirectPath), 1200);
             } else {
-                setMsg(data.detail || "❌ Login Failed. Invalid credentials.");
+                setIsSuccess(false);
+                setMsg(data.detail || "Login Failed. Invalid credentials.");
             }
         } catch (error) {
             console.error(error);
-            setMsg("⚠️ An error occurred. Please try again.");
+            setIsSuccess(false);
+            setMsg("An error occurred. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -64,16 +69,16 @@ function Login() {
         <div className="min-h-[calc(100vh-5rem)] w-full bg-[#FCF8EE] flex items-start sm:items-center justify-center px-4 pt-5 pb-8 antialiased font-sans">
             <div className="w-full max-w-md bg-white border border-[#E6CCA2] rounded-2xl shadow-md p-6 sm:p-8 flex flex-col gap-6">
 
-                {/* 🎂 Brand Header */}
+                {/* Brand Header */}
                 <div className="text-center flex flex-col items-center gap-1.5">
-                    <span className="text-4xl filter drop-shadow-sm mb-1" role="img" aria-label="Cake"></span>
+                    <Cake className="w-10 h-10 text-[#C05A11] mb-1" />
                     <h2 className="text-2xl font-black text-[#6E473B]">Welcome Back</h2>
                     <p className="text-sm text-[#A07060]">
                         Log in to manage your cart and design cakes in 3D.
                     </p>
                 </div>
 
-                {/* 📝 Form */}
+                {/* Form */}
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold tracking-wider text-[#A05A2C] uppercase">
@@ -114,12 +119,13 @@ function Login() {
                     </button>
                 </form>
 
-                {/* 🚨 Alert Message Popup box */}
+                {/* Alert Message Popup box */}
                 {msg && (
-                    <div className={`p-3.5 rounded-xl border text-xs font-medium text-center shadow-inner animate-fadeIn ${msg.startsWith('✅')
+                    <div className={`p-3.5 rounded-xl border text-xs font-medium text-center shadow-inner animate-fadeIn flex items-center justify-center gap-1.5 ${isSuccess
                             ? 'bg-[#2E7D32]/10 border-[#2E7D32]/20 text-[#2E7D32]'
                             : 'bg-red-50 border-red-100 text-red-600'
                         }`}>
+                        {isSuccess ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-red-600" />}
                         {msg}
                     </div>
                 )}

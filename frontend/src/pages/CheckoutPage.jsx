@@ -1,9 +1,9 @@
-// src/pages/CheckoutPage.jsx
 import { useState, useEffect } from "react";
 import { useCart } from "../context/CartContext";
 import { authFetch } from "../utils/auth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AddressSelector from "../components/address/AddressSelector";
+import { MapPin, Phone, Clock, FileText } from "lucide-react";
 
 function CheckoutPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -127,7 +127,7 @@ function CheckoutPage() {
 
                 if (res.ok) {
 
-                    setMessage("Sweet! Order submitted for review! 🎂");
+                    setMessage("Sweet! Order submitted for review!");
 
                     setTimeout(() => {
                         navigate(`/orders/${uploadOrderId}`);
@@ -160,7 +160,7 @@ function CheckoutPage() {
             const data = await res.json();
 
             if (res.ok) {
-                setMessage("Sweet! Order submitted for review! 🎂");
+                setMessage("Sweet! Order submitted for review!");
                 clearCart();
                 const orderId = data.order_id;
                 setTimeout(() => {
@@ -189,7 +189,7 @@ function CheckoutPage() {
                     {/* Delivery Address Section */}
                     <section className="space-y-4">
                         <h2 className="text-xl font-bold text-[#844414] flex items-center gap-2">
-                            <span>📍</span> Delivery Address
+                            <MapPin className="w-5 h-5 text-[#844414]" /> Delivery Address
                         </h2>
 
                         <div className="space-y-3">
@@ -231,8 +231,8 @@ function CheckoutPage() {
                                                 <p className="text-xs">{profileAddress.region}</p>
                                             )}
 
-                                            <p className="text-xs font-bold text-[#d67b27] mt-1">
-                                                📞 {profileAddress.phone}
+                                            <p className="text-xs font-bold text-[#d67b27] mt-1 flex items-center gap-1">
+                                                <Phone className="w-3.5 h-3.5" /> {profileAddress.phone}
                                             </p>
                                         </div>
                                     )}
@@ -268,7 +268,7 @@ function CheckoutPage() {
                     {/* Schedule Section */}
                     <section className="space-y-4">
                         <h2 className="text-xl font-bold text-[#844414] flex items-center gap-2">
-                            <span>⏰</span> Schedule Delivery
+                            <Clock className="w-5 h-5 text-[#844414]" /> Schedule Delivery
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="flex flex-col">
@@ -297,7 +297,7 @@ function CheckoutPage() {
                     {/* Notes Section */}
                     <section className="space-y-4">
                         <h2 className="text-xl font-bold text-[#844414] flex items-center gap-2">
-                            <span>📝</span> Special Instructions
+                            <FileText className="w-5 h-5 text-[#844414]" /> Special Instructions
                         </h2>
                         <textarea
                             placeholder="Add a message for the baker or delivery rider..."

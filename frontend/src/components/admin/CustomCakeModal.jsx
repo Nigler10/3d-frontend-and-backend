@@ -1,8 +1,8 @@
-// src/components/admin/CustomCakeModal.jsx | DO NOT REMOVE THIS!
 import { useEffect, useRef, useState } from "react";
 import { authFetch } from "../../utils/auth";
 import "./CustomCakeModal.css";
 import CakePreview3D from "./CakePreview3D";
+import { X } from "lucide-react";
 
 export function CustomCakeModal({ isOpen, onClose, customization, orderId, canAddImages = false, onImagesAdded }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -209,7 +209,7 @@ export function CustomCakeModal({ isOpen, onClose, customization, orderId, canAd
     return (
         <div className="custom-cake-overlay" onClick={closeModal}>
             <div className="custom-cake-modal" onClick={(e) => e.stopPropagation()}>
-                <button className="close-btn" onClick={closeModal}>✕</button>
+                <button className="close-btn" onClick={closeModal}><X className="w-5 h-5" /></button>
 
                 <h2>Custom Cake Preview</h2>
 
