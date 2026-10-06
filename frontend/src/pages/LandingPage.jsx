@@ -167,7 +167,7 @@ const LandingPage = () => {
                                                 
                                                 <span aria-hidden="true" className="text-2xl">✓</span>
                                                 <span className="text-center">Added to<br />cart!</span>
-                                            </div>
+                                            </div>  
                                         )}
                                     </div>
                                 </div>

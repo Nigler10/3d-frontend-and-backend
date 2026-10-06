@@ -1,6 +1,7 @@
 // src/pages/admin/AdminProductList.jsx
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { Check, Download, RotateCcw, Search, Truck, X, Zap } from "lucide-react";
 import AdminProductCard from "../../components/admin/AdminProductCard";
 import { getAccessToken } from "../../utils/auth";
 
@@ -336,7 +337,7 @@ function AdminProductList() {
         <div className="min-h-screen bg-[#FCF8EE] pb-16 text-[#3D251E] font-sans antialiased">
             {successMessage && (
                 <div className="fixed top-24 right-6 z-50 bg-[#16A34A] text-white px-4 py-2.5 rounded-xl shadow-lg font-bold text-xs flex items-center gap-2 animate-bounce">
-                    <span>✓</span> {successMessage}
+                    <Check aria-hidden="true" size={14} /> {successMessage}
                 </div>
             )}
 
@@ -399,14 +400,15 @@ function AdminProductList() {
                                 placeholder="Search products..."
                                 className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
                             />
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
+                            <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
                             {searchQuery && (
                                 <button
                                     type="button"
                                     onClick={() => setSearchQuery("")}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] text-xs"
+                                    aria-label="Clear product search"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                                 >
-                                    ✕
+                                    <X aria-hidden="true" size={14} />
                                 </button>
                             )}
                         </div>
@@ -573,14 +575,15 @@ function AdminProductList() {
                                         placeholder="Search shape, size, or flavor..."
                                         className="w-full pl-8 pr-3 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
                                     />
-                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
+                                    <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
                                     {pricingSearch && (
                                         <button
                                             type="button"
                                             onClick={() => setPricingSearch("")}
-                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] text-xs"
+                                            aria-label="Clear pricing search"
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                                         >
-                                            ✕
+                                            <X aria-hidden="true" size={14} />
                                         </button>
                                     )}
                                 </div>
@@ -609,7 +612,7 @@ function AdminProductList() {
                                     }}
                                     className="px-3 py-1.5 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1 cursor-pointer"
                                 >
-                                    <span>↻</span> Reset Filters
+                                    <RotateCcw aria-hidden="true" size={13} /> Reset Filters
                                 </button>
 
                                 {/* Export CSV */}
@@ -618,7 +621,7 @@ function AdminProductList() {
                                     onClick={handleExportPricingCSV}
                                     className="px-3 py-1.5 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1 cursor-pointer"
                                 >
-                                    <span>⤓</span> Export CSV
+                                    <Download aria-hidden="true" size={13} /> Export CSV
                                 </button>
                             </div>
                         </div>
@@ -635,7 +638,7 @@ function AdminProductList() {
                                 </div>
 
                                 <div className="text-xs text-[#8C6D58] font-medium flex items-center gap-1">
-                                    <span className="text-emerald-600 font-bold">✓</span> Edits update storefront custom cake quotation in real time
+                                    <Check aria-hidden="true" size={14} className="text-emerald-600" /> Edits update storefront custom cake quotation in real time
                                 </div>
                             </div>
 
@@ -740,16 +743,17 @@ function AdminProductList() {
                                                                     title="Save Changes"
                                                                     className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
                                                                 >
-                                                                    {isSaving ? "…" : "✓"}
+                                                                    {isSaving ? "..." : <Check aria-hidden="true" size={15} />}
                                                                 </button>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setDraftBasePrices((prev) => { const n = { ...prev }; delete n[item.id]; return n; })}
                                                                     disabled={!isChanged || isSaving}
                                                                     title="Cancel Edit"
+                                                                    aria-label="Cancel base price edit"
                                                                     className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
                                                                 >
-                                                                    ✕
+                                                                    <X aria-hidden="true" size={14} />
                                                                 </button>
                                                             </div>
                                                         </td>
@@ -901,15 +905,17 @@ function AdminProductList() {
                                                                 disabled={!isChanged || isSaving}
                                                                 className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
                                                             >
-                                                                {isSaving ? "…" : "✓"}
+                                                                {isSaving ? "..." : <Check aria-hidden="true" size={15} />}
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setDraftAddonPrices((prev) => { const n = { ...prev }; delete n[item.id]; return n; })}
                                                                 disabled={!isChanged || isSaving}
+                                                                title="Cancel Edit"
+                                                                aria-label="Cancel add-on price edit"
                                                                 className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
                                                             >
-                                                                ✕
+                                                                <X aria-hidden="true" size={14} />
                                                             </button>
                                                         </div>
                                                     </td>
@@ -939,7 +945,7 @@ function AdminProductList() {
 
                             <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
                                 <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    ⚡
+                                    <Zap aria-hidden="true" size={16} />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
@@ -953,7 +959,7 @@ function AdminProductList() {
 
                             <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
                                 <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    🚚
+                                    <Truck aria-hidden="true" size={16} />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">

@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import { Download, MapPin, Package, Phone, Search, X } from "lucide-react";
 
 export default function AdminOrdersPage() {
   const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -342,14 +343,15 @@ export default function AdminOrdersPage() {
                 placeholder="Search name, phone, email, #ID..."
                 className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
               />
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] text-xs">🔍</span>
+              <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E] text-xs"
+                  aria-label="Clear order search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                 >
-                  ✕
+                  <X aria-hidden="true" size={14} />
                 </button>
               )}
             </div>
@@ -376,7 +378,7 @@ export default function AdminOrdersPage() {
               onClick={handleExportCSV}
               className="px-4 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <span>⤓</span> Export CSV
+              <Download aria-hidden="true" size={14} /> Export CSV
             </button>
           </div>
         </div>
@@ -401,7 +403,7 @@ export default function AdminOrdersPage() {
 
           {filteredOrders.length === 0 ? (
             <div className="p-12 text-center text-[#8C6D58]">
-              <span className="text-4xl block mb-3">📦</span>
+              <Package aria-hidden="true" size={40} className="mx-auto mb-3 text-[#AD4313]" />
               <h3 className="font-bold text-[#3D251E] text-lg">No orders found</h3>
               <p className="text-xs mt-1">Try resetting search filters or unread toggle.</p>
             </div>
@@ -530,8 +532,8 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="text-xs text-[#8C6D58] space-y-1">
-                      <p className="font-semibold text-[#3D251E]">📞 {order.formatted_phone || order.phone || "—"}</p>
-                      <p className="truncate">📍 {order.full_address || "—"}</p>
+                      <p className="flex items-center gap-1.5 font-semibold text-[#3D251E]"><Phone aria-hidden="true" size={12} /> {order.formatted_phone || order.phone || "—"}</p>
+                      <p className="flex items-center gap-1.5 truncate"><MapPin aria-hidden="true" size={12} /> {order.full_address || "—"}</p>
                     </div>
 
                     <div className="pt-3 border-t border-[#E6DBCB]/40 flex items-center justify-between">
