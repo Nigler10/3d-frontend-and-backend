@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
-import { Download, MapPin, Package, Phone, Search, X } from "lucide-react";
+import { MessageSquare, Filter, Download, MapPin, Package, Phone, Search, X } from "lucide-react";
 
 export default function AdminOrdersPage() {
   const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -233,7 +233,7 @@ export default function AdminOrdersPage() {
                   : "bg-white hover:bg-[#FCF8EE] border-[#E6DBCB] text-[#3D251E]"
                 }`}
             >
-              <span>💬 Unread Chats</span>
+              <MessageSquare className="w-5 h-5" /><span> Unread Chats</span>
               {totalUnreadCount > 0 && (
                 <span className="w-5 h-5 rounded-full bg-[#AD4313] text-white text-[10px] font-black flex items-center justify-center leading-none border border-white">
                   {totalUnreadCount}
@@ -268,7 +268,7 @@ export default function AdminOrdersPage() {
                     : "bg-[#FFFDF9] hover:bg-[#F9F3EA] border-[#E6DBCB] text-[#5C3D2E]"
                   }`}
               >
-                <span>⚡ Filter</span>
+                 <Filter className="w-3.5 h-3.5" /><span> Filter</span>
                 {statusFilter !== "all" && (
                   <span className="bg-white text-[#AD4313] rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-black">1</span>
                 )}
@@ -343,7 +343,7 @@ export default function AdminOrdersPage() {
                 placeholder="Search name, phone, email, #ID..."
                 className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
               />
-              <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
+              <Search aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A48B78]" />
               {searchQuery && (
                 <button
                   type="button"
@@ -351,7 +351,7 @@ export default function AdminOrdersPage() {
                   aria-label="Clear order search"
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                 >
-                  <X aria-hidden="true" size={14} />
+                  <X aria-hidden="true" className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -378,7 +378,7 @@ export default function AdminOrdersPage() {
               onClick={handleExportCSV}
               className="px-4 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Download aria-hidden="true" size={14} /> Export CSV
+              <Download aria-hidden="true" className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
         </div>
@@ -403,7 +403,7 @@ export default function AdminOrdersPage() {
 
           {filteredOrders.length === 0 ? (
             <div className="p-12 text-center text-[#8C6D58]">
-              <Package aria-hidden="true" size={40} className="mx-auto mb-3 text-[#AD4313]" />
+              <Package aria-hidden="true" className="mx-auto mb-3 w-10 h-10 text-[#AD4313]" />
               <h3 className="font-bold text-[#3D251E] text-lg">No orders found</h3>
               <p className="text-xs mt-1">Try resetting search filters or unread toggle.</p>
             </div>
@@ -532,8 +532,8 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="text-xs text-[#8C6D58] space-y-1">
-                      <p className="flex items-center gap-1.5 font-semibold text-[#3D251E]"><Phone aria-hidden="true" size={12} /> {order.formatted_phone || order.phone || "—"}</p>
-                      <p className="flex items-center gap-1.5 truncate"><MapPin aria-hidden="true" size={12} /> {order.full_address || "—"}</p>
+                      <p className="flex items-center gap-1.5 font-semibold text-[#3D251E]"><Phone aria-hidden="true" className="w-3 h-3 shrink-0" /> {order.formatted_phone || order.phone || "—"}</p>
+                      <p className="flex items-center gap-1.5 truncate"><MapPin aria-hidden="true" className="w-3 h-3 shrink-0" /> {order.full_address || "—"}</p>
                     </div>
 
                     <div className="pt-3 border-t border-[#E6DBCB]/40 flex items-center justify-between">

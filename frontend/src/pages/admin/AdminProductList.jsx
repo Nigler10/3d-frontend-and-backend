@@ -1,7 +1,7 @@
 // src/pages/admin/AdminProductList.jsx
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Download, RotateCcw, Search, Truck, X, Zap } from "lucide-react";
+import { CheckCircle2, Download, Package, RefreshCw, Search, TrendingUp, X } from "lucide-react";
 import AdminProductCard from "../../components/admin/AdminProductCard";
 import { getAccessToken } from "../../utils/auth";
 
@@ -337,7 +337,7 @@ function AdminProductList() {
         <div className="min-h-screen bg-[#FCF8EE] pb-16 text-[#3D251E] font-sans antialiased">
             {successMessage && (
                 <div className="fixed top-24 right-6 z-50 bg-[#16A34A] text-white px-4 py-2.5 rounded-xl shadow-lg font-bold text-xs flex items-center gap-2 animate-bounce">
-                    <Check aria-hidden="true" size={14} /> {successMessage}
+                    <CheckCircle2 aria-hidden="true" className="w-3.5 h-3.5" /> {successMessage}
                 </div>
             )}
 
@@ -400,7 +400,7 @@ function AdminProductList() {
                                 placeholder="Search products..."
                                 className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
                             />
-                            <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
+                            <Search aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A48B78]" />
                             {searchQuery && (
                                 <button
                                     type="button"
@@ -408,7 +408,7 @@ function AdminProductList() {
                                     aria-label="Clear product search"
                                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                                 >
-                                    <X aria-hidden="true" size={14} />
+                                    <X aria-hidden="true" className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
@@ -474,9 +474,7 @@ function AdminProductList() {
                                         <h2 className="text-lg font-black text-[#3D251E] tracking-tight">
                                             Custom Cake Tier Pricing Engine
                                         </h2>
-                                        <span className="px-2.5 py-0.5 rounded-full bg-[#EDFDF3] text-[#16A34A] border border-[#BBF7D0] text-[10px] font-bold inline-flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Sync Enabled
-                                        </span>
+                                        
                                     </div>
                                     <p className="text-xs text-[#8C6D58] font-medium">
                                         Dynamic calculation matrix for customer cake-builder and lead-time dispatching.
@@ -575,7 +573,7 @@ function AdminProductList() {
                                         placeholder="Search shape, size, or flavor..."
                                         className="w-full pl-8 pr-3 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
                                     />
-                                    <Search aria-hidden="true" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A48B78]" />
+                                    <Search aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A48B78]" />
                                     {pricingSearch && (
                                         <button
                                             type="button"
@@ -583,7 +581,7 @@ function AdminProductList() {
                                             aria-label="Clear pricing search"
                                             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
                                         >
-                                            <X aria-hidden="true" size={14} />
+                                            <X aria-hidden="true" className="w-3.5 h-3.5" />
                                         </button>
                                     )}
                                 </div>
@@ -612,7 +610,7 @@ function AdminProductList() {
                                     }}
                                     className="px-3 py-1.5 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1 cursor-pointer"
                                 >
-                                    <RotateCcw aria-hidden="true" size={13} /> Reset Filters
+                                    <RefreshCw aria-hidden="true" className="w-3.5 h-3.5" /> Reset Filters
                                 </button>
 
                                 {/* Export CSV */}
@@ -621,7 +619,7 @@ function AdminProductList() {
                                     onClick={handleExportPricingCSV}
                                     className="px-3 py-1.5 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1 cursor-pointer"
                                 >
-                                    <Download aria-hidden="true" size={13} /> Export CSV
+                                    <Download aria-hidden="true" className="w-3.5 h-3.5" /> Export CSV
                                 </button>
                             </div>
                         </div>
@@ -638,7 +636,7 @@ function AdminProductList() {
                                 </div>
 
                                 <div className="text-xs text-[#8C6D58] font-medium flex items-center gap-1">
-                                    <Check aria-hidden="true" size={14} className="text-emerald-600" /> Edits update storefront custom cake quotation in real time
+                                    <CheckCircle2 aria-hidden="true" className="w-3.5 h-3.5 text-emerald-600" /> Edits update storefront custom cake quotation in real time
                                 </div>
                             </div>
 
@@ -743,7 +741,7 @@ function AdminProductList() {
                                                                     title="Save Changes"
                                                                     className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
                                                                 >
-                                                                    {isSaving ? "..." : <Check aria-hidden="true" size={15} />}
+                                                                    {isSaving ? "..." : <CheckCircle2 aria-hidden="true" className="w-4 h-4" />}
                                                                 </button>
                                                                 <button
                                                                     type="button"
@@ -753,7 +751,7 @@ function AdminProductList() {
                                                                     aria-label="Cancel base price edit"
                                                                     className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
                                                                 >
-                                                                    <X aria-hidden="true" size={14} />
+                                                                    <X aria-hidden="true" className="w-3.5 h-3.5" />
                                                                 </button>
                                                             </div>
                                                         </td>
@@ -905,7 +903,7 @@ function AdminProductList() {
                                                                 disabled={!isChanged || isSaving}
                                                                 className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
                                                             >
-                                                                {isSaving ? "..." : <Check aria-hidden="true" size={15} />}
+                                                                {isSaving ? "..." : <CheckCircle2 aria-hidden="true" className="w-4 h-4" />}
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -915,7 +913,7 @@ function AdminProductList() {
                                                                 aria-label="Cancel add-on price edit"
                                                                 className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
                                                             >
-                                                                <X aria-hidden="true" size={14} />
+                                                                <X aria-hidden="true" className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     </td>
@@ -945,7 +943,7 @@ function AdminProductList() {
 
                             <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
                                 <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <Zap aria-hidden="true" size={16} />
+                                    <TrendingUp aria-hidden="true" className="w-4 h-4" />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
@@ -959,7 +957,7 @@ function AdminProductList() {
 
                             <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
                                 <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <Truck aria-hidden="true" size={16} />
+                                    <Package aria-hidden="true" className="w-4 h-4" />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
