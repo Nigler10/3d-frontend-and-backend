@@ -1,9 +1,9 @@
 // src/components/Navbar.jsx | DO NOT REMOVE THIS
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
-import { clearTokens, getAccessToken } from "../utils/auth";
+import { authFetch, clearTokens, getAccessToken } from "../utils/auth";
 import { useUnread } from "../context/UnreadContext";
 import logoImg from "../assets/images/spc.png";
 import BuilderChoiceModal from "./BuilderChoiceModal";
@@ -20,6 +20,8 @@ function Navbar() {
     const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
     const { unreadMessages } = useUnread();
     const isLoggedIn = !!getAccessToken();
+    const [userName, setUserName] = useState("");
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     let isAdmin = false;
 
@@ -32,6 +34,29 @@ function Navbar() {
             console.error("Invalid token");
         }
     }
+
+    useEffect(() => {
+        if (!isLoggedIn || isAdmin) {
+            setUserName("");
+            return;
+        }
+
+        const fetchUserName = async () => {
+            try {
+                const response = await authFetch(`${BASEURL}/api/profile/`, { method: "GET" });
+                if (response.ok) {
+                    const profile = await response.json();
+                    const firstName = profile.user?.first_name || "";
+                    const lastName = profile.user?.last_name || "";
+                    setUserName(`${firstName} ${lastName}`.trim() || profile.user?.username || "");
+                }
+            } catch (err) {
+                console.error("Failed to load navbar user name", err);
+            }
+        };
+
+        fetchUserName();
+    }, [BASEURL, isAdmin, isLoggedIn]);
 
     const isCurrentNav = (path) => location.pathname === path
         || (path !== "/admin" && location.pathname.startsWith(`${path}/`));
@@ -183,7 +208,7 @@ function Navbar() {
                                         onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                                         className="flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors"
                                     >
-                                        Profile
+                                        {isAdmin ? "Admin" : userName || "Profile"}
                                         <svg className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                                         </svg>
