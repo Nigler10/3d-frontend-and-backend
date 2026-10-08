@@ -10,11 +10,13 @@ import { getOrderStatusLabel } from "../../utils/orderStatus";
 import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
 import PrintablePaymentReceipt from "../../components/customer/PrintablePaymentReceipt";
 import { AlertTriangle, Cake } from "lucide-react";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 
 export default function CustomerOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const { id } = useParams();
     const navigate = useNavigate();
+    const { showAlert, showConfirm } = useCustomerDialog();
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -101,7 +103,12 @@ export default function CustomerOrderDetailPage() {
     const isInvalid = payAmount === "" || parsedPay < minAmount || parsedPay > maxAmount || parsedPay === 0;
 
     const handleCancelOrder = async () => {
-        if (!confirm("Are you sure you want to cancel this order?")) {
+        const confirmed = await showConfirm("Are you sure you want to cancel this order?", {
+            title: "Cancel this order?",
+            tone: "danger",
+            confirmLabel: "Cancel order",
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -116,15 +123,15 @@ export default function CustomerOrderDetailPage() {
             const data = await res.json();
 
             if (!res.ok) {
-                alert(data.error || "Failed to cancel order.");
+                await showAlert(data.error || "Failed to cancel order.", { tone: "error", title: "Order not cancelled" });
                 return;
             }
 
-            alert("Order cancelled successfully.");
+            await showAlert("Order cancelled successfully.", { tone: "success", title: "Order cancelled" });
             await fetchOrder();
         } catch (err) {
             console.error(err);
-            alert("Something went wrong while cancelling the order.");
+            await showAlert("Something went wrong while cancelling the order.", { tone: "error", title: "Order not cancelled" });
         }
     };
 
@@ -151,9 +158,10 @@ export default function CustomerOrderDetailPage() {
             const data = await res.json();
 
             if (!res.ok) {
-                alert(
+                await showAlert(
                     data.error ||
-                    "Failed to initiate payment."
+                    "Failed to initiate payment.",
+                    { tone: "error", title: "Payment could not start" }
                 );
 
                 return;
@@ -178,9 +186,7 @@ export default function CustomerOrderDetailPage() {
             }
 
             if (!data.checkout_url) {
-                alert(
-                    "Payment checkout could not be created."
-                );
+                await showAlert("Payment checkout could not be created.", { tone: "error", title: "Payment could not start" });
 
                 return;
             }
@@ -191,8 +197,9 @@ export default function CustomerOrderDetailPage() {
         } catch (err) {
             console.error(err);
 
-            alert(
+            await showAlert(
                 "Unable to connect to the payment service. Please try again."
+                , { tone: "error", title: "Payment service unavailable" }
             );
 
         } finally {
@@ -228,9 +235,10 @@ export default function CustomerOrderDetailPage() {
                 .catch(() => ({}));
 
             if (!cancelRes.ok) {
-                alert(
+                await showAlert(
                     cancelData.error ||
-                    "Unable to close the previous checkout."
+                    "Unable to close the previous checkout.",
+                    { tone: "error", title: "Checkout could not be replaced" }
                 );
 
                 return;
@@ -253,18 +261,17 @@ export default function CustomerOrderDetailPage() {
             const data = await res.json();
 
             if (!res.ok) {
-                alert(
+                await showAlert(
                     data.error ||
-                    "Unable to create the new checkout."
+                    "Unable to create the new checkout.",
+                    { tone: "error", title: "Checkout could not be replaced" }
                 );
 
                 return;
             }
 
             if (!data.checkout_url) {
-                alert(
-                    "New payment checkout could not be created."
-                );
+                await showAlert("New payment checkout could not be created.", { tone: "error", title: "Checkout could not be replaced" });
 
                 return;
             }
@@ -277,8 +284,9 @@ export default function CustomerOrderDetailPage() {
         } catch (err) {
             console.error(err);
 
-            alert(
+            await showAlert(
                 "Unable to replace the payment checkout. Please try again."
+                , { tone: "error", title: "Checkout could not be replaced" }
             );
 
         } finally {

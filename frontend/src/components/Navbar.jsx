@@ -8,6 +8,7 @@ import { useUnread } from "../context/UnreadContext";
 import logoImg from "../assets/images/spc.png";
 import BuilderChoiceModal from "./BuilderChoiceModal";
 import UploadSampleCakeModal from "./UploadSampleCakeModal";
+import { useCustomerDialog } from "../context/CustomerDialogContext";
 
 function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -19,6 +20,7 @@ function Navbar() {
     const location = useLocation();
     const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
     const { unreadMessages } = useUnread();
+    const { showConfirm } = useCustomerDialog();
     const isLoggedIn = !!getAccessToken();
     const [userName, setUserName] = useState("");
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -70,8 +72,13 @@ function Navbar() {
         return null;
     }
 
-    const handleLogout = () => {
-        if (!window.confirm("Are you sure you want to log out?")) return;
+    const handleLogout = async () => {
+        const confirmed = await showConfirm("Are you sure you want to log out?", {
+            title: "Log out?",
+            tone: "danger",
+            confirmLabel: "Log out",
+        });
+        if (!confirmed) return;
 
         clearTokens();
         clearCart();
