@@ -783,12 +783,12 @@ export default function CustomerOrdersPage() {
 
                 {/* PAST ORDERS & RE-ORDERS SECTION */}
                 {activeTab === "completed" && (
-                    <section className="space-y-6 pt-6 border-t border-[#F3E5D0]">
+                    <section className="space-y-6">
                         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
                             <div>
                                 <h2 className="text-2xl font-black text-[#6E473B]">Past Orders & Re-Orders</h2>
                                 <p className="text-xs text-stone-500 mt-0.5">
-                                    Looking for past custom recipes? Re-order with 1-click, or download design spec certificates.
+                                    Looking for past custom recipes? Re-order with 1-click.
                                 </p>
                             </div>
                         </div>
