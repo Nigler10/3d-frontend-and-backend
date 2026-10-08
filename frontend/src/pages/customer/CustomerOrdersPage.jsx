@@ -14,15 +14,8 @@ import {
     X,
     Printer,
     RefreshCw,
-    Package,
-    Calendar,
-    MapPin,
-    AlertTriangle,
     MessageSquare,
     Check,
-    Search,
-    Award,
-    Truck,
 } from "lucide-react";
 
 
@@ -52,83 +45,6 @@ const formatTotal = (value) =>
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     })}`;
-
-// Stepper Step Mapping
-const getStepState = (status) => {
-    switch (status) {
-        case "pending_review":
-        case "awaiting_customer_response":
-            return 2; // Step 2: Pending Review
-        case "awaiting_downpayment":
-        case "processing":
-            return 3; // Step 3: In The Oven / Baking
-        case "ready_for_delivery":
-            return 4; // Step 4: Dispatched
-        case "delivered":
-        case "completed":
-            return 5; // All steps completed
-        default:
-            return 1; // Step 1: Order Placed
-    }
-};
-
-function OrderProgressStepper({ status }) {
-    const currentStep = getStepState(status);
-
-    const steps = [
-        { label: "Order Placed", stepNum: 1 },
-        { label: "Pending Review", stepNum: 2 },
-        { label: "In The Oven", stepNum: 3 },
-        { label: "Dispatched", stepNum: 4 },
-    ];
-
-    return (
-        <div className="w-full my-6 py-2 px-2 sm:px-6 bg-[#FAF5EB] rounded-2xl border border-[#F3E5D0]">
-            <div className="relative flex items-center justify-between">
-                {/* Background Line */}
-                <div className="absolute top-1/2 left-4 right-4 h-1 bg-[#EFE3CF] -translate-y-1/2 z-0" />
-
-                {/* Filled Line */}
-                <div
-                    className="absolute top-1/2 left-4 h-1 bg-[#C05A11] -translate-y-1/2 transition-all duration-500 z-0"
-                    style={{
-                        width: `${Math.min(100, Math.max(0, ((currentStep - 1) / (steps.length - 1)) * 100))}%`,
-                    }}
-                />
-
-                {steps.map((s) => {
-                    const isCompleted = currentStep > s.stepNum;
-                    const isActive = currentStep === s.stepNum;
-
-                    return (
-                        <div key={s.stepNum} className="relative z-10 flex flex-col items-center">
-                            <div
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${isCompleted
-                                    ? "bg-[#C05A11] text-white shadow-md"
-                                    : isActive
-                                        ? "bg-[#D97706] text-white ring-4 ring-[#FEF3C7] shadow-lg scale-110"
-                                        : "bg-white text-stone-400 border-2 border-[#EFE3CF]"
-                                    }`}
-                            >
-                                {isCompleted ? <Check className="w-4 h-4" /> : s.stepNum}
-                            </div>
-                            <span
-                                className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${isActive
-                                    ? "text-[#844414] font-black"
-                                    : isCompleted
-                                        ? "text-[#C05A11]"
-                                        : "text-stone-400"
-                                    }`}
-                            >
-                                {s.label}
-                            </span>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
 
 function OrderItemsList({ items = [], orderId, onItemClick }) {
     if (!items || items.length === 0) {
@@ -463,13 +379,8 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                 </div>
             </div>
 
-            {/* Stepper Component */}
-            <OrderProgressStepper status={order.status} />
-
-            {/* Main Content Grid: Left Items + Right Delivery Specs */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-                {/* Left Side: 2 Cols on Large */}
-                <div className="lg:col-span-2 space-y-3">
+            <div className="pt-2">
+                <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase tracking-wider text-[#A07060]">
                             Custom Crafted Items ({order.items?.length || 0} {order.items?.length === 1 ? "Cake" : "Items"})
@@ -479,52 +390,6 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
                         </span>
                     </div>
                     <OrderItemsList items={order.items} orderId={order.id} onItemClick={onItemClick} />
-                </div>
-
-                {/* Right Side: Delivery & Event Specs Panel */}
-                <div className="bg-[#FAF5EB] rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] flex flex-col justify-between space-y-4">
-                    <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-[#844414] border-b border-[#EFE3CF] pb-2 flex items-center gap-1.5">
-                            <Package className="w-4 h-4 text-[#844414]" /> Delivery & Event Specs
-                        </h4>
-
-                        <div className="mt-3 space-y-2.5 text-xs text-stone-700">
-                            <div className="flex items-start gap-2">
-                                <Calendar className="w-4 h-4 text-[#C05A11] shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="font-bold text-[#6E473B]">
-                                        Bake & Delivery: {formatDate(order.delivery_date || order.created_at)}
-                                    </p>
-                                    <p className="text-[11px] text-stone-500">
-                                        Time Slot: {order.delivery_time || "Standard Afternoon Delivery"}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-2">
-                                <MapPin className="w-4 h-4 text-[#C05A11] shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="font-bold text-[#6E473B]">Delivery Location</p>
-                                    <p className="text-[11px] text-stone-500 leading-snug">{order.full_address || "Studio Pickup / Customer Address"}</p>
-                                </div>
-                            </div>
-
-                            {order.order_notes && (
-                                <div className="mt-2 p-2.5 bg-[#FFF8EF] rounded-xl border border-[#FCD34D]/30 text-[11px] text-[#B45309]">
-                                    <p className="font-bold flex items-center gap-1">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-[#B45309]" /> Special Instructions:
-                                    </p>
-                                    <p className="mt-0.5 italic">{order.order_notes}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Subtotal Footer */}
-                    <div className="pt-3 border-t border-[#EFE3CF] flex items-center justify-between text-xs font-bold text-[#6E473B]">
-                        <span>Subtotal ({order.items?.length || 0} items)</span>
-                        <span className="text-sm font-black text-[#844414]">{formatTotal(order.total_amount)}</span>
-                    </div>
                 </div>
             </div>
 
@@ -653,7 +518,6 @@ export default function CustomerOrdersPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
-    const [profile, setProfile] = useState(null);
     const [unreadOrders, setUnreadOrders] = useState({});
     const [reorderOrder, setReorderOrder] = useState(null);
     const [invoiceOrder, setInvoiceOrder] = useState(null);
@@ -664,23 +528,10 @@ export default function CustomerOrdersPage() {
     const [showCakeModal, setShowCakeModal] = useState(false);
 
     const [activeTab, setActiveTab] = useState("all");
-    const [searchQuery, setSearchQuery] = useState("");
     const [activePage, setActivePage] = useState(1);
     const [pastPage, setPastPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const fetchProfile = async () => {
-        try {
-            const res = await authFetch(`${BASEURL}/api/profile/`);
-            if (res.ok) {
-                const data = await res.json();
-                setProfile(data);
-            }
-        } catch (err) {
-            console.error("Failed to load profile", err);
-        }
-    };
 
     const fetchUnreadOrders = async () => {
         try {
@@ -715,7 +566,6 @@ export default function CustomerOrdersPage() {
     useEffect(() => {
         fetchOrders();
         fetchUnreadOrders();
-        fetchProfile();
     }, []);
 
     useEffect(() => {
@@ -740,8 +590,6 @@ export default function CustomerOrdersPage() {
         });
     };
 
-    const customerName = profile?.user?.first_name || profile?.user?.username || "Sarah";
-
     // Item Click Handler -> Opens 3D / Photo Customization Modal or Details Page
     const handleItemClick = (item, orderId) => {
         if (item?.customization) {
@@ -756,12 +604,6 @@ export default function CustomerOrdersPage() {
     // Filtering & Sorting Logic
     const filteredOrders = useMemo(() => {
         return orders.filter((o) => {
-            if (searchQuery.trim()) {
-                const q = searchQuery.toLowerCase();
-                const matchesId = String(o.id).includes(q);
-                const matchesItem = o.items?.some((i) => i.product_name?.toLowerCase().includes(q));
-                if (!matchesId && !matchesItem) return false;
-            }
             if (activeTab === "awaiting") {
                 return o.status === "pending_review" || o.status === "awaiting_customer_response";
             }
@@ -773,7 +615,7 @@ export default function CustomerOrdersPage() {
             }
             return true;
         });
-    }, [orders, searchQuery, activeTab]);
+    }, [orders, activeTab]);
 
     const activeOrders = useMemo(
         () => filteredOrders.filter((order) => ACTIVE_STATUSES.has(order.status)),
@@ -786,7 +628,6 @@ export default function CustomerOrdersPage() {
     );
 
     // Metrics
-    const totalActiveCount = orders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
     const awaitingReviewCount = orders.filter(
         (o) => o.status === "pending_review" || o.status === "awaiting_customer_response"
     ).length;
@@ -829,78 +670,6 @@ export default function CustomerOrdersPage() {
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] antialiased text-stone-800 pb-16">
-            {/* Top Navigation & Hero Section */}
-            <div className="bg-[#FAF5EB] border-b border-[#F3E5D0] pt-8 pb-10 px-4 sm:px-8">
-                <div className="max-w-6xl mx-auto space-y-6 ">
-                    {/* Small Badge */}
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF8EF] border border-[#F3E5D0] text-[#844414] text-xs font-bold">
-                        Handcrafted with Fresh Local Ingredients
-                    </div>
-
-                    {/* Greeting & Main Header Bar */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-3xl sm:text-4xl font-black text-[#6E473B] tracking-tight">
-                                Welcome back, {customerName}!
-                            </h1>
-                            <p className="mt-2 text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
-                                Track your custom tiered birthday cakes, communicate with our cake artists, and review fresh quotes in real-time.
-                            </p>
-                        </div>
-
-                        {/* Top Right Action Buttons */}
-                        <div className="flex flex-wrap items-center gap-3 shrink-0">
-                            <button
-                                onClick={() => navigate("/build")}
-                                className="px-5 py-3 rounded-2xl bg-[#C05A11] hover:bg-[#A84E0E] text-white font-bold text-xs shadow-md shadow-[#C05A11]/20 transition-all flex items-center gap-2 active:scale-95"
-                            >
-                                <span className="text-base leading-none">+</span>
-                                <span>Design New Custom Cake</span>
-                            </button>
-
-                            {/* Find Order Search Box */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 w-3.5 h-3.5" />
-                                <input
-                                    type="text"
-                                    placeholder="Find Order #"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-8 pr-3 py-2.5 bg-white border border-[#EFE3CF] rounded-xl text-xs font-semibold text-stone-700 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#C05A11]/40 w-36 sm:w-44 shadow-xs"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Summary Metrics Row (Points Card Removed per request) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                        {/* Card 1: Active Orders */}
-                        <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center shrink-0">
-                                <Award className="w-6 h-6 text-[#844414]" />
-                            </div>
-                            <div>
-                                <p className="text-xl font-black text-[#844414]">{totalActiveCount} Active Orders</p>
-                                <p className="text-xs text-stone-500 font-medium mt-0.5">Under Review & Baking</p>
-                            </div>
-                        </div>
-
-                        {/* Card 2: Upcoming Deliveries */}
-                        <div className="animate__animated animate__zoomIn bg-white rounded-2xl p-4 sm:p-5 border border-[#F3E5D0] shadow-xs flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-[#FFF8EF] border border-[#F3E5D0] flex items-center justify-center shrink-0">
-                                <Truck className="w-6 h-6 text-[#844414]" />
-                            </div>
-                            <div>
-                                <p className="text-xl font-black text-[#844414]">
-                                    {orders.filter((o) => o.delivery_date).length} Delivery
-                                </p>
-                                <p className="text-xs text-stone-500 font-medium mt-0.5">Scheduled This Month</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {/* Filter Tabs Bar & Main Container */}
             <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 space-y-10">
                 {/* Tabs Bar */}
@@ -1013,7 +782,7 @@ export default function CustomerOrdersPage() {
                 )}
 
                 {/* PAST ORDERS & RE-ORDERS SECTION */}
-                {(activeTab === "all" || activeTab === "completed") && (
+                {activeTab === "completed" && (
                     <section className="space-y-6 pt-6 border-t border-[#F3E5D0]">
                         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
                             <div>

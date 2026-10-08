@@ -9,7 +9,78 @@ import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
 import PrintablePaymentReceipt from "../../components/customer/PrintablePaymentReceipt";
-import { AlertTriangle, Cake } from "lucide-react";
+import { AlertTriangle, Cake, Check } from "lucide-react";
+
+const getStepState = (status) => {
+    switch (status) {
+        case "pending_review":
+        case "awaiting_customer_response":
+            return 2;
+        case "awaiting_downpayment":
+        case "processing":
+            return 3;
+        case "ready_for_delivery":
+            return 4;
+        case "delivered":
+        case "completed":
+            return 5;
+        default:
+            return 1;
+    }
+};
+
+function OrderProgressStepper({ status }) {
+    const currentStep = getStepState(status);
+    const steps = [
+        { label: "Order Placed", stepNum: 1 },
+        { label: "Pending Review", stepNum: 2 },
+        { label: "In The Oven", stepNum: 3 },
+        { label: "Dispatched", stepNum: 4 },
+    ];
+
+    return (
+        <div className="w-full my-6 py-2 px-2 sm:px-6 bg-[#FAF5EB] rounded-2xl border border-[#F3E5D0]">
+            <div className="relative flex items-center justify-between">
+                <div className="absolute top-1/2 left-4 right-4 h-1 bg-[#EFE3CF] -translate-y-1/2 z-0" />
+                <div
+                    className="absolute top-1/2 left-4 h-1 bg-[#C05A11] -translate-y-1/2 transition-all duration-500 z-0"
+                    style={{
+                        width: `${Math.min(100, Math.max(0, ((currentStep - 1) / (steps.length - 1)) * 100))}%`,
+                    }}
+                />
+                {steps.map((step) => {
+                    const isCompleted = currentStep > step.stepNum;
+                    const isActive = currentStep === step.stepNum;
+
+                    return (
+                        <div key={step.stepNum} className="relative z-10 flex flex-col items-center">
+                            <div
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${isCompleted
+                                    ? "bg-[#C05A11] text-white shadow-md"
+                                    : isActive
+                                        ? "bg-[#D97706] text-white ring-4 ring-[#FEF3C7] shadow-lg scale-110"
+                                        : "bg-white text-stone-400 border-2 border-[#EFE3CF]"
+                                    }`}
+                            >
+                                {isCompleted ? <Check className="w-4 h-4" /> : step.stepNum}
+                            </div>
+                            <span
+                                className={`mt-2 text-[10px] sm:text-xs text-center font-semibold max-w-[70px] sm:max-w-[100px] leading-tight ${isActive
+                                    ? "text-[#844414] font-black"
+                                    : isCompleted
+                                        ? "text-[#C05A11]"
+                                        : "text-stone-400"
+                                    }`}
+                            >
+                                {step.label}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 export default function CustomerOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -409,6 +480,8 @@ export default function CustomerOrderDetailPage() {
                         <span className={`text-xs uppercase font-black tracking-wider px-3 py-1.5 border rounded-full ${getPaymentColor(order.payment_status)}`}>{order.payment_status}</span>
                     </div>
                 </header>
+
+                <OrderProgressStepper status={order.status} />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                     <div className="lg:col-span-2 space-y-6">
