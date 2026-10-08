@@ -615,6 +615,7 @@ class CanvasErrorBoundary extends Component {
 
     componentDidCatch(error, info) {
         console.error("3D Canvas error caught by boundary:", error, info);
+        this.props.onError?.();
     }
 
     render() {
@@ -634,6 +635,14 @@ class CanvasErrorBoundary extends Component {
         }
         return this.props.children;
     }
+}
+
+function CakeAssetsLoadingFallback({ setIsCakeReady }) {
+    useEffect(() => {
+        setIsCakeReady(false);
+    }, [setIsCakeReady]);
+
+    return null;
 }
 
 // ────────── RealisticLighting ───────────────
@@ -690,7 +699,7 @@ function CherryTextureLoader({ onLoad }) {
     return null;
 }
 
-export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
+export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }) {
     const activeTierUrl = TIER_MODEL_URLS[`tier${selectedTierIndex + 1}`] || TIER_MODEL_URLS.tier1;
     const activeTier = useGLTF(activeTierUrl);
     const { nodes, materials } = activeTier;
@@ -731,6 +740,10 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef }) {
         ))
     ), [flavorTextureKeys]);
     const loadedFlavorTextures = useTexture(flavorTextureUrls);
+    useEffect(() => {
+        onReady?.(true);
+    }, [activeTierUrl, loadedFlavorTextures, onReady]);
+
     const textureSetsByKey = useMemo(() => Object.fromEntries(
         flavorTextureKeys.map((key) => [
             key,
@@ -2019,6 +2032,7 @@ function BuildBentoContent() {
 
     const navigate = useNavigate();
     const [autoSpin, setAutoSpin] = useState(false);
+    const [isCakeReady, setIsCakeReady] = useState(false);
 
     const cakeGroupRef = useRef(null);
     const orbitControlsRef = useRef(null);
@@ -2058,8 +2072,18 @@ function BuildBentoContent() {
             <div className="max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-4 items-start">
 
                 {/* 3D Canvas Box */}
-                <div className="w-full flex-1 self-start relative lg:sticky lg:top-6 z-10 lg:z-auto">
+                <div className="w-full flex-1 self-start relative lg:sticky lg:top-4 z-10 lg:z-auto">
                     <div className="cake-preview-shell w-full relative bg-white border border-[#E6CCA2] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                        {selectedTierIndex === 0 && !isCakeReady && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-[#FCF8EE]/90"
+                            >
+                                <span className="sr-only">Loading tier 1 cake assets</span>
+                                <div className="h-14 w-14 animate-spin rounded-full border-[5px] border-[#F3E5D0] border-l-[#C05A11]" />
+                            </div>
+                        )}
                         <button
                             type="button"
                             onClick={() => navigate(-1)}
@@ -2088,7 +2112,7 @@ function BuildBentoContent() {
                             Auto Spin
                         </button>
                         <div className="w-full h-full relative">
-                            <CanvasErrorBoundary>
+                            <CanvasErrorBoundary onError={() => setIsCakeReady(true)}>
                                 <Canvas
                                     dpr={[1, 2]}
                                     camera={{ fov: 40, position: [0, 4, 5] }}
@@ -2122,8 +2146,13 @@ function BuildBentoContent() {
 
                                     <RealisticLighting />
 
-                                    <Suspense fallback={null}>
-                                        <CakeModel selectedTierIndex={selectedTierIndex} autoSpin={autoSpin} cakeGroupRef={cakeGroupRef} />
+                                    <Suspense fallback={<CakeAssetsLoadingFallback setIsCakeReady={setIsCakeReady} />}>
+                                        <CakeModel
+                                            selectedTierIndex={selectedTierIndex}
+                                            autoSpin={autoSpin}
+                                            cakeGroupRef={cakeGroupRef}
+                                            onReady={setIsCakeReady}
+                                        />
 
                                         <ContactShadows
                                             position={[0, -2.3, 0]}
