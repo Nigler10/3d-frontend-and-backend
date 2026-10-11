@@ -51,8 +51,8 @@ function CartPage() {
                     <div className="text-center py-16 bg-white border border-[#f3e1c6] rounded-2xl shadow-sm p-8 max-w-md mx-auto">
                         <ShoppingBag className="w-12 h-12 text-[#d67b27] mx-auto mb-4" />
                         <p className="text-xl font-medium text-stone-600 mb-6">Your bag is empty!</p>
-                        <Link 
-                            to="/products" 
+                        <Link
+                            to="/products"
                             className="inline-block bg-[#d67b27] hover:bg-[#b56219] text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 shadow-sm hover:shadow"
                         >
                             Browse Cakes
@@ -73,7 +73,11 @@ function CartPage() {
                                                 <Cake className="w-10 h-10 text-[#d67b27] animate-bounce" />
                                             ) : (
                                                 <img
-                                                    src={`${BASEURL}${item.product_image}`}
+                                                    src={
+                                                        item.product_image?.startsWith("http")
+                                                            ? item.product_image
+                                                            : `${BASEURL}${item.product_image}`
+                                                    }
                                                     alt={item.item_name}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -104,11 +108,11 @@ function CartPage() {
                                                         : "Single (gold)"
                                                     : null;
                                                 const addons = [
-                                                    d.has_candle    && { label: "Candle", Icon: Flame },
+                                                    d.has_candle && { label: "Candle", Icon: Flame },
                                                     d.has_chocolate && { label: "Chocolate", Icon: Cookie },
-                                                    d.has_balls     && { label: "Balls", Icon: Sparkles },
-                                                    d.has_nuts      && { label: "Nuts", Icon: Wheat },
-                                                    d.has_cherry    && { label: "Cherry", Icon: Cherry },
+                                                    d.has_balls && { label: "Balls", Icon: Sparkles },
+                                                    d.has_nuts && { label: "Nuts", Icon: Wheat },
+                                                    d.has_cherry && { label: "Cherry", Icon: Cherry },
                                                     d.has_sprinkles && { label: "Sprinkles", Icon: Sparkles },
                                                 ].filter(Boolean);
 
@@ -227,14 +231,14 @@ function CartPage() {
 
                                         {/* Quantity Selector */}
                                         <div className="flex items-center space-x-1 bg-stone-100 p-1 rounded-xl self-end sm:self-start">
-                                            <button 
+                                            <button
                                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                                 className="w-8 h-8 flex items-center justify-center font-bold text-stone-600 hover:bg-white rounded-lg transition-colors"
                                             >
                                                 -
                                             </button>
                                             <span className="w-8 text-center font-semibold text-sm text-stone-800">{item.quantity}</span>
-                                            <button 
+                                            <button
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                                 className="w-8 h-8 flex items-center justify-center font-bold text-stone-600 hover:bg-white rounded-lg transition-colors"
                                             >

@@ -3,52 +3,9 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
-import {
-    LayoutDashboard,
-    Plus,
-    LayoutGrid,
-    LayoutList,
-    Filter,
-    ArrowUpDown,
-    Search,
-    X,
-    RotateCcw,
-    Download,
-    ChevronLeft,
-    ChevronRight,
-    CalendarDays,
-    Clock,
-    ExternalLink,
-    Info,
-    TrendingUp,
-    TrendingDown,
-    Package,
-    ShoppingCart,
-    Hourglass,
-    CreditCard,
-    CheckCircle2,
-    DollarSign,
-    BarChart3,
-    Inbox,
-    PartyPopper,
-    AlertTriangle,
-    XCircle,
-    RefreshCw,
-    ArrowRight,
-} from "lucide-react";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell,
-    LabelList,
-} from "recharts";
+import { LayoutDashboard, Plus, LayoutGrid, LayoutList, Filter, ArrowUpDown, Search, X, RotateCcw, Download, ChevronLeft, ChevronRight, CalendarDays, Clock, ExternalLink, Info, TrendingUp, TrendingDown, Package, ShoppingCart, Hourglass, CreditCard, CheckCircle2, DollarSign, BarChart3, Inbox, PartyPopper, AlertTriangle, XCircle, RefreshCw, ArrowRight, } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, } from "recharts";
 
-// Helper: format time string (e.g. "23:25:00") into a human-readable range "11:25 PM – 11:55 PM"
 const formatTimeSlot = (timeStr) => {
     if (!timeStr) return "Flexible Window";
     const parts = timeStr.split(":");
