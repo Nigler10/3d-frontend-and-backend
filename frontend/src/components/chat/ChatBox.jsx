@@ -1,8 +1,8 @@
-// src/components/chat/ChatBox.jsx
 import { useEffect, useRef, useState } from "react";
 import { authFetch, getAccessToken } from "../../utils/auth";
 import QuotationCard from "./QuotationCard";
 import { useUnread } from "../../context/UnreadContext";
+import { X, MessageSquare, Check } from "lucide-react";
 
 export default function ChatBox({
     orderId,
@@ -376,7 +376,7 @@ export default function ChatBox({
                 }}
                 className={`fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-orange-500 text-white shadow-lg flex items-center justify-center hover:bg-orange-600 transition ${isOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}
             >
-                {isOpen ? "✕" : "💬"}
+                {isOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
             </button>
 
             <div
@@ -443,12 +443,7 @@ export default function ChatBox({
                             text-orange-700
                         "
                                             >
-                                                <span
-                                                    className="mr-1"
-                                                    aria-hidden="true"
-                                                >
-                                                    ✓
-                                                </span>
+                                                <Check className="w-3.5 h-3.5 mr-1 inline" />
 
                                                 {systemContent}
                                             </div>

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { authFetch } from "../../utils/auth";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 
 export default function ProductReviewForm({
     orderId,
     item,
 }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const { showAlert } = useCustomerDialog();
 
     const [rating, setRating] = useState(5);
     const [comment, setComment] = useState("");
@@ -55,15 +57,15 @@ export default function ProductReviewForm({
             const data = await res.json();
 
             if (!res.ok) {
-                alert(data.error || "Failed to submit product review.");
+                await showAlert(data.error || "Failed to submit product review.", { tone: "error", title: "Review not submitted" });
                 return;
             }
 
             setReview(data.review);
-            alert("Product review submitted successfully.");
+            await showAlert("Product review submitted successfully.", { tone: "success", title: "Review submitted" });
         } catch (err) {
             console.error(err);
-            alert("Something went wrong.");
+            await showAlert("Something went wrong.", { tone: "error", title: "Review not submitted" });
         } finally {
             setSubmitting(false);
         }

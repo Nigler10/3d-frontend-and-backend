@@ -10,6 +10,7 @@ import AdminQuotationPanel from "../../components/admin/AdminQuotationPanel";
 import ChatBox from "../../components/chat/ChatBox";
 import { CustomizationProvider } from "../../contexts/Customization";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
 
 export default function AdminOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -22,23 +23,30 @@ export default function AdminOrderDetailPage() {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showCakeModal, setShowCakeModal] = useState(false);
     const [selectedCake, setSelectedCake] = useState(null);
+    const [statusToUpdate, setStatusToUpdate] = useState(null);
 
     const updateStatus = async (status) => {
-        const confirmUpdate = window.confirm(
-            `Are you sure you want to update this order to "${status.replaceAll("_", " ")}"?`
+        const res = await authFetch(
+            `${BASEURL}/api/orders/admin/orders/${id}/update-status/`,
+            {
+                method: "PATCH",
+                body: JSON.stringify({ status }),
+            }
         );
-        if (!confirmUpdate) return;
 
-        const res = await authFetch(`${BASEURL}/api/orders/admin/orders/${id}/update-status/`, {
-            method: "PATCH",
-            body: JSON.stringify({ status })
-        });
-        const data = await res.json();
-        if (!res.ok) return alert(data.error || "Failed to update status");
+        const data = await res.json().catch(() => ({}));
 
-        setOrder(data.order);
+        if (!res.ok) {
+            throw new Error(
+                data.error || "Failed to update order status. Please try again."
+            );
+        }
+
+        if (data.order) {
+            setOrder(data.order);
+        }
+
         await fetchOrder();
-        alert(`Order updated to "${status.replaceAll("_", " ")}"`);
     };
 
     const fetchOrder = async () => {
@@ -134,24 +142,9 @@ export default function AdminOrderDetailPage() {
                         {!isUploadedCake && order.status === "pending_review" && (
                             <div className="flex gap-3">
                                 <button
-                                    className="flex-1 bg-[#6E473B] text-white py-2 rounded-lg font-bold"
-                                    onClick={async () => {
-                                        if (!confirm("Accept this order?")) return;
-
-                                        const res = await authFetch(
-                                            `${BASEURL}/api/orders/admin/orders/${id}/review/`,
-                                            {
-                                                method: "PATCH",
-                                                body: JSON.stringify({
-                                                    status: "awaiting_downpayment",
-                                                }),
-                                            }
-                                        );
-
-                                        if (!res.ok) return alert("Error");
-
-                                        await fetchOrder();
-                                    }}
+                                    type="button"
+                                    className="flex-1 bg-[#6E473B] text-white py-2 rounded-lg font-bold hover:bg-[#513328] transition"
+                                    onClick={() => setStatusToUpdate("awaiting_downpayment")}
                                 >
                                     Accept
                                 </button>
@@ -163,6 +156,15 @@ export default function AdminOrderDetailPage() {
                                     Reject
                                 </button>
                             </div>
+                        )}
+
+                        {["awaiting_customer_response", "awaiting_downpayment", "processing"].includes(order.status) && (
+                            <button
+                                className="w-full border border-rose-300 text-rose-700 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition"
+                                onClick={() => setStatusToUpdate("cancelled")}
+                            >
+                                Cancel Order
+                            </button>
                         )}
 
                         {isUploadedCake && (
@@ -188,10 +190,39 @@ export default function AdminOrderDetailPage() {
                         {/* Status Progression */}
                         {canProgressStatus && (
                             <div className="space-y-3">
-                                <h4 className="font-bold text-[#6E473B]">Update Status</h4>
-                                {order.status === "processing" && <button className="w-full bg-[#E6CCA2] py-2 rounded-lg font-bold" onClick={() => updateStatus("ready_for_delivery")}>Mark as Ready</button>}
-                                {order.status === "ready_for_delivery" && <button className="w-full bg-[#E6CCA2] py-2 rounded-lg font-bold" onClick={() => updateStatus("out_for_delivery")}>Out for Delivery</button>}
-                                {order.status === "out_for_delivery" && <button className="w-full bg-[#6E473B] text-white py-2 rounded-lg font-bold" onClick={() => updateStatus("delivered")}>Mark as Delivered</button>}
+                                <h4 className="font-bold text-[#6E473B]">
+                                    Update Status
+                                </h4>
+
+                                {order.status === "processing" && (
+                                    <button
+                                        type="button"
+                                        className="w-full rounded-xl bg-[#E6CCA2] py-2.5 font-bold text-[#6E473B] transition hover:bg-[#D9B982]"
+                                        onClick={() => setStatusToUpdate("ready_for_delivery")}
+                                    >
+                                        Mark as Ready
+                                    </button>
+                                )}
+
+                                {order.status === "ready_for_delivery" && (
+                                    <button
+                                        type="button"
+                                        className="w-full rounded-xl bg-[#E6CCA2] py-2.5 font-bold text-[#6E473B] transition hover:bg-[#D9B982]"
+                                        onClick={() => setStatusToUpdate("out_for_delivery")}
+                                    >
+                                        Out for Delivery
+                                    </button>
+                                )}
+
+                                {order.status === "out_for_delivery" && (
+                                    <button
+                                        type="button"
+                                        className="w-full rounded-xl bg-[#6E473B] py-2.5 font-bold text-white transition hover:bg-[#513328]"
+                                        onClick={() => setStatusToUpdate("delivered")}
+                                    >
+                                        Mark as Delivered
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -274,6 +305,45 @@ export default function AdminOrderDetailPage() {
                 setShowRejectModal(false);
                 await fetchOrder();
             }} />
+
+            <UpdateOrderStatusModal
+                isOpen={Boolean(statusToUpdate)}
+                currentStatus={order.status}
+                nextStatus={statusToUpdate}
+                onClose={() => setStatusToUpdate(null)}
+                onConfirm={async (status) => {
+                    if (status === "awaiting_downpayment" && order.status === "pending_review") {
+                        const res = await authFetch(
+                            `${BASEURL}/api/orders/admin/orders/${id}/review/`,
+                            {
+                                method: "PATCH",
+                                body: JSON.stringify({
+                                    status: "awaiting_downpayment",
+                                }),
+                            }
+                        );
+
+                        const data = await res.json().catch(() => ({}));
+
+                        if (!res.ok) {
+                            throw new Error(
+                                data.error || "Failed to accept this order. Please try again."
+                            );
+                        }
+
+                        if (data.order) {
+                            setOrder(data.order);
+                        }
+
+                        await fetchOrder();
+                        setStatusToUpdate(null);
+                        return;
+                    }
+
+                    await updateStatus(status);
+                    setStatusToUpdate(null);
+                }}
+            />
 
             <CustomizationProvider>
                 <CustomCakeModal

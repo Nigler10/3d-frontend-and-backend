@@ -123,7 +123,8 @@ class OrderStatusConsumer(AsyncWebsocketConsumer):
         user = self.scope["user"]
 
         if user.is_anonymous:
-            await self.close(code=4003)
+            await self.accept()
+            await self.close(code=4401)
             return
 
         self.group_name = (

@@ -27,6 +27,7 @@
     "react-icons": "^5.7.0",
     "react-router-dom": "^7.13.1",
     "react-toastify": "^11.1.0",
+    "recharts": "^3.10.1",
     "three": "^0.183.2",
     "three-text": "^0.6.2"
   },

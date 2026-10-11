@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import "./styles/order-status-toast.css";
 import { CartProvider } from "./context/CartContext";
 import { OrderProvider } from "./context/OrderContext";
+import { CustomerDialogProvider } from "./context/CustomerDialogContext";
 
 import LandingPage from "./pages/LandingPage";
 import BuildBentoPage from "./pages/BuildBentoPage";
@@ -41,13 +42,14 @@ function App() {
   useOrderStatusNotifications();
 
   return (
-    <CartProvider>
-      <OrderProvider>
-        <UnreadProvider>
-          <Router>
-            <SessionTimeout />
-            <ToastContainer position="bottom-right" autoClose={6000} newestOnTop />
-            <Routes>
+    <CustomerDialogProvider>
+      <CartProvider>
+        <OrderProvider>
+          <UnreadProvider>
+            <Router>
+              <SessionTimeout />
+              <ToastContainer position="bottom-right" autoClose={6000} newestOnTop />
+              <Routes>
               <Route path="/" element={<LandingPage />} />
 
               <Route element={<NavbarLayout />}>
@@ -77,11 +79,12 @@ function App() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/cart" element={<CartPage />} />
               </Route>
-            </Routes>
-          </Router>
-        </UnreadProvider>
-      </OrderProvider>
-    </CartProvider>
+              </Routes>
+            </Router>
+          </UnreadProvider>
+        </OrderProvider>
+      </CartProvider>
+    </CustomerDialogProvider>
   );
 }
 

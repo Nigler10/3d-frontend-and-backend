@@ -3,7 +3,31 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient, APITestCase
 
-from .models import AddonPricing, CakeCustomization, CartItem, CustomCakePricing, Order, OrderItem, UserProfile
+from .models import AddonPricing, CakeCustomization, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile
+
+
+class BestSellingProductsTests(APITestCase):
+    def test_endpoint_returns_top_three_by_delivered_quantity(self):
+        category = Category.objects.create(name="Cakes", slug="cakes")
+        products = [
+            Product.objects.create(category=category, name=name, description="", price=Decimal("10.00"))
+            for name in ["Top Seller", "Second Seller", "Third Seller", "Cancelled Seller", "No Sales"]
+        ]
+        delivered_order = Order.objects.create(total_amount=Decimal("100.00"), status="delivered")
+        cancelled_order = Order.objects.create(total_amount=Decimal("100.00"), status="cancelled")
+
+        for product, quantity in zip(products[:3], [5, 3, 1]):
+            OrderItem.objects.create(order=delivered_order, product=product, quantity=quantity, price=product.price)
+        OrderItem.objects.create(order=cancelled_order, product=products[3], quantity=100, price=products[3].price)
+
+        response = self.client.get("/api/best-selling-products/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 3)
+        self.assertEqual(
+            [product["name"] for product in response.data],
+            ["Top Seller", "Second Seller", "Third Seller"],
+        )
 
 
 class CustomCakePricingTests(APITestCase):

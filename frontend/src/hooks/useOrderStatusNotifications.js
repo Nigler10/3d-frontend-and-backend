@@ -5,6 +5,12 @@ import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 import { getAccessToken } from "../utils/auth";
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_BASE_DELAY = 1000;
+const RECONNECT_MAX_DELAY = 30000;
+const STABLE_CONNECTION_DURATION = 30000;
+const AUTHENTICATION_CLOSE_CODE = 4401;
+
 const STATUS_TOASTS = {
     pending_review: { label: "Pending Review", tone: "success", icon: CircleCheck },
     cancelled: { label: "Cancelled", tone: "error", icon: CircleAlert },
@@ -68,6 +74,7 @@ export default function useOrderStatusNotifications() {
         let isAdmin;
         try {
             const user = jwtDecode(accessToken);
+            if (user.exp && user.exp * 1000 <= Date.now()) return undefined;
             isAdmin = Boolean(user.is_staff || user.is_superuser);
         } catch {
             return undefined;
@@ -80,36 +87,88 @@ export default function useOrderStatusNotifications() {
         const socketUrl = configuredUrl || `${baseUrl.replace(/^http/, "ws").replace(/\/$/, "")}/ws/orders/status/`;
 
         let socket;
+        let startTimer;
         let reconnectTimer;
-        let shouldReconnect = true;
+        let stableTimer;
+        let disposed = false;
+        let reconnectAttempts = 0;
 
         const handleMessage = (event) => {
+            if (disposed) return;
+
             try {
                 const update = JSON.parse(event.data);
                 if (update?.type !== "order_status") return;
                 if (isAdmin && update.status !== "cancelled") return;
                 showOrderStatusToast(update);
+                window.dispatchEvent(new CustomEvent("order:status", { detail: update }));
             } catch (error) {
                 console.error("Invalid order status websocket payload:", error);
             }
         };
 
-        const connect = () => {
-            if (!shouldReconnect) return;
+        const scheduleReconnect = () => {
+            if (disposed || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
 
-            socket = new WebSocket(`${socketUrl}?token=${encodeURIComponent(accessToken)}`);
-            socket.addEventListener("message", handleMessage);
-            socket.addEventListener("close", () => {
-                if (shouldReconnect) reconnectTimer = window.setTimeout(connect, 3000);
-            });
+            const delay = Math.min(
+                RECONNECT_BASE_DELAY * (2 ** reconnectAttempts),
+                RECONNECT_MAX_DELAY,
+            );
+            reconnectAttempts += 1;
+            reconnectTimer = window.setTimeout(connect, delay);
         };
 
-        connect();
+        const connect = () => {
+            if (disposed) return;
+
+            try {
+                const nextSocket = new WebSocket(
+                    `${socketUrl}?token=${encodeURIComponent(accessToken)}`,
+                );
+                socket = nextSocket;
+
+                nextSocket.addEventListener("open", () => {
+                    if (disposed) {
+                        nextSocket.close(1000, "No active notification listener");
+                        return;
+                    }
+
+                    stableTimer = window.setTimeout(() => {
+                        reconnectAttempts = 0;
+                    }, STABLE_CONNECTION_DURATION);
+                });
+                nextSocket.addEventListener("message", handleMessage);
+                nextSocket.addEventListener("error", () => {
+                    if (!disposed) {
+                        console.warn("Order status WebSocket connection failed.");
+                    }
+                });
+                nextSocket.addEventListener("close", (event) => {
+                    window.clearTimeout(stableTimer);
+                    if (
+                        disposed ||
+                        event.code === 1000 ||
+                        event.code === AUTHENTICATION_CLOSE_CODE
+                    ) return;
+
+                    scheduleReconnect();
+                });
+            } catch {
+                scheduleReconnect();
+            }
+        };
+
+        // Deferring setup lets React Strict Mode cancel its development-only first effect.
+        startTimer = window.setTimeout(connect, 0);
 
         return () => {
-            shouldReconnect = false;
+            disposed = true;
+            window.clearTimeout(startTimer);
             window.clearTimeout(reconnectTimer);
-            socket?.close();
+            window.clearTimeout(stableTimer);
+            if (socket?.readyState === WebSocket.OPEN) {
+                socket.close(1000, "Notification listener removed");
+            }
         };
     }, [accessToken]);
 }

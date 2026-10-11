@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .token_serializers import MyTokenObtainPairSerializer
 from django.db import transaction
+from django.db.models import Q, Sum
 from django.core.files.storage import default_storage
 from django.utils import timezone
 from .models import (AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile, calculate_custom_cake_price, UploadedCakeRequest, DEFAULT_CUSTOM_CAKE_PRICES, DEFAULT_ADDON_PRICES,)
@@ -22,6 +23,18 @@ class MyTokenObtainPairView(TokenObtainPairView):
 def get_products(request):
     products = Product.objects.all()
     serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_best_selling_products(request):
+    products = Product.objects.annotate(
+        total_sales=Sum(
+            'orderitem__quantity',
+            filter=Q(orderitem__order__status='delivered'),
+            default=0,
+        )
+    ).order_by('-total_sales', 'id')[:3]
+    serializer = ProductSerializer(products, many=True, context={'request': request})
     return Response(serializer.data)
 
 @api_view(['GET'])
@@ -164,6 +177,85 @@ def remove_from_cart(request):
     item_id = request.data.get('item_id')
     CartItem.objects.filter(id=item_id).delete()
     return Response({'message': 'Item removed from cart'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def delivery_slots(request):
+    """
+    Return available 30-minute delivery time slots for a given date.
+
+    Query params:
+        date  – ISO date string (YYYY-MM-DD), required.
+
+    Business rules:
+        • Operating hours: 08:00 – 20:00 (8 AM to 8 PM), 30-min intervals.
+        • Each slot can hold at most MAX_ORDERS_PER_SLOT active orders.
+        • Past slots are hidden when the requested date is today.
+        • Only today and future dates are accepted.
+    """
+    from datetime import datetime, date as date_type, time as time_type, timedelta as td
+    from collections import Counter
+
+    MAX_ORDERS_PER_SLOT = 3
+    OPEN_HOUR = 8    # 08:00 AM
+    CLOSE_HOUR = 20  # 08:00 PM
+
+    date_str = request.GET.get("date")
+    if not date_str:
+        return Response(
+            {"error": "The 'date' query parameter is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        requested_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    today = timezone.localdate()
+
+    if requested_date < today:
+        return Response(
+            {"error": "Cannot select a date in the past."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Build every 30-min slot in the operating window.
+    all_slots = []
+    current = datetime.combine(requested_date, time_type(OPEN_HOUR, 0))
+    end = datetime.combine(requested_date, time_type(CLOSE_HOUR, 0))
+
+    while current < end:
+        all_slots.append(current.time())
+        current += td(minutes=30)
+
+    # If the date is today, drop any slot whose time has already passed.
+    if requested_date == today:
+        now_time = timezone.localtime().time()
+        all_slots = [s for s in all_slots if s > now_time]
+
+    # Count existing active bookings per slot for this date.
+    booked_orders = (
+        Order.objects.filter(delivery_date=requested_date)
+        .exclude(status__in=["cancelled", "rejected"])
+        .values_list("delivery_time", flat=True)
+    )
+    slot_counts = Counter(t for t in booked_orders if t is not None)
+
+    # Filter to only available slots.
+    available = []
+    for slot in all_slots:
+        if slot_counts.get(slot, 0) < MAX_ORDERS_PER_SLOT:
+            available.append(slot.strftime("%H:%M"))
+
+    return Response({
+        "date": date_str,
+        "slots": available,
+    })
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

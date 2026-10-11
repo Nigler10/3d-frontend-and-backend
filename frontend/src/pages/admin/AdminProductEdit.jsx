@@ -12,6 +12,8 @@ function AdminProductEdit() {
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [preview, setPreview] = useState(null);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [deletingProduct, setDeletingProduct] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
         description: "",
@@ -84,6 +86,30 @@ function AdminProductEdit() {
         }
     };
 
+    const handleDelete = async () => {
+        setDeletingProduct(true);
+        try {
+            const res = await authFetch(
+                `${BASEURL}/api/admin/products/${id}/delete/`,
+                { method: "DELETE" }
+            );
+            if (!res.ok) {
+                let message = "Failed to delete product";
+                try {
+                    const data = await res.json();
+                    message = data.error || message;
+                } catch {
+                    // Keep the fallback message when the response has no JSON body.
+                }
+                throw new Error(message);
+            }
+            navigate("/admin/products");
+        } catch (err) {
+            alert(err.message);
+            setDeletingProduct(false);
+        }
+    };
+
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#FCF8EE] text-[#6E473B] font-black">Loading cake profile...</div>;
 
     return (
@@ -145,9 +171,9 @@ function AdminProductEdit() {
                             </div>
 
                             <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => navigate("/admin/products")}
-                                    className="flex-1 py-3 border border-[#E6CCA2] text-[#6E473B] font-bold rounded-lg hover:bg-[#F5EEDD]">
-                                    Discard
+                                <button type="button" onClick={() => setShowDeleteConfirmation(true)}
+                                    className="flex-1 py-3 border border-red-200 text-red-700 font-bold rounded-lg hover:bg-red-50">
+                                    Delete Product
                                 </button>
                                 <button type="submit"
                                     className="flex-1 py-3 bg-[#6E473B] text-white font-bold rounded-lg hover:bg-[#5a3a30]">
@@ -158,6 +184,43 @@ function AdminProductEdit() {
                     </div>
                 </form>
             </div>
+            {showDeleteConfirmation && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+                    onClick={() => !deletingProduct && setShowDeleteConfirmation(false)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-confirmation-title"
+                        className="w-full max-w-md rounded-xl border border-[#E6CCA2] bg-white p-6 shadow-xl"
+                        onClick={event => event.stopPropagation()}
+                    >
+                        <h2 id="delete-confirmation-title" className="text-xl font-black text-[#6E473B]">
+                            Confirm Delete
+                        </h2>
+                        <p className="mt-3 text-[#6E473B]">Are you sure you want to delete this?</p>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirmation(false)}
+                                disabled={deletingProduct}
+                                className="rounded-lg border border-[#E6CCA2] px-4 py-2 font-bold text-[#6E473B] hover:bg-[#F5EEDD] disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={deletingProduct}
+                                className="rounded-lg bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800 disabled:opacity-50"
+                            >
+                                {deletingProduct ? "Deleting..." : "Yes, delete"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

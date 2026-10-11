@@ -1,12 +1,74 @@
 // src/components/Logistics.jsx
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronRight, X } from "lucide-react";
+
+function OrderProgressStepper({ status }) {
+    const steps = [
+        { label: "Order Placed", stepNum: 1 },
+        { label: "Pending Review", stepNum: 2 },
+        { label: "In The Oven", stepNum: 3 },
+        { label: "Dispatched", stepNum: 4 },
+    ];
+    const currentStep = {
+        pending_review: 2,
+        awaiting_customer_response: 2,
+        awaiting_downpayment: 3,
+        processing: 3,
+        ready_for_delivery: 4,
+        out_for_delivery: 4,
+        delivered: 5,
+        completed: 5,
+    }[status] || 1;
+    const progress = Math.min(1, Math.max(0, (currentStep - 1) / (steps.length - 1)));
+
+    return (
+        <div className="rounded-2xl border border-[#F3E5D0] bg-[#FAF5EB] px-2 py-4 sm:px-6">
+            <div className="relative flex items-start justify-between">
+                <div className="absolute left-[12.5%] right-[12.5%] top-5 h-1 -translate-y-1/2 bg-[#EFE3CF]" />
+                <div
+                    className="absolute left-[12.5%] top-5 h-1 -translate-y-1/2 bg-[#C05A11] transition-all duration-500"
+                    style={{ width: `${progress * 75}%` }}
+                />
+                {steps.map((step) => {
+                    const isCompleted = currentStep > step.stepNum;
+                    const isActive = currentStep === step.stepNum;
+
+                    return (
+                        <div key={step.stepNum} className="relative z-10 flex w-1/4 flex-col items-center">
+                            <div
+                                className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 sm:h-10 sm:w-10 ${isCompleted
+                                    ? "bg-[#C05A11] text-white shadow-md"
+                                    : isActive
+                                        ? "bg-[#D97706] text-white ring-4 ring-[#FEF3C7] shadow-lg"
+                                        : "border-2 border-[#EFE3CF] bg-white text-stone-400"
+                                    }`}
+                            >
+                                {isCompleted ? <Check className="h-4 w-4" /> : step.stepNum}
+                            </div>
+                            <span
+                                className={`mt-2 w-full px-0.5 text-center text-[10px] leading-tight sm:text-xs ${isActive
+                                    ? "font-black text-[#844414]"
+                                    : isCompleted
+                                        ? "font-semibold text-[#C05A11]"
+                                        : "font-semibold text-stone-400"
+                                    }`}
+                            >
+                                {step.label}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 export default function Logistics({
     order,
     embedded = false,
     onViewReceipt,
 }) {
-    if (!order) return null;
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const money = (value) =>
         Number(value || 0).toLocaleString(
@@ -100,7 +162,7 @@ export default function Logistics({
         rejected: {
             title: "Order Rejected",
             description:
-                order.rejection_reason
+                order?.rejection_reason
                     ? `Reason: ${order.rejection_reason}`
                     : "The bakery was unable to accept this order.",
             icon: "×",
@@ -109,6 +171,8 @@ export default function Logistics({
     };
 
     const timeline = useMemo(() => {
+        if (!order) return [];
+
         const events = [];
 
         /*
@@ -336,6 +400,23 @@ export default function Logistics({
         });
     }, [order]);
 
+    useEffect(() => {
+        if (!isDrawerOpen) return undefined;
+
+        const previousOverflow = document.body.style.overflow;
+        const handleKeyDown = (event) => {
+            if (event.key === "Escape") setIsDrawerOpen(false);
+        };
+
+        document.body.style.overflow = "hidden";
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isDrawerOpen]);
+
     const getToneClasses = (tone) => {
         switch (tone) {
             case "emerald":
@@ -412,25 +493,63 @@ export default function Logistics({
         }
     };
 
+    if (!order) return null;
+
     return (
-        <div
-            className={
-                embedded
-                    ? ""
-                    : "bg-white border border-[#f3e1c6] rounded-2xl p-6 shadow-sm"
-            }
-        >
-            <div className="mb-6">
-                <h2 className="text-lg font-black text-[#844414]">
-                    Order Timeline
-                </h2>
+        <>
+            <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                aria-haspopup="dialog"
+                className={`group flex w-full items-center justify-between gap-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C05A11] ${embedded
+                    ? "rounded-xl px-4 py-4 hover:bg-[#fff7eb]"
+                    : "rounded-2xl border border-[#f3e1c6] bg-white p-5 shadow-sm hover:border-[#d67b27] hover:bg-[#fffaf2]"
+                    }`}
+            >
+                <span>
+                    <span className="block text-lg font-black text-[#844414]">Order Timeline</span>
+                    <span className="mt-1 block text-xs text-stone-500">Follow the activity and progress of your order.</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-[#C05A11]">
+                    View timeline <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+            </button>
 
-                <p className="mt-1 text-xs text-stone-400">
-                    Follow the activity and progress
-                    of your order.
-                </p>
-            </div>
+            <div
+                className={`fixed inset-0 z-[100] ${isDrawerOpen ? "visible" : "invisible pointer-events-none"}`}
+                aria-hidden={!isDrawerOpen}
+            >
+                <button
+                    type="button"
+                    tabIndex={isDrawerOpen ? 0 : -1}
+                    aria-label="Close order timeline"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className={`absolute inset-0 h-full w-full bg-stone-950/40 transition-opacity duration-300 ${isDrawerOpen ? "opacity-100" : "opacity-0"}`}
+                />
+                <aside
+                    role="dialog"
+                    aria-modal={isDrawerOpen}
+                    aria-labelledby="order-timeline-title"
+                    inert={!isDrawerOpen}
+                    className={`absolute inset-y-0 right-0 flex h-full w-full max-w-2xl flex-col border-l border-[#F3E5D0] bg-[#FFFDFA] shadow-2xl transition-transform duration-300 ease-out ${isDrawerOpen ? "translate-x-0" : "translate-x-full"}`}
+                >
+                    <header className="flex items-center justify-between gap-4 border-b border-[#F3E5D0] bg-[#FAF5EB] px-5 py-4 sm:px-8">
+                        <div>
+                            <h2 id="order-timeline-title" className="text-lg font-black text-[#844414]">Order Timeline</h2>
+                            <p className="mt-1 text-xs text-stone-500">Order #{order.id} activity and progress</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsDrawerOpen(false)}
+                            aria-label="Close order timeline"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#F3E5D0] bg-white text-stone-600 transition-colors hover:bg-[#FFF8EF] hover:text-[#844414] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C05A11]"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </header>
 
+                    <main className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
+                        <OrderProgressStepper status={order.status} />
             <div className="relative">
                 {/* Main vertical line */}
                 <div className="absolute left-[19px] top-3 bottom-3 w-px bg-stone-200" />
@@ -569,6 +688,9 @@ export default function Logistics({
                     )}
                 </div>
             </div>
-        </div>
+                    </main>
+                </aside>
+            </div>
+        </>
     );
 }

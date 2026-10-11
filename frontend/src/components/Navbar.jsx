@@ -1,13 +1,14 @@
 // src/components/Navbar.jsx | DO NOT REMOVE THIS
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
-import { clearTokens, getAccessToken } from "../utils/auth";
+import { authFetch, clearTokens, getAccessToken } from "../utils/auth";
 import { useUnread } from "../context/UnreadContext";
 import logoImg from "../assets/images/spc.png";
 import BuilderChoiceModal from "./BuilderChoiceModal";
 import UploadSampleCakeModal from "./UploadSampleCakeModal";
+import { useCustomerDialog } from "../context/CustomerDialogContext";
 
 function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -19,7 +20,10 @@ function Navbar() {
     const location = useLocation();
     const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
     const { unreadMessages } = useUnread();
+    const { showConfirm } = useCustomerDialog();
     const isLoggedIn = !!getAccessToken();
+    const [userName, setUserName] = useState("");
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     let isAdmin = false;
 
@@ -33,6 +37,29 @@ function Navbar() {
         }
     }
 
+    useEffect(() => {
+        if (!isLoggedIn || isAdmin) {
+            setUserName("");
+            return;
+        }
+
+        const fetchUserName = async () => {
+            try {
+                const response = await authFetch(`${BASEURL}/api/profile/`, { method: "GET" });
+                if (response.ok) {
+                    const profile = await response.json();
+                    const firstName = profile.user?.first_name || "";
+                    const lastName = profile.user?.last_name || "";
+                    setUserName(`${firstName} ${lastName}`.trim() || profile.user?.username || "");
+                }
+            } catch (err) {
+                console.error("Failed to load navbar user name", err);
+            }
+        };
+
+        fetchUserName();
+    }, [BASEURL, isAdmin, isLoggedIn]);
+
     const isCurrentNav = (path) => location.pathname === path
         || (path !== "/admin" && location.pathname.startsWith(`${path}/`));
     const navLinkClass = (isActive) => `relative text-sm font-semibold tracking-wide uppercase transition-colors after:absolute after:left-0 after:-bottom-2 after:h-[3px] after:w-full after:origin-left after:bg-[#d67b27] after:transition-transform ${isActive ? "text-[#844414] after:scale-x-100" : "text-stone-600 after:scale-x-0 hover:text-[#844414] hover:after:scale-x-100"}`;
@@ -45,8 +72,13 @@ function Navbar() {
         return null;
     }
 
-    const handleLogout = () => {
-        if (!window.confirm("Are you sure you want to log out?")) return;
+    const handleLogout = async () => {
+        const confirmed = await showConfirm("Are you sure you want to log out?", {
+            title: "Log out?",
+            tone: "danger",
+            confirmLabel: "Log out",
+        });
+        if (!confirmed) return;
 
         clearTokens();
         clearCart();
@@ -183,7 +215,7 @@ function Navbar() {
                                         onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                                         className="flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-[#d67b27] transition-colors"
                                     >
-                                        Profile
+                                        {isAdmin ? "Admin" : userName || "Profile"}
                                         <svg className={`w-4 h-4 transition-transform ${isProfileMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                                         </svg>

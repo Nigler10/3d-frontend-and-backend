@@ -16,6 +16,7 @@ urlpatterns = [
 
     path('products/', views.get_products, name='product_list'),
     path('products/<int:pk>/', views.get_product),
+    path('best-selling-products/', views.get_best_selling_products, name='best_selling_products'),
     path('categories/', views.get_categories, name='category_list'),
 
     path('custom-pricing/', views.get_custom_pricing),
@@ -42,6 +43,7 @@ urlpatterns = [
     path('cart/remove/', views.remove_from_cart),
     path('cart/update/', views.update_cart_quantity),
 
+    path('delivery-slots/', views.delivery_slots),
     path('orders/create/', views.create_order),
     path('cake-customization/', views.add_custom_cake_to_cart),
     path("upload-sample-cake/", views.upload_sample_cake),

@@ -1,5 +1,6 @@
 // src/components/chat/QuotationCard.jsx
 import { authFetch } from "../../utils/auth";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 
 export default function QuotationCard({
     quotation,
@@ -8,6 +9,7 @@ export default function QuotationCard({
     onAccepted,
 }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const { showAlert, showConfirm } = useCustomerDialog();
     const isPending = quotation.status === "pending";
 
     const formatPrice = (amount) =>
@@ -17,11 +19,11 @@ export default function QuotationCard({
         })}`;
 
     const handleAccept = async () => {
-        if (
-            !confirm(
-                `Accept this quotation for ${formatPrice(quotation.amount)}?`
-            )
-        ) {
+        const confirmed = await showConfirm(
+            `Accept this quotation for ${formatPrice(quotation.amount)}?`,
+            { title: "Accept quotation?", confirmLabel: "Accept" }
+        );
+        if (!confirmed) {
             return;
         }
 
@@ -36,15 +38,15 @@ export default function QuotationCard({
             const data = await res.json();
 
             if (!res.ok) {
-                alert(data.error || "Failed to accept quotation.");
+                await showAlert(data.error || "Failed to accept quotation.", { tone: "error", title: "Quotation not accepted" });
                 return;
             }
 
-            alert("Quotation accepted successfully.");
+            await showAlert("Quotation accepted successfully.", { tone: "success", title: "Quotation accepted" });
             await onAccepted?.(data);
         } catch (err) {
             console.error(err);
-            alert("Something went wrong.");
+            await showAlert("Something went wrong.", { tone: "error", title: "Quotation not accepted" });
         }
     };
 
