@@ -15,6 +15,25 @@ function formatSlotLabel(slot24) {
     return `${String(display).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+function getLocalDateISO(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function filterSlotsForLocalTime(slots, date, bufferMinutes) {
+    if (date !== getLocalDateISO()) return slots;
+
+    const earliestDelivery = Date.now() + bufferMinutes * 60 * 1000;
+    return slots.filter((slot) => {
+        const [hours, minutes] = slot.split(":").map(Number);
+        const deliveryTime = new Date();
+        deliveryTime.setHours(hours, minutes, 0, 0);
+        return deliveryTime.getTime() > earliestDelivery;
+    });
+}
+
 function CheckoutPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
@@ -61,11 +80,11 @@ function CheckoutPage() {
     const [availableSlots, setAvailableSlots] = useState([]);
     const [slotsLoading, setSlotsLoading] = useState(false);
     const [slotsError, setSlotsError] = useState("");
+    const [bookingBufferMinutes, setBookingBufferMinutes] = useState(30);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Today's date in YYYY-MM-DD for the date input min value
-    const todayISO = new Date().toLocaleDateString("en-CA");
+    const todayISO = getLocalDateISO();
 
     useEffect(() => {
         async function fetchProfile() {
@@ -95,7 +114,7 @@ function CheckoutPage() {
             if (!date) {
                 setAvailableSlots([]);
                 setSlotsError("");
-                return;
+                return [];
             }
 
             setSlotsLoading(true);
@@ -110,27 +129,38 @@ function CheckoutPage() {
                 if (!res.ok) {
                     setSlotsError(data.error || "Unable to load time slots.");
                     setAvailableSlots([]);
-                    return;
+                    return [];
                 }
 
-                setAvailableSlots(data.slots || []);
+                const bufferMinutes = Number(data.buffer_minutes ?? 30);
+                setBookingBufferMinutes(bufferMinutes);
+                const slots = filterSlotsForLocalTime(
+                    data.slots || [],
+                    date,
+                    bufferMinutes
+                );
+                setAvailableSlots(slots);
 
-                if ((data.slots || []).length === 0) {
+                if (slots.length === 0) {
                     setSlotsError(
-                        "No available time slots. Please select another date."
+                        date === getLocalDateISO()
+                            ? "No available time slots for today. Please select another date."
+                            : "No available time slots. Please select another date."
                     );
                 }
 
                 // If the currently selected time is no longer available, clear it.
                 if (
                     deliveryTime &&
-                    !(data.slots || []).includes(deliveryTime)
+                    !slots.includes(deliveryTime)
                 ) {
                     setDeliveryTime("");
                 }
+                return slots;
             } catch {
                 setSlotsError("Failed to load time slots. Please try again.");
                 setAvailableSlots([]);
+                return [];
             } finally {
                 setSlotsLoading(false);
             }
@@ -161,7 +191,7 @@ function CheckoutPage() {
         const newDate = e.target.value;
 
         // Prevent past dates
-        if (newDate < todayISO) {
+        if (newDate < getLocalDateISO()) {
             setMessage("Please select today or a future date.");
             return;
         }
@@ -175,6 +205,15 @@ function CheckoutPage() {
     const handleTimeSelect = (slot) => {
         setDeliveryTime(slot);
         setIsDropdownOpen(false);
+    };
+
+    const handleScheduleSubmissionError = (error, fallback) => {
+        const errorMessage = error || fallback;
+        setMessage(errorMessage);
+        if (errorMessage.includes("delivery time is no longer available")) {
+            setDeliveryTime("");
+            fetchDeliverySlots(deliveryDate);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -215,7 +254,7 @@ function CheckoutPage() {
             return;
         }
 
-        if (deliveryDate < todayISO) {
+        if (deliveryDate < getLocalDateISO()) {
             setMessage("Delivery date cannot be in the past.");
             return;
         }
@@ -225,17 +264,30 @@ function CheckoutPage() {
             return;
         }
 
-        // Re-validate that the selected slot is still available
-        if (!availableSlots.includes(deliveryTime)) {
-            setMessage(
-                "The selected time slot is no longer available. Please choose another."
-            );
+        if (
+            deliveryDate === getLocalDateISO() &&
+            !filterSlotsForLocalTime(
+                [deliveryTime],
+                deliveryDate,
+                bookingBufferMinutes
+            ).length
+        ) {
+            setMessage("That delivery time has passed. Please choose another slot.");
             setDeliveryTime("");
             fetchDeliverySlots(deliveryDate);
             return;
         }
 
         setLoading(true);
+        const freshSlots = await fetchDeliverySlots(deliveryDate);
+        if (!freshSlots.includes(deliveryTime)) {
+            setLoading(false);
+            setMessage(
+                "The selected time slot is no longer available. Please choose another."
+            );
+            setDeliveryTime("");
+            return;
+        }
 
         const payload = {
             ...(useProfileAddress ? profileAddress : customAddress),
@@ -268,7 +320,7 @@ function CheckoutPage() {
 
                 } else {
 
-                    setMessage(data.error || "Unable to continue.");
+                    handleScheduleSubmissionError(data.error, "Unable to continue.");
 
                 }
 
@@ -300,7 +352,7 @@ function CheckoutPage() {
                     navigate(`/orders/${orderId}`);
                 }, 2000);
             } else {
-                setMessage(data.error || "Failed to place order.");
+                handleScheduleSubmissionError(data.error, "Failed to place order.");
             }
         } catch (err) {
             setMessage("Server error. Please try again.");
@@ -429,8 +481,12 @@ function CheckoutPage() {
                                                 setMessage("Please select a delivery date first.");
                                                 return;
                                             }
-                                            if (availableSlots.length > 0) {
-                                                setIsDropdownOpen((prev) => !prev);
+                                            if (isDropdownOpen) {
+                                                setIsDropdownOpen(false);
+                                            } else {
+                                                setMessage("");
+                                                setIsDropdownOpen(true);
+                                                fetchDeliverySlots(deliveryDate);
                                             }
                                         }}
                                         disabled={slotsLoading}
@@ -461,7 +517,9 @@ function CheckoutPage() {
                                         >
                                             {availableSlots.length === 0 ? (
                                                 <li className="px-4 py-3 text-sm text-stone-400 text-center">
-                                                    No available time slots.
+                                                    {slotsLoading
+                                                        ? "Loading slots..."
+                                                        : slotsError || "No available time slots."}
                                                 </li>
                                             ) : (
                                                 availableSlots.map((slot) => (

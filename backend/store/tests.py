@@ -1,9 +1,25 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
 from .models import AddonPricing, CakeCustomization, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile
+from .views import _get_available_delivery_slots
+
+
+class DeliveryScheduleTests(APITestCase):
+    def test_same_day_slots_include_booking_buffer(self):
+        now = datetime(2026, 10, 11, 10, 15, tzinfo=ZoneInfo("Asia/Manila"))
+
+        with patch("store.views.timezone.localtime", return_value=now):
+            slots = _get_available_delivery_slots(now.date())
+
+        self.assertNotIn("10:30", slots)
+        self.assertIn("11:00", slots)
 
 
 class BestSellingProductsTests(APITestCase):
@@ -172,7 +188,7 @@ class CustomCakePricingTests(APITestCase):
                 "city": "Dasmarinas",
                 "province": "Cavite",
                 "postal_code": "4114",
-                "delivery_date": "2026-06-10",
+                "delivery_date": (timezone.localdate() + timedelta(days=1)).isoformat(),
                 "delivery_time": "10:00",
             },
             format="json",
