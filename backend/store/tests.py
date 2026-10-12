@@ -46,6 +46,63 @@ class BestSellingProductsTests(APITestCase):
         )
 
 
+class AdminProductDeletionTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="product-admin",
+            email="product-admin@example.com",
+            password="password123",
+        )
+        self.client.force_authenticate(user=self.admin)
+        category = Category.objects.create(name="Cakes", slug="deletion-test-cakes")
+        self.product = Product.objects.create(
+            category=category,
+            name="Pending Cake",
+            description="",
+            price=Decimal("10.00"),
+        )
+        self.other_product = Product.objects.create(
+            category=category,
+            name="Available Cake",
+            description="",
+            price=Decimal("10.00"),
+        )
+
+    def test_active_order_blocks_only_its_product_deletion(self):
+        pending_order = Order.objects.create(
+            total_amount=Decimal("10.00"),
+            status="pending_review",
+        )
+        processing_order = Order.objects.create(
+            total_amount=Decimal("10.00"),
+            status="processing",
+        )
+        OrderItem.objects.create(
+            order=pending_order,
+            product=self.product,
+            quantity=1,
+            price=self.product.price,
+        )
+        OrderItem.objects.create(
+            order=processing_order,
+            product=self.product,
+            quantity=1,
+            price=self.product.price,
+        )
+
+        product_url = f"/api/admin/products/{self.product.id}/delete/"
+        other_product_url = f"/api/admin/products/{self.other_product.id}/delete/"
+        check_response = self.client.get(product_url)
+        other_check_response = self.client.get(other_product_url)
+
+        self.assertTrue(check_response.data["has_active_orders"])
+        self.assertFalse(other_check_response.data["has_active_orders"])
+        self.assertEqual(self.client.delete(product_url).status_code, 409)
+        self.assertTrue(Product.objects.filter(id=self.product.id).exists())
+        self.assertEqual(self.client.delete(other_product_url).status_code, 200)
+        self.assertFalse(Product.objects.filter(id=self.other_product.id).exists())
+
+
 class CustomCakePricingTests(APITestCase):
     def setUp(self):
         self.customer = User.objects.create_user(
