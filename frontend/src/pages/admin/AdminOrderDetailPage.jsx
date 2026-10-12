@@ -80,6 +80,12 @@ export default function AdminOrderDetailPage() {
         "ready_for_delivery",
         "out_for_delivery",
     ].includes(order.status);
+    const hasProcessingPayment =
+        order.status === "processing" &&
+        ["partial", "paid"].includes(order.payment_status);
+    const canCancelOrder =
+        ["awaiting_customer_response", "awaiting_downpayment", "processing"].includes(order.status) &&
+        !hasProcessingPayment;
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] pb-10">
@@ -158,13 +164,18 @@ export default function AdminOrderDetailPage() {
                             </div>
                         )}
 
-                        {["awaiting_customer_response", "awaiting_downpayment", "processing"].includes(order.status) && (
+                        {canCancelOrder && (
                             <button
                                 className="w-full border border-rose-300 text-rose-700 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition"
                                 onClick={() => setStatusToUpdate("cancelled")}
                             >
                                 Cancel Order
                             </button>
+                        )}
+                        {hasProcessingPayment && (
+                            <p className="rounded-xl border border-[#E9C5C1] bg-[#FFF3F1] p-3 text-sm leading-relaxed text-[#9E3936]">
+                               Note: This order has an existing partial or full payment and cannot be cancelled directly. Please follow the appropriate refund process.
+                            </p>
                         )}
 
                         {isUploadedCake && (
