@@ -89,6 +89,43 @@
 @media (min-width: 1024px) {
     .cake-preview-shell {
         height: clamp(460px, calc(100vh - 4rem), 540px);
+        max-height: calc(100dvh - 4.5rem);
+    }
+}
+
+/* Keep mobile sticky positioning attached to the single page scrollbar. */
+@media (max-width: 1023px) {
+    html:has(.cake-builder-page),
+    body:has(.cake-builder-page) {
+        overflow-x: clip;
+    }
+
+    html:has(.cake-builder-page) {
+        --cake-mobile-preview-height: min(310px, 45svh);
+        scroll-padding-top: calc(var(--cake-mobile-preview-height) + 1rem);
+    }
+
+    .cake-builder-page .cake-preview-column {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #FCF8EE;
+    }
+
+    .cake-builder-page .cake-preview-shell {
+        height: var(--cake-mobile-preview-height);
+    }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+    html:has(.cake-builder-page) {
+        --cake-mobile-preview-height: min(350px, 45svh);
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    html:has(.cake-builder-page) {
+        --cake-mobile-preview-height: min(400px, 45svh);
     }
 }
 

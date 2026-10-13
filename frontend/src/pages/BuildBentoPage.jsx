@@ -1514,7 +1514,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     };
 
     return (
-        <aside className="w-full lg:w-[400px] h-auto lg:h-full lg:overflow-y-auto bg-[#FFFDF9]/95 backdrop-blur-xl border border-[#E6CCA2] rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col gap-4 sm:gap-6 custom-scrollbar">
+        <aside className="w-full lg:w-[400px] h-auto lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain lg:[&>*]:shrink-0 bg-[#FFFDF9]/95 backdrop-blur-xl border border-[#E6CCA2] rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col gap-4 sm:gap-6 custom-scrollbar">
             <h2 className="text-xl font-bold tracking-tight text-[#6E473B]">
                 Design Your Cake
             </h2>
@@ -2067,12 +2067,12 @@ function BuildBentoContent() {
     };
 
     return (
-        <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FCF8EE] pt-2 flex flex-col antialiased font-sans">
+        <div className="cake-builder-page min-h-screen lg:h-dvh lg:min-h-0 lg:overflow-hidden w-full max-w-full overflow-x-clip lg:overflow-x-hidden bg-[#FCF8EE] pt-2 flex flex-col antialiased font-sans">
             {/* Main responsive wrapper layout */}
-            <div className="max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-4 items-start">
+            <div className="max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 gap-4 items-start">
 
                 {/* 3D Canvas Box */}
-                <div className="w-full flex-1 self-start relative lg:sticky lg:top-4 z-10 lg:z-auto">
+                <div className="cake-preview-column w-full flex-1 self-start relative z-10 lg:z-auto">
                     <div className="cake-preview-shell w-full relative bg-white border border-[#E6CCA2] rounded-2xl shadow-sm overflow-hidden flex flex-col">
                         {selectedTierIndex === 0 && !isCakeReady && (
                             <div
@@ -2187,8 +2187,8 @@ function BuildBentoContent() {
                     </div>
                 </div>
 
-                {/* Configurator Side Column - Flows naturally alongside the enlarged preview */}
-                <div className="w-full lg:w-auto">
+                {/* Configurator Side Column - Scrolls independently within the desktop viewport */}
+                <div className="w-full lg:w-auto lg:h-full lg:min-h-0 lg:shrink-0">
                     <Configurator
                         selectedTierIndex={selectedTierIndex}
                         setSelectedTierIndex={setSelectedTierIndex}
