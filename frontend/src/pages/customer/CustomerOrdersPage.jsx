@@ -4,6 +4,8 @@ import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { CustomizationProvider } from "../../contexts/Customization";
+import spcLogo from "../../assets/images/spc.png";
+import "../../styles/order-invoice.css";
 import {
     Cake,
     Heart,
@@ -160,97 +162,82 @@ function InvoiceModal({ order, onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" role="dialog">
-            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#E6CCA2] my-8">
-                {/* Header */}
-                <div className="flex items-center justify-between bg-[#6E473B] text-white px-6 py-4">
-                    <div className="flex items-center gap-2">
-                        <FileText className="w-6 h-6 text-[#E6CCA2]" />
-                        <div>
-                            <h3 className="font-black text-lg leading-tight">Cake Studio Invoice</h3>
-                            <p className="text-xs text-[#E6CCA2]">Order #{order.id}</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="text-white hover:text-[#E6CCA2] transition-colors"
-                        aria-label="Close invoice"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+        <div className="spc-order-invoice-overlay" role="dialog" aria-modal="true" aria-labelledby="order-invoice-title">
+            <div className="spc-order-invoice-shell">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="spc-order-invoice-close spc-order-invoice-controls"
+                    aria-label="Close invoice"
+                >
+                    <X aria-hidden="true" className="w-5 h-5" />
+                </button>
 
-                {/* Invoice Content */}
-                <div className="p-6 space-y-6 bg-[#FCF8EE]/30" id="printable-invoice">
-                    {/* Billed To & Dates */}
-                    <div className="grid grid-cols-2 gap-4 text-xs">
+                <article className="spc-order-invoice" id="printable-invoice">
+                    <header className="spc-order-invoice-brand">
+                        <img src={spcLogo} alt="Smiley Page Corner logo" />
                         <div>
-                            <p className="text-[#A07060] uppercase font-bold tracking-wider text-[10px]">Customer Details</p>
-                            <p className="font-bold text-[#6E473B] mt-1 text-sm">{order.full_name || order.user_name || "Valued Customer"}</p>
-                            <p className="text-stone-600">{order.customer_email}</p>
-                            <p className="text-stone-600">{order.formatted_phone}</p>
-                            <p className="text-stone-600 mt-1">{order.full_address}</p>
+                            <h2>Smiley Page Corner</h2>
+                            <h3 id="order-invoice-title">INVOICE / RECEIPT</h3>
+                            <p className="spc-order-invoice-number">Order #{order.id}</p>
+                            <p className="spc-order-invoice-contact">0908-739-5871 • fb/SMILEY PAGE CORNER • CAKES AND PASTRIES</p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[#A07060] uppercase font-bold tracking-wider text-[10px]">Order Summary</p>
-                            <p className="font-bold text-[#6E473B] mt-1">Date: {formatDate(order.created_at)}</p>
-                            <p className="text-stone-600">Status: <span className="font-bold text-[#C05A11]">{getOrderStatusLabel(order.status)}</span></p>
+                    </header>
+
+                    <div className="spc-order-invoice-details">
+                        <section>
+                            <h4>CUSTOMER DETAILS</h4>
+                            <p className="spc-order-invoice-customer">{order.full_name || order.user_name || "Valued Customer"}</p>
+                            <p>{order.customer_email}</p>
+                            <p>{order.formatted_phone}</p>
+                            <p className="spc-order-invoice-address">{order.full_address}</p>
+                        </section>
+                        <section className="spc-order-invoice-summary">
+                            <h4>ORDER SUMMARY</h4>
+                            <p className="spc-order-invoice-date">Date: {formatDate(order.created_at)}</p>
+                            <p>Status: <strong>{getOrderStatusLabel(order.status)}</strong></p>
                             {order.delivery_date && (
-                                <p className="text-stone-600">Delivery: {formatDate(order.delivery_date)} {order.delivery_time ? `@ ${order.delivery_time}` : ""}</p>
+                                <p>Delivery: {formatDate(order.delivery_date)} {order.delivery_time ? `@ ${order.delivery_time}` : ""}</p>
                             )}
-                        </div>
+                        </section>
                     </div>
 
-                    {/* Items Table */}
-                    <div className="border border-[#E6CCA2] rounded-xl overflow-hidden bg-white">
-                        <table className="w-full text-xs">
-                            <thead className="bg-[#FAF5EB] text-[#844414] font-bold border-b border-[#E6CCA2]">
+                    <div className="spc-order-invoice-table">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <th className="text-left py-2.5 px-4">Item & Customizations</th>
-                                    <th className="text-center py-2.5 px-2">Qty</th>
-                                    <th className="text-right py-2.5 px-4">Amount</th>
+                                    <th scope="col">Item &amp; Customizations</th>
+                                    <th scope="col">Qty</th>
+                                    <th scope="col">Amount</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-stone-100">
-                                {items.map((item, idx) => (
-                                    <tr key={idx} className="hover:bg-stone-50">
-                                        <td className="py-3 px-4">
-                                            <p className="font-bold text-[#6E473B]">{item.product_name || "Custom Cake"}</p>
-                                            {item.customization && (
-                                                <p className="text-[11px] text-stone-500 mt-0.5">
-                                                    {item.customization.shape} • {item.customization.flavor} • {item.customization.size || "Standard"}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="text-center py-3 px-2 font-medium">{item.quantity}</td>
-                                        <td className="text-right py-3 px-4 font-bold text-[#844414]">{formatTotal(item.price || item.subtotal)}</td>
-                                    </tr>
-                                ))}
+                            <tbody>
+                                {items.map((item, idx) => {
+                                    const customization = item.customization;
+                                    const details = customization && [customization.shape, customization.flavor, customization.size].filter(Boolean).join(" • ");
+                                    return (
+                                        <tr key={item.id || idx}>
+                                            <td>
+                                                <p className="spc-order-invoice-item-name">{item.product_name || "Custom Cake"}</p>
+                                                {details && <p className="spc-order-invoice-customization">• {details}</p>}
+                                            </td>
+                                            <td>{item.quantity}</td>
+                                            <td>{formatTotal(item.subtotal ?? item.price)}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Totals */}
-                    <div className="flex justify-end">
-                        <div className="w-full sm:w-64 space-y-2 text-xs bg-white p-4 rounded-xl border border-[#E6CCA2]">
-                            <div className="flex justify-between text-stone-600">
-                                <span>Subtotal</span>
-                                <span>{formatTotal(order.total_amount)}</span>
-                            </div>
-                            <div className="flex justify-between text-stone-600">
-                                <span>Total Paid</span>
-                                <span className="font-semibold text-emerald-600">{formatTotal(order.total_paid)}</span>
-                            </div>
-                            <div className="flex justify-between font-black text-sm text-[#6E473B] pt-2 border-t border-stone-200">
-                                <span>Remaining Balance</span>
-                                <span className="text-[#C05A11]">{formatTotal(order.remaining_balance)}</span>
-                            </div>
-                        </div>
+                    <div className="spc-order-invoice-totals">
+                        <div><span>Subtotal:</span><span>{formatTotal(order.total_amount)}</span></div>
+                        <div><span>Total Paid:</span><span>{formatTotal(order.total_paid)}</span></div>
+                        <div className="spc-order-invoice-balance"><span>Remaining Balance</span><strong>{formatTotal(order.remaining_balance)}</strong></div>
                     </div>
-                </div>
+                </article>
 
-                {/* Footer Buttons */}
-                <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 bg-stone-50">
+                <div className="spc-order-invoice-actions spc-order-invoice-controls">
                     <button
                         type="button"
                         onClick={onClose}
@@ -261,7 +248,7 @@ function InvoiceModal({ order, onClose }) {
                     <button
                         type="button"
                         onClick={handlePrint}
-                        className="px-5 py-2 text-xs font-bold text-white bg-[#C05A11] hover:bg-[#A84E0E] rounded-lg shadow transition-all flex items-center gap-1.5"
+                        className="px-5 py-2 text-xs font-bold text-white bg-[#5A2D18] hover:bg-[#422719] rounded-lg shadow transition-all flex items-center gap-1.5"
                     >
                         <Printer className="w-4 h-4" /> Print / Save PDF
                     </button>
