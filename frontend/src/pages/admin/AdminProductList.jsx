@@ -77,11 +77,11 @@ function AdminProductList() {
     const filteredProducts = useMemo(() => {
         let list = [...products];
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
+            const q = searchQuery.trim().toLowerCase();
             list = list.filter(
-                (p) =>
-                    (p.name && p.name.toLowerCase().includes(q)) ||
-                    (p.category && p.category.toLowerCase().includes(q))
+                (p) => [p.name, p.category_name, p.sku, p.id].some(
+                    (value) => String(value ?? "").toLowerCase().includes(q)
+                )
             );
         }
         if (productSortBy === "price_asc") list.sort((a, b) => (a.price || 0) - (b.price || 0));
@@ -925,50 +925,7 @@ function AdminProductList() {
                             </div>
                         </div>
 
-                        {/* 5. Addon Info Cards Footer Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    🏷️
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        FONDANT / FLORAL ADD-ONS
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        Sculpted toppers and edible florals add ₱250 - ₱1,200 dependent on size &amp; intricate complexity.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <TrendingUp aria-hidden="true" className="w-4 h-4" />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        RUSH FEE MULTIPLIER
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        Orders requested under standard lead time automatically append 25% priority baker surge.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <Package aria-hidden="true" className="w-4 h-4" />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        TIER LOGISTICS HANDLING
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        3-Tier &amp; 4-Tier orders mandate temperature-controlled van delivery with assembly setup.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                      
                     </div>
                 )}
             </div>
