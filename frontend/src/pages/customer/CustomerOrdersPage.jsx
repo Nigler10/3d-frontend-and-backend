@@ -153,7 +153,7 @@ function OrderItemsList({ items = [], orderId, onItemClick }) {
     );
 }
 
-function InvoiceModal({ order, onClose }) {
+export function InvoiceModal({ order, onClose }) {
     if (!order) return null;
 
     const items = order.items || [];
