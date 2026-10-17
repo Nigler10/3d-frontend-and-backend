@@ -92,7 +92,7 @@ export default function AdminOrderDetailPage() {
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] pb-10">
-            <div className="max-w-6xl mx-auto px-4 md:px-8 mt-5 space-y-6">
+            <div className="max-w-6xl mx-auto px-4 md:px-8 pt-5 space-y-6">
 
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <button className="text-[#A07060] hover:text-[#6E473B] font-bold" onClick={() => navigate("/admin/orders")}>
