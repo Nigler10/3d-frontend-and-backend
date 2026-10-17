@@ -1005,26 +1005,58 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
             );
         }
 
-        return (
-            <group position={candleNumberPosition}>
-                {digits.map((digit, idx) => {
-                    const node = nodes[`candle_${digit}`];
-                    const xOffset = (idx - (digits.length - 1) / 2) * spacing;
+        const cakeTopY =
+    activeTierBounds?.max.y ??
+    TIER_TOP_Y[selectedTierIndex] ??
+    TIER_TOP_Y[0];
 
-                    return (
-                        <mesh
-                            key={`${digit}-${idx}`}
-                            geometry={node.geometry}
-                            material={digitMaterial}
-                            position={[xOffset, 0, 0]}
-                            rotation={[0, 0, 0]}
-                            scale={getNodeScaleArray(node, effectiveCandleScale)}
-                            castShadow
-                        />
-                    );
-                })}
-            </group>
-        );
+const candleEmbedDepth = 0.10 * effectiveCandleScale;
+
+return (
+    <group
+        position={[
+            candlePosition[0],
+            cakeTopY - candleEmbedDepth,
+            candlePosition[2],
+        ]}
+    >
+        {digits.map((digit, idx) => {
+            const node = nodes[`candle_${digit}`];
+
+            const digitScale = getNodeScaleArray(
+                node,
+                effectiveCandleScale
+            );
+
+            node.geometry.computeBoundingBox();
+
+            const bounds = node.geometry.boundingBox;
+
+            const scaledBottomY = bounds
+                ? Math.min(
+                    bounds.min.y * digitScale[1],
+                    bounds.max.y * digitScale[1]
+                )
+                : 0;
+
+            const xOffset =
+                (idx - (digits.length - 1) / 2) * spacing;
+
+            return (
+                <mesh
+                    key={`${digit}-${idx}`}
+                    geometry={node.geometry}
+                    material={digitMaterial}
+                    position={[xOffset, -scaledBottomY, 0]}
+                    rotation={[0, 0, 0]}
+                    scale={digitScale}
+                    castShadow
+                    receiveShadow
+                />
+            );
+        })}
+    </group>
+);
     };
 
     const renderCustomToppings = () => (
