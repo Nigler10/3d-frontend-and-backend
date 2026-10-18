@@ -11,6 +11,7 @@ import ChatBox from "../../components/chat/ChatBox";
 import { CustomizationProvider } from "../../contexts/Customization";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
+import OrderItemDetailsModal from "../../components/admin/OrderItemDetailsModal";
 import { FileText } from "lucide-react";
 import { InvoiceModal } from "../customer/CustomerOrdersPage";
 
@@ -25,6 +26,7 @@ export default function AdminOrderDetailPage() {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showCakeModal, setShowCakeModal] = useState(false);
     const [selectedCake, setSelectedCake] = useState(null);
+    const [selectedItemDetails, setSelectedItemDetails] = useState(null);
     const [statusToUpdate, setStatusToUpdate] = useState(null);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
@@ -283,20 +285,34 @@ export default function AdminOrderDetailPage() {
                                                         {item.product_name}
                                                     </div>
 
-                                                    {item.customization && (
-                                                        <button
-                                                            type="button"
-                                                            className="mt-1 text-xs font-bold text-[#C05A11] underline cursor-pointer"
-                                                            onClick={() => {
-                                                                setSelectedCake(
-                                                                    item.customization
-                                                                );
-                                                                setShowCakeModal(true);
-                                                            }}
-                                                        >
-                                                            View Customization
-                                                        </button>
-                                                    )}
+                                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                        {item.customization && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-xs font-bold text-[#C05A11] underline cursor-pointer"
+                                                                onClick={() => {
+                                                                    setSelectedCake(
+                                                                        item.customization
+                                                                    );
+                                                                    setShowCakeModal(true);
+                                                                }}
+                                                            >
+                                                                View Customization
+                                                            </button>
+                                                        )}
+                                                        {!item.product &&
+                                                            !item.customization?.uploaded_cake &&
+                                                            item.customization?.shape &&
+                                                            item.customization?.flavor && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="text-xs font-bold text-[#C05A11] underline cursor-pointer"
+                                                                    onClick={() => setSelectedItemDetails(item)}
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                            )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -320,6 +336,11 @@ export default function AdminOrderDetailPage() {
                 isAdmin={true}
                 quotations={order.quotations || []}
                 onRefreshOrder={fetchOrder}
+            />
+
+            <OrderItemDetailsModal
+                item={selectedItemDetails}
+                onClose={() => setSelectedItemDetails(null)}
             />
 
             <InvoiceModal
