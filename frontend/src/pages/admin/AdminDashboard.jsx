@@ -106,18 +106,28 @@ export default function AdminDashboard() {
     const [isSortOpen, setIsSortOpen] = useState(false);
 
     useEffect(() => {
-        fetchDashboard();
-    }, [queuePage]);
+        const controller = new AbortController();
 
-    const fetchDashboard = async () => {
-        try {
-            const res = await authFetch(`${BASEURL}/api/orders/admin/dashboard/?page=${queuePage}`);
-            const json = await res.json();
-            setData(json);
-        } catch (err) {
-            console.error(err);
-        }
-    };
+        const fetchDashboard = async () => {
+            try {
+                const params = new URLSearchParams({
+                    page: String(queuePage),
+                    status: statusFilter,
+                    per_page: String(perPage),
+                });
+                const res = await authFetch(`${BASEURL}/api/orders/admin/dashboard/?${params}`, {
+                    signal: controller.signal,
+                });
+                const json = await res.json();
+                if (!controller.signal.aborted) setData(json);
+            } catch (err) {
+                if (err.name !== "AbortError") console.error(err);
+            }
+        };
+
+        fetchDashboard();
+        return () => controller.abort();
+    }, [BASEURL, queuePage, statusFilter, perPage]);
 
     // Filter & Sort All Upcoming Orders
     const processedQueueOrders = useMemo(() => {
@@ -140,7 +150,8 @@ export default function AdminDashboard() {
         if (statusFilter === "overdue") {
             list = list.filter((o) => checkIsOverdue(o.delivery_date, o.status));
         } else if (statusFilter !== "all") {
-            list = list.filter((o) => o.status === statusFilter);
+            list = list.filter((o) => o.status === statusFilter ||
+                (statusFilter === "completed" && o.status === "delivered"));
         }
 
         // Sorting
@@ -204,8 +215,13 @@ export default function AdminDashboard() {
         }
     };
 
-    const scrollToQueue = (filterStatus = "all") => {
+    const applyStatusFilter = (filterStatus) => {
         setStatusFilter(filterStatus);
+        setQueuePage(1);
+    };
+
+    const scrollToQueue = (filterStatus = "all") => {
+        applyStatusFilter(filterStatus);
         const el = document.getElementById("order-queue-section");
         if (el) {
             el.scrollIntoView({ behavior: "smooth" });
@@ -377,7 +393,7 @@ export default function AdminDashboard() {
                                             key={opt.id}
                                             type="button"
                                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${statusFilter === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
-                                            onClick={() => { setStatusFilter(opt.id); setIsFilterOpen(false); }}
+                                            onClick={() => { applyStatusFilter(opt.id); setIsFilterOpen(false); }}
                                         >
                                             {opt.label}
                                         </button>
@@ -465,7 +481,7 @@ export default function AdminDashboard() {
                         <button
                             type="button"
                             onClick={() => {
-                                setStatusFilter("all");
+                                applyStatusFilter("all");
                                 setSearchQuery("");
                                 setSortBy("date_asc");
                             }}
@@ -715,8 +731,8 @@ export default function AdminDashboard() {
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-[#8C6D58] font-semibold">Active Filter:</span>
                                 <span className="px-3 py-1 bg-[#FDF6E2] text-[#AD4313] border border-[#E6CCA2] rounded-full text-xs font-bold flex items-center gap-1.5">
-                                    {statusFilter === "overdue" ? "⚠️ Overdue Orders" : getOrderStatusLabel(statusFilter, true) || statusFilter}
-                                    <button type="button" onClick={() => setStatusFilter("all")} className="hover:text-[#3D251E]">
+                                    {statusFilter === "overdue" ? "⚠️ Overdue Orders" : statusFilter === "completed" ? "Completed / Delivered" : getStatusConfig(statusFilter).label}
+                                    <button type="button" onClick={() => applyStatusFilter("all")} className="hover:text-[#3D251E]">
                                         <X className="w-3.5 h-3.5" />
                                     </button>
                                 </span>
@@ -887,7 +903,7 @@ export default function AdminDashboard() {
                             <span>Showing per page:</span>
                             <select
                                 value={perPage}
-                                onChange={(e) => setPerPage(Number(e.target.value))}
+                                onChange={(e) => { setPerPage(Number(e.target.value)); setQueuePage(1); }}
                                 className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg px-2.5 py-1.5 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none focus:border-[#AD4313]"
                             >
                                 <option value={10}>10</option>

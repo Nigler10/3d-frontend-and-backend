@@ -11,6 +11,8 @@ import ChatBox from "../../components/chat/ChatBox";
 import { CustomizationProvider } from "../../contexts/Customization";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
+import { FileText } from "lucide-react";
+import { InvoiceModal } from "../customer/CustomerOrdersPage";
 
 export default function AdminOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -24,6 +26,7 @@ export default function AdminOrderDetailPage() {
     const [showCakeModal, setShowCakeModal] = useState(false);
     const [selectedCake, setSelectedCake] = useState(null);
     const [statusToUpdate, setStatusToUpdate] = useState(null);
+    const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
     const updateStatus = async (status) => {
         const res = await authFetch(
@@ -80,10 +83,16 @@ export default function AdminOrderDetailPage() {
         "ready_for_delivery",
         "out_for_delivery",
     ].includes(order.status);
+    const hasProcessingPayment =
+        order.status === "processing" &&
+        ["partial", "paid"].includes(order.payment_status);
+    const canCancelOrder =
+        ["awaiting_customer_response", "awaiting_downpayment", "processing"].includes(order.status) &&
+        !hasProcessingPayment;
 
     return (
         <div className="min-h-screen bg-[#FCF8EE] pb-10">
-            <div className="max-w-6xl mx-auto px-4 md:px-8 mt-5 space-y-6">
+            <div className="max-w-6xl mx-auto px-4 md:px-8 pt-5 space-y-6">
 
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <button className="text-[#A07060] hover:text-[#6E473B] font-bold" onClick={() => navigate("/admin/orders")}>
@@ -134,7 +143,16 @@ export default function AdminOrderDetailPage() {
 
                     {/* Actions & Summary */}
                     <div className="bg-white p-6 rounded-2xl border border-[#E6CCA2] space-y-6">
-                        <h3 className="font-black text-[#6E473B]">Order Summary</h3>
+                        <div className="flex items-center justify-between gap-4">
+                            <h3 className="font-black text-[#6E473B]">Order Summary</h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowInvoiceModal(true)}
+                                className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                                <FileText className="w-3.5 h-3.5" /> Invoice PDF
+                            </button>
+                        </div>
                         <div className="flex justify-between text-xl font-black text-[#6E473B]">
                             <span>Total:</span> <span>₱{Number(order.total_amount).toLocaleString()}</span>
                         </div>
@@ -158,13 +176,18 @@ export default function AdminOrderDetailPage() {
                             </div>
                         )}
 
-                        {["awaiting_customer_response", "awaiting_downpayment", "processing"].includes(order.status) && (
+                        {canCancelOrder && (
                             <button
                                 className="w-full border border-rose-300 text-rose-700 py-2.5 rounded-xl font-bold hover:bg-rose-50 transition"
                                 onClick={() => setStatusToUpdate("cancelled")}
                             >
                                 Cancel Order
                             </button>
+                        )}
+                        {hasProcessingPayment && (
+                            <p className="rounded-xl border border-[#E9C5C1] bg-[#FFF3F1] p-3 text-sm leading-relaxed text-[#9E3936]">
+                               Note: This order has an existing partial or full payment and cannot be cancelled directly. Please follow the appropriate refund process.
+                            </p>
                         )}
 
                         {isUploadedCake && (
@@ -297,6 +320,11 @@ export default function AdminOrderDetailPage() {
                 isAdmin={true}
                 quotations={order.quotations || []}
                 onRefreshOrder={fetchOrder}
+            />
+
+            <InvoiceModal
+                order={showInvoiceModal ? order : null}
+                onClose={() => setShowInvoiceModal(false)}
             />
 
             <RejectModal isOpen={showRejectModal} onClose={() => setShowRejectModal(false)} onSubmit={async (reason) => {

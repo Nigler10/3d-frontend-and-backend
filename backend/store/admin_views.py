@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from .models import CakeCustomization
 from .serializers import AdminCakeCustomizationSerializer
-from .models import AddonPricing, CustomCakePricing, Product, DEFAULT_CUSTOM_CAKE_PRICES, DEFAULT_ADDON_PRICES
+from .models import AddonPricing, CustomCakePricing, OrderItem, Product, DEFAULT_CUSTOM_CAKE_PRICES, DEFAULT_ADDON_PRICES
 from .serializers import (
     AddonPricingSerializer,
     CustomCakePricingSerializer,
@@ -42,13 +42,34 @@ def admin_update_product(request, pk):
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['DELETE'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAdminUser])
 def admin_delete_product(request, pk):
     try:
         product = Product.objects.get(id=pk)
     except Product.DoesNotExist:
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    has_active_orders = OrderItem.objects.filter(
+        product=product,
+        order__status__in=[
+            "pending_review",
+            "awaiting_customer_response",
+            "awaiting_downpayment",
+            "processing",
+            "ready_for_delivery",
+            "out_for_delivery",
+        ],
+    ).exists()
+
+    if request.method == 'GET':
+        return Response({"has_active_orders": has_active_orders})
+
+    if has_active_orders:
+        return Response(
+            {"error": "This product has an existing pending order. Please resolve the order before deleting this product."},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     product.delete()
     return Response({"message": "Product deleted"})

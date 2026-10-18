@@ -13,6 +13,7 @@ function AdminProductEdit() {
     const [loading, setLoading] = useState(true);
     const [preview, setPreview] = useState(null);
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [showPendingOrderWarning, setShowPendingOrderWarning] = useState(false);
     const [deletingProduct, setDeletingProduct] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
@@ -89,11 +90,29 @@ function AdminProductEdit() {
     const handleDelete = async () => {
         setDeletingProduct(true);
         try {
+            const checkRes = await authFetch(
+                `${BASEURL}/api/admin/products/${id}/delete/`
+            );
+            if (!checkRes.ok) throw new Error("Failed to check product orders");
+            const checkData = await checkRes.json();
+            if (checkData.has_active_orders) {
+                setShowDeleteConfirmation(false);
+                setShowPendingOrderWarning(true);
+                setDeletingProduct(false);
+                return;
+            }
+
             const res = await authFetch(
                 `${BASEURL}/api/admin/products/${id}/delete/`,
                 { method: "DELETE" }
             );
             if (!res.ok) {
+                if (res.status === 409) {
+                    setShowDeleteConfirmation(false);
+                    setShowPendingOrderWarning(true);
+                    setDeletingProduct(false);
+                    return;
+                }
                 let message = "Failed to delete product";
                 try {
                     const data = await res.json();
@@ -216,6 +235,32 @@ function AdminProductEdit() {
                                 className="rounded-lg bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800 disabled:opacity-50"
                             >
                                 {deletingProduct ? "Deleting..." : "Yes, delete"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showPendingOrderWarning && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+                    <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="pending-order-warning-title"
+                        className="w-full max-w-md rounded-xl border border-[#E6CCA2] bg-white p-6 shadow-xl"
+                    >
+                        <h2 id="pending-order-warning-title" className="text-xl font-black text-[#6E473B]">
+                            Cannot Delete Product
+                        </h2>
+                        <p className="mt-3 text-[#6E473B]">
+                            This product has an existing pending order. Please resolve the order before deleting this product.
+                        </p>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowPendingOrderWarning(false)}
+                                className="rounded-lg bg-[#6E473B] px-4 py-2 font-bold text-white hover:bg-[#5a3a30]"
+                            >
+                                OK
                             </button>
                         </div>
                     </div>

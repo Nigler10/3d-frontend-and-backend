@@ -77,11 +77,11 @@ function AdminProductList() {
     const filteredProducts = useMemo(() => {
         let list = [...products];
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
+            const q = searchQuery.trim().toLowerCase();
             list = list.filter(
-                (p) =>
-                    (p.name && p.name.toLowerCase().includes(q)) ||
-                    (p.category && p.category.toLowerCase().includes(q))
+                (p) => [p.name, p.category_name, p.sku, p.id].some(
+                    (value) => String(value ?? "").toLowerCase().includes(q)
+                )
             );
         }
         if (productSortBy === "price_asc") list.sort((a, b) => (a.price || 0) - (b.price || 0));
@@ -161,6 +161,21 @@ function AdminProductList() {
             return (a.name || "").localeCompare(b.name || "");
         });
     }, [addonPrices, ADDON_ORDER]);
+
+    const groupedAddonPrices = useMemo(() => {
+        const groups = new Map(
+            ["candle", "chocolate", "balls", "cherry", "other"].map((category) => [category, []])
+        );
+        sortedAddonPrices.forEach((item) => {
+            const category = item.key.split("_")[0];
+            groups.get(groups.has(category) ? category : "other").push(item);
+        });
+        return Array.from(groups, ([category, items]) => ({
+            category,
+            label: category === "other" ? "Other Add-ons" : category[0].toUpperCase() + category.slice(1),
+            items,
+        })).filter((group) => group.items.length > 0);
+    }, [sortedAddonPrices]);
 
     // Filter Pricing Rules Matrix
     const filteredBasePrices = useMemo(() => {
@@ -852,123 +867,96 @@ function AdminProductList() {
                                     <h3 className="text-base font-black text-[#3D251E]">Toppings &amp; Add-on Custom Rules</h3>
                                     <p className="text-xs text-[#8C6D58]">Configure price for Candle, Chocolate, Balls, Nuts, Cherry, and Sprinkles.</p>
                                 </div>
-                                <span className="text-xs text-[#8C6D58] font-semibold">{addonPrices.length} items configured</span>
+                                <span className="text-xs text-[#8C6D58] font-semibold">{addonPrices.length} items · {groupedAddonPrices.length} categories</span>
                             </div>
 
-                            <div className="overflow-x-auto rounded-xl border border-[#E6DBCB]/60">
-                                <table className="w-full text-left border-collapse min-w-[600px]">
-                                    <thead className="bg-[#FFFDF9] text-[#8C6D58] text-[11px] font-bold uppercase tracking-wider border-b border-[#E6DBCB]">
-                                        <tr>
-                                            <th className="p-3.5">TOPPING / ADD-ON NAME</th>
-                                            <th className="p-3.5">PRICING TYPE / VARIANT SPEC</th>
-                                            <th className="p-3.5">PRICE (PHP)</th>
-                                            <th className="p-3.5 text-right">ACTIONS</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#E6DBCB]/40 text-xs font-semibold text-[#3D251E]">
-                                        {sortedAddonPrices.map((item) => {
-                                            const draft = getAddonDraftValue(item);
-                                            const isChanged = draft != item.price;
-                                            const savingId = `addon-${item.id}`;
-                                            const isSaving = savingKey === savingId;
-                                            const { spec, badgeColor } = getAddonSpec(item.key);
+                            <div className="overflow-x-auto">
+                                <div className="flex min-w-[600px] flex-col gap-6">
+                                    {groupedAddonPrices.map(({ category, label, items }) => (
+                                        <section key={category} className="overflow-hidden rounded-xl border border-[#E6DBCB]/60">
+                                            <h4 id={`addon-category-${category}`} className="flex items-center gap-2 bg-[#F9F4EC] px-3.5 py-3 text-sm font-bold text-[#3D251E]">
+                                                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#AD4313]" />
+                                                {label}
+                                            </h4>
+                                            <table aria-labelledby={`addon-category-${category}`} className="w-full table-fixed text-left border-collapse">
+                                                <colgroup>
+                                                    <col />
+                                                    <col />
+                                                    <col className="w-[190px]" />
+                                                    <col className="w-[110px]" />
+                                                </colgroup>
+                                                <thead className="sr-only">
+                                                    <tr>
+                                                        <th className="p-3.5">TOPPING / ADD-ON NAME</th>
+                                                        <th className="p-3.5">PRICING TYPE / VARIANT SPEC</th>
+                                                        <th className="p-3.5">PRICE (PHP)</th>
+                                                        <th className="p-3.5 text-right">ACTIONS</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-[#E6DBCB]/40 text-xs font-semibold text-[#3D251E]">
+                                                    {items.map((item) => {
+                                                        const draft = getAddonDraftValue(item);
+                                                        const isChanged = draft != item.price;
+                                                        const savingId = `addon-${item.id}`;
+                                                        const isSaving = savingKey === savingId;
+                                                        const { spec, badgeColor } = getAddonSpec(item.key);
 
-                                            return (
-                                                <tr key={item.id} className="hover:bg-[#FCF8EE]/60 transition-colors">
-                                                    <td className="p-3.5 font-bold text-[#3D251E] text-sm">
-                                                        {item.name}
-                                                    </td>
-                                                    <td className="p-3.5">
-                                                        <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${badgeColor}`}>
-                                                            {spec}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3.5">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[#AD4313] font-black text-sm">₱</span>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                value={draft}
-                                                                onChange={(e) => setDraftAddonPrices((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                                                className="w-32 px-3 py-1.5 bg-[#FFFDF9] rounded-xl border border-[#E6DBCB] text-xs font-extrabold text-[#AD4313] focus:outline-none focus:border-[#AD4313] shadow-2xs"
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3.5 text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => saveAddonPrice(item)}
-                                                                disabled={!isChanged || isSaving}
-                                                                className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
-                                                            >
-                                                                {isSaving ? "..." : <CheckCircle2 aria-hidden="true" className="w-4 h-4" />}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setDraftAddonPrices((prev) => { const n = { ...prev }; delete n[item.id]; return n; })}
-                                                                disabled={!isChanged || isSaving}
-                                                                title="Cancel Edit"
-                                                                aria-label="Cancel add-on price edit"
-                                                                className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
-                                                            >
-                                                                <X aria-hidden="true" className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* 5. Addon Info Cards Footer Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    🏷️
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        FONDANT / FLORAL ADD-ONS
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        Sculpted toppers and edible florals add ₱250 - ₱1,200 dependent on size &amp; intricate complexity.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <TrendingUp aria-hidden="true" className="w-4 h-4" />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        RUSH FEE MULTIPLIER
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        Orders requested under standard lead time automatically append 25% priority baker surge.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-[#FFFDF9] border border-[#E6DBCB] rounded-2xl flex items-start gap-3 shadow-2xs">
-                                <div className="w-8 h-8 rounded-xl bg-[#FDF0EB] text-[#AD4313] flex items-center justify-center font-bold text-sm shrink-0">
-                                    <Package aria-hidden="true" className="w-4 h-4" />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                    <h4 className="font-bold text-[#3D251E] text-xs uppercase tracking-wider">
-                                        TIER LOGISTICS HANDLING
-                                    </h4>
-                                    <p className="text-[11px] text-[#8C6D58] leading-relaxed font-medium">
-                                        3-Tier &amp; 4-Tier orders mandate temperature-controlled van delivery with assembly setup.
-                                    </p>
+                                                        return (
+                                                            <tr key={item.id} className="hover:bg-[#FCF8EE]/60 transition-colors">
+                                                                <td className="p-3.5 font-bold text-[#3D251E] text-sm">
+                                                                    {item.name.replace(/^(?:Candle|Chocolate|Balls|Cherry) \(([^)]+)\)$/, "$1")}
+                                                                </td>
+                                                                <td className="p-3.5">
+                                                                    <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-flex items-center gap-1 ${badgeColor}`}>
+                                                                        {spec}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-3.5">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[#AD4313] font-black text-sm">₱</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={draft}
+                                                                            onChange={(e) => setDraftAddonPrices((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                                                            className="w-32 px-3 py-1.5 bg-[#FFFDF9] rounded-xl border border-[#E6DBCB] text-xs font-extrabold text-[#AD4313] focus:outline-none focus:border-[#AD4313] shadow-2xs"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-3.5 text-right">
+                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => saveAddonPrice(item)}
+                                                                            disabled={!isChanged || isSaving}
+                                                                            className="w-8 h-8 rounded-lg bg-[#AD4313] hover:bg-[#8F350E] text-white flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer shadow-2xs"
+                                                                        >
+                                                                            {isSaving ? "..." : <CheckCircle2 aria-hidden="true" className="w-4 h-4" />}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setDraftAddonPrices((prev) => { const n = { ...prev }; delete n[item.id]; return n; })}
+                                                                            disabled={!isChanged || isSaving}
+                                                                            title="Cancel Edit"
+                                                                            aria-label="Cancel add-on price edit"
+                                                                            className="w-8 h-8 rounded-lg bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] text-[#8C6D58] flex items-center justify-center font-bold text-xs transition-all disabled:opacity-30 cursor-pointer"
+                                                                        >
+                                                                            <X aria-hidden="true" className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </section>
+                                    ))}
                                 </div>
                             </div>
                         </div>
+
+                      
                     </div>
                 )}
             </div>

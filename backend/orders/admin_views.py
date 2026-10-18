@@ -462,20 +462,32 @@ def admin_dashboard(request):
         delivery_date__range=[today, upcoming_limit]
     ).exclude(status__in=["delivered", "cancelled", "rejected"]).order_by("delivery_date")
 
-    all_upcoming_qs = Order.objects.exclude(
-        status__in=["delivered", "cancelled", "rejected"]
-    ).order_by("delivery_date", "delivery_time")
+    status_filter = request.GET.get("status", "all")
+    all_upcoming_qs = orders.order_by("delivery_date", "delivery_time", "id")
+    if status_filter == "completed":
+        all_upcoming_qs = all_upcoming_qs.filter(status__in=["delivered", "completed"])
+    else:
+        all_upcoming_qs = all_upcoming_qs.exclude(
+            status__in=["delivered", "completed", "cancelled", "rejected"]
+        )
+        if status_filter == "overdue":
+            all_upcoming_qs = all_upcoming_qs.filter(delivery_date__lt=today)
+        elif status_filter != "all":
+            all_upcoming_qs = all_upcoming_qs.filter(status=status_filter)
 
     # pagination
-    page = int(request.GET.get("page", 1))
-    page_size = 5
-
-    start = (page - 1) * page_size
-    end = start + page_size
+    try:
+        page = max(1, int(request.GET.get("page", 1)))
+        page_size = max(1, min(100, int(request.GET.get("per_page", 5))))
+    except (TypeError, ValueError):
+        return Response({"detail": "Invalid pagination parameters."}, status=400)
 
     total_count = all_upcoming_qs.count()
     import math
     total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+    end = start + page_size
 
     all_upcoming_orders = OrderSerializer(all_upcoming_qs[start:end], many=True).data
     upcoming_orders = OrderSerializer(upcoming_orders_qs, many=True).data

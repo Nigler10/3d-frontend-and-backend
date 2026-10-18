@@ -1,5 +1,6 @@
 // src/components/admin/AdminQuotationPanel.jsx
 import { useState } from "react";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import { authFetch } from "../../utils/auth";
 
 export default function AdminQuotationPanel({
@@ -8,6 +9,7 @@ export default function AdminQuotationPanel({
     quotations = [],
     onQuotationSent,
 }) {
+    const { showAlert, showConfirm } = useCustomerDialog();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [amount, setAmount] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -42,9 +44,15 @@ export default function AdminQuotationPanel({
         }
 
         if (
-            !confirm(
-                `Send quotation of ${formatPrice(parsedAmount)} to the customer?`
-            )
+            !(await showConfirm(
+                `Send quotation of ${formatPrice(parsedAmount)} to the customer?`,
+                {
+                    title: "Send Quotation",
+                    tone: "success",
+                    cancelLabel: "Cancel",
+                    confirmLabel: "Confirm",
+                }
+            ))
         ) {
             return;
         }
@@ -72,7 +80,11 @@ export default function AdminQuotationPanel({
             setAmount("");
             await onQuotationSent?.(data.order);
 
-            alert("Quotation sent successfully.");
+            await showAlert("Quotation sent successfully.", {
+                title: "Quotation sent",
+                tone: "success",
+                confirmLabel: "Okay",
+            });
         } catch (err) {
             console.error(err);
             alert("Something went wrong.");
