@@ -15,10 +15,12 @@ from .serializers import ProductSerializer, CategorySerializer, CartSerializer, 
 from .serializers import (AddonPricingSerializer, CakeCustomizationSerializer, CustomCakePricingSerializer, RegisterSerializer, UserProfileSerializer, UserSerializer, UploadedCakeRequestSerializer,)
 from .models_verification import SMSVerification
 from .address_utils import resolve_address
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.hashers import check_password
+from django.core.exceptions import ValidationError
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
-
 
 def _get_available_delivery_slots(requested_date):
     from datetime import datetime, time as time_type, timedelta
@@ -52,7 +54,6 @@ def _get_available_delivery_slots(requested_date):
         for slot in slots
         if slot_counts.get(slot, 0) < max_orders_per_slot
     ]
-
 
 def _delivery_schedule_error(date_value, time_value):
     from datetime import date as date_type, datetime
@@ -282,7 +283,6 @@ def delivery_slots(request):
         "time_zone": settings.TIME_ZONE,
     })
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order(request):
@@ -469,6 +469,67 @@ def profile_view(request):
             request.user.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# CHANGE PASSWORD
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password_view(request):
+    current_password = request.data.get("current_password", "")
+    new_password = request.data.get("new_password", "")
+    confirm_password = request.data.get("confirm_password", "")
+
+    # Check that all fields are provided.
+    if not current_password or not new_password or not confirm_password:
+        return Response(
+            {"detail": "Please complete all password fields."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Verify the customer's current password.
+    if not check_password(current_password, request.user.password):
+        return Response(
+            {"current_password": ["Your current password is incorrect."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Confirm that both new-password fields match.
+    if new_password != confirm_password:
+        return Response(
+            {"confirm_password": ["The new passwords do not match."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Require at least 8 characters.
+    if len(new_password) < 8:
+        return Response(
+            {"new_password": ["Your new password must contain at least 8 characters."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Prevent reusing the current password.
+    if check_password(new_password, request.user.password):
+        return Response(
+            {"new_password": ["Your new password must be different from your current password."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Apply Django's configured password validators.
+    try:
+        validate_password(new_password, user=request.user)
+    except ValidationError as exc:
+        return Response(
+            {"new_password": list(exc.messages)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Save securely using Django's password-hashing mechanism.
+    request.user.set_password(new_password)
+    request.user.save(update_fields=["password"])
+
+    return Response(
+        {"detail": "Your password has been changed successfully."},
+        status=status.HTTP_200_OK,
+    )
 
 # CAKE CUSTOMIZATION → Add Custom Cake to Cart
 @api_view(['POST'])

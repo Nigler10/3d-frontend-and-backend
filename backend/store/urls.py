@@ -13,6 +13,7 @@ urlpatterns = [
     path('token/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_obtain_refresh'),
     path('profile/', views.profile_view, name='profile'),
+    path( "change-password/", views.change_password_view, name="change_password"),
 
     path('products/', views.get_products, name='product_list'),
     path('products/<int:pk>/', views.get_product),
@@ -50,6 +51,5 @@ urlpatterns = [
     path("orders/<int:order_id>/add-upload-samples/", views.add_uploaded_cake_samples),
     path("orders/<int:order_id>/update-upload-order/", views.update_uploaded_order),
     path("orders/<int:order_id>/uploaded-cake/samples/", views.add_uploaded_cake_samples, name="add_uploaded_cake_samples"),
-    path("orders/<int:order_id>/uploaded-cake/samples/<int:upload_id>/", views.remove_uploaded_cake_sample, name="remove_uploaded_cake_sample"),
-    
+    path("orders/<int:order_id>/uploaded-cake/samples/<int:upload_id>/", views.remove_uploaded_cake_sample, name="remove_uploaded_cake_sample"),  
 ]

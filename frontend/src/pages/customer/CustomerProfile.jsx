@@ -3,11 +3,13 @@ import { getMediaUrl } from "../../utils/media";
 import { useEffect, useState } from "react";
 import { authFetch } from "../../utils/auth";
 import { Link } from "react-router-dom";
+import ChangePasswordModal from "../../components/customer/ChangePasswordModal";
 
 function CustomerProfile() {
     const [profile, setProfile] = useState(null);
     const [msg, setMsg] = useState("");
     const BASE = import.meta.env.VITE_DJANGO_BASE_URL;
+    const [showChangePassword, setShowChangePassword] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -120,6 +122,14 @@ function CustomerProfile() {
                     >
                         Edit Profile Settings
                     </Link>
+                    <button
+                        type="button"
+                        onClick={() => setShowChangePassword(true)}
+                        className="w-full py-3 bg-white hover:bg-[#FCF8EE] border border-[#E6CCA2] text-[#6E473B] text-sm font-bold rounded-xl transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+                    >
+                        <span>🔒</span>
+                        Change Password
+                    </button>
                     {msg && (
                         <p className="text-center text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-lg">
                             {msg}
@@ -127,6 +137,11 @@ function CustomerProfile() {
                     )}
                 </div>
             </div>
+            {showChangePassword && (
+                <ChangePasswordModal
+                    onClose={() => setShowChangePassword(false)}
+                />
+            )}
         </div>
     );
 }
