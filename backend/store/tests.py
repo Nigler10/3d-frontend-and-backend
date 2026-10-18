@@ -269,6 +269,35 @@ class CustomCakePricingTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(CakeCustomization.objects.get().price, Decimal("1000.00"))
 
+    def test_chocolate_quantity_and_individual_positions_survive_cart_save(self):
+        self.client.force_authenticate(user=self.customer)
+        for size, price in [("small", "100.00"), ("medium", "175.00"), ("large", "250.00")]:
+            AddonPricing.objects.update_or_create(
+                key=f"chocolate_{size}",
+                defaults={"name": f"Chocolate ({size})", "price": Decimal(price)},
+            )
+        chocolates = [
+            {"x": 25, "y": 35, "size": "small", "position": [-0.5, 2.4, -0.3]},
+            {"x": 65, "y": 35, "size": "medium", "position": [0.3, 2.4, -0.3]},
+            {"x": 50, "y": 70, "size": "large", "position": [0, 2.4, 0.4]},
+        ]
+        response = self.client.post(
+            "/api/cake-customization/",
+            self.custom_cake_payload(
+                has_chocolate=True, has_candle=False, has_balls=False,
+                topping_layout={"chocolate": chocolates},
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(CakeCustomization.objects.get().topping_layout["chocolate"], chocolates)
+        self.assertEqual(CartItem.objects.get().customization["topping_layout"]["chocolate"], chocolates)
+        expected_addons = sum(
+            AddonPricing.objects.get(key=f"chocolate_{layout['size']}").price
+            for layout in chocolates
+        )
+        self.assertEqual(CakeCustomization.objects.get().price, self.base_price.price + expected_addons)
+
     def test_missing_base_price_returns_400(self):
         self.client.force_authenticate(user=self.customer)
 

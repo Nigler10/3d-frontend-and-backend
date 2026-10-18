@@ -1,6 +1,7 @@
 // src/contexts/Customization.jsx
 import { createContext, useContext, useEffect, useState } from "react";
 import { normalizeCakeMessage } from "../utils/cakeMessage";
+import { DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts } from "../utils/chocolateQuantity";
 
 const cakeColors = [
     { color: "#683434", name: "brown" },
@@ -73,7 +74,7 @@ export const TOPPING_SIZES = {
 
 const DEFAULT_TOPPING_LAYOUT = {
     candle: { x: 50, y: 50, size: "medium", mode: "gold", color: "gold" },
-    chocolate: { x: 50, y: 50, size: "medium" },
+    chocolate: DEFAULT_CHOCOLATE_LAYOUT,
     balls: { x: 50, y: 50, size: "medium" },
     nuts: { x: 50, y: 50, size: "medium" },
     cherry: { x: 60, y: 40, size: "medium" },
@@ -137,7 +138,7 @@ const hydrateToppingLayout = (initialState) => {
             key,
             {
                 ...defaultLayout,
-                ...(savedLayout[key] || {}),
+                ...(key === "chocolate" && Array.isArray(savedLayout[key]) ? savedLayout[key][0] : (savedLayout[key] || {})),
             },
         ])
     );
@@ -223,6 +224,9 @@ export const CustomizationProvider = (props) => {
         () => normalizeCandleColor(initialState?.topping_layout?.candle?.color)
     );
     const [chocolate, setChocolate] = useState(!!initialState?.has_chocolate);
+    const [chocolateLayouts, setChocolateLayouts] = useState(
+        () => hydrateChocolateLayouts(initialState?.topping_layout?.chocolate)
+    );
     const [balls, setBalls] = useState(!!initialState?.has_balls);
     const [nuts, setNuts] = useState(!!initialState?.has_nuts);
     const [cherry, setCherry] = useState(!!initialState?.has_cherry);
@@ -288,6 +292,13 @@ export const CustomizationProvider = (props) => {
 
     const setToppingPosition = (key, x, y, position) => {
         const coordinates = position ? { position: [...position] } : {};
+        if (key.startsWith("chocolate-")) {
+            const index = Number(key.slice("chocolate-".length));
+            setChocolateLayouts((prev) => prev.map((layout, layoutIndex) => (
+                layoutIndex === index ? { ...layout, x, y, ...coordinates } : layout
+            )));
+            return;
+        }
         if (key.startsWith("cherry-")) {
             const index = Number.parseInt(key.slice("cherry-".length), 10);
             if (Number.isNaN(index)) return;
@@ -311,6 +322,15 @@ export const CustomizationProvider = (props) => {
         if (rejected.has("balls")) setBalls(false);
         if (rejected.has("nuts")) setNuts(false);
 
+        const chocolateIndexes = new Set(keys.filter((key) => key.startsWith("chocolate-")).map((key) => Number(key.slice(10))));
+        if (chocolateIndexes.size) {
+            if (chocolateLayouts.every((_, index) => chocolateIndexes.has(index))) setChocolate(false);
+            setChocolateLayouts((prev) => {
+                const remaining = prev.filter((_, index) => !chocolateIndexes.has(index));
+                return remaining.length ? remaining : [{ ...DEFAULT_CHOCOLATE_LAYOUT }];
+            });
+        }
+
         const cherryIndexes = new Set(keys.filter((key) => key.startsWith("cherry-")).map((key) => Number(key.slice(7))));
         if (cherryIndexes.size) {
             if (cherryLayouts.every((_, index) => cherryIndexes.has(index))) setCherry(false);
@@ -322,6 +342,13 @@ export const CustomizationProvider = (props) => {
     };
 
     const setToppingSize = (key, size) => {
+        if (key.startsWith("chocolate-")) {
+            const index = Number(key.slice("chocolate-".length));
+            setChocolateLayouts((prev) => prev.map((layout, layoutIndex) => (
+                layoutIndex === index ? { ...layout, size } : layout
+            )));
+            return;
+        }
         if (key.startsWith("cherry-")) {
             const index = Number.parseInt(key.slice("cherry-".length), 10);
             if (Number.isNaN(index)) return;
@@ -336,6 +363,11 @@ export const CustomizationProvider = (props) => {
             ...prev,
             [key]: { ...prev[key], size },
         }));
+    };
+
+    const setChocolateCount = (count) => {
+        setChocolate(true);
+        setChocolateLayouts((prev) => resizeChocolateLayouts(prev, count));
     };
 
     const setCherryCount = (count) => {
@@ -483,11 +515,12 @@ export const CustomizationProvider = (props) => {
             addonsPrice += getAddonPrice(candleKey);
         }
 
-        // Chocolate pricing: small, medium, large
+        // Chocolate pricing: per piece, based on size.
         if (chocolate) {
-            const chocSize = (toppingLayout.chocolate?.size || "medium").toLowerCase();
-            const key = `chocolate_${chocSize}`;
-            addonsPrice += getAddonPrice(key);
+            chocolateLayouts.forEach((layout) => {
+                const chocSize = (layout.size || "medium").toLowerCase();
+                addonsPrice += getAddonPrice(`chocolate_${chocSize}`);
+            });
         }
 
         // Balls pricing: small, medium, large
@@ -552,6 +585,7 @@ export const CustomizationProvider = (props) => {
 
         setCandle(false);
         setChocolate(false);
+        setChocolateLayouts([{ ...DEFAULT_CHOCOLATE_LAYOUT }]);
         setBalls(false);
         setNuts(false);
         setCherry(false);
@@ -616,6 +650,9 @@ export const CustomizationProvider = (props) => {
                 setCandleNumber,
                 chocolate,
                 setChocolate,
+                chocolateLayouts,
+                chocolateCount: chocolateLayouts.length,
+                setChocolateCount,
                 balls,
                 setBalls,
                 nuts,

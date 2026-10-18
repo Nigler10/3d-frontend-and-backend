@@ -549,6 +549,11 @@ def add_custom_cake_to_cart(request):
                 flavor=data.get("flavor"),
                 has_candle=data.get("has_candle", False),
                 has_chocolate=data.get("has_chocolate", False),
+                chocolate_sizes=(
+                    [layout.get("size", "medium") for layout in (data.get("topping_layout") or {}).get("chocolate", [])[:3]]
+                    if isinstance((data.get("topping_layout") or {}).get("chocolate"), list)
+                    else None
+                ),
                 has_balls=data.get("has_balls", False),
                 has_nuts=data.get("has_nuts", False),
                 has_cherry=data.get("has_cherry", False),

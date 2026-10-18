@@ -60,7 +60,7 @@ export function ToppingDragIndicator() {
             data-topping-drag-indicator="true"
             style={{ position: "fixed", left: 0, top: 0, transform: `translate3d(${x - 48}px, ${y - 48}px, 0)`, pointerEvents: "none", zIndex: 9999, filter: "drop-shadow(0 2px 4px #0008)" }}
         >
-            <HandGrab color="#b85a1a" size={50} strokeWidth={2.75} />
+            <HandGrab color="#DDD8C6" size={40} strokeWidth={2.25} />
         </div>
     );
 }

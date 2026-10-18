@@ -170,7 +170,7 @@ def get_default_custom_cake_price(*, shape="round", tier, size, flavor):
         raise CustomCakePricing.DoesNotExist
 
 def calculate_custom_cake_price(*, shape="round", tier, size, flavor, has_candle=False, candle_mode="gold",
-                                has_chocolate=False, chocolate_size="medium",
+                                has_chocolate=False, chocolate_size="medium", chocolate_sizes=None,
                                 has_balls=False, balls_size="medium",
                                 has_nuts=False,
                                 has_cherry=False, cherry_size="medium", cherry_count=1,
@@ -194,7 +194,10 @@ def calculate_custom_cake_price(*, shape="round", tier, size, flavor, has_candle
     if has_candle:
         selected_addons.append("candle_number" if candle_mode == "number" else "candle_single")
     if has_chocolate:
-        selected_addons.append(f"chocolate_{chocolate_size}")
+        selected_addons.extend(
+            f"chocolate_{piece_size}"
+            for piece_size in (chocolate_sizes or [chocolate_size])[:3]
+        )
     if has_balls:
         selected_addons.append(f"balls_{balls_size}")
     if has_nuts:

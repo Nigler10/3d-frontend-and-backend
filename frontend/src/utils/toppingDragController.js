@@ -164,7 +164,9 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             if (!entry.position) return false;
             const layout = controller.toLayout(entry.position);
             const current = getCurrent().state;
-            const saved = entry.id.startsWith("cherry-") ? current.cherryLayouts[Number(entry.id.slice(7))] : current.toppingLayout[entry.id];
+            const saved = entry.id.startsWith("chocolate-")
+                ? current.chocolateLayouts[Number(entry.id.slice(10))]
+                : entry.id.startsWith("cherry-") ? current.cherryLayouts[Number(entry.id.slice(7))] : current.toppingLayout[entry.id];
             entries = new Map(entries).set(entry.id, { ...entry, layout: { ...entry.layout, ...layout } });
             if (saved && (Math.abs(saved.x - layout.x) > 0.0001 || Math.abs(saved.y - layout.y) > 0.0001 ||
                 !saved.position || saved.position.some((value, index) => Math.abs(value - layout.position[index]) > 0.00001))) {
