@@ -3,29 +3,25 @@ import { useMemo, useCallback } from "react";
 import * as THREE from "three";
 import { Text as ThreeText } from "three-text/mesh/react";
 import { TEXT_FONT_OPTIONS } from "../contexts/Customization";
+import { normalizeCakeMessage } from "../utils/cakeMessage";
 
 ThreeText.setHarfBuzzPath("/hb/hb.wasm");
 
 const TEXT_LAYOUT_BY_TIER = [
-    { y: 2.35, width: 1.55, size: 0.22, z: 0.22 },
-    { y: 1.80, width: 1.28, size: 0.18, z: 0.18 },
-    { y: 2.30, width: 1.05, size: 0.16, z: 0.12 },
-    { y: 2.75, width: 0.86, size: 0.13, z: 0.10 },
+    { y: 2.35, radius: 1, size: 0.22, z: 0.22 },
+    { y: 1.80, radius: 0.72, size: 0.18, z: 0.18 },
+    { y: 2.30, radius: 0.52, size: 0.16, z: 0.12 },
+    { y: 2.75, radius: 0.40, size: 0.13, z: 0.10 },
 ];
 
 const FONT_PATHS = Object.fromEntries(
     TEXT_FONT_OPTIONS.map((fontOption) => [fontOption.value, fontOption.path])
 );
 
-const cleanInscription = (text) =>
-    text
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 48);
-
 export function CakeInscription({ selectedTierIndex, text = "", font = "classic", color = "#EF4444", topY }) {
-    const safeText = cleanInscription(text);
+    const safeText = normalizeCakeMessage(text);
     const layout = TEXT_LAYOUT_BY_TIER[selectedTierIndex] ?? TEXT_LAYOUT_BY_TIER[0];
+    const maxWidth = layout.radius * 2 * 0.8;
     const fontPath = FONT_PATHS[font] ?? TEXT_FONT_OPTIONS[0].path;
 
     const material = useMemo(
@@ -41,11 +37,23 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
         [color]
     );
 
-    const centerGeometry = useCallback((geometry) => {
-        geometry.computeBoundingBox();
+    const fitGeometry = useCallback((geometry) => {
         geometry.center();
         geometry.computeBoundingBox();
-    }, []);
+        const bounds = geometry.boundingBox.getSize(new THREE.Vector3());
+
+        // Fit the entire text footprint, including long words and extra lines,
+        // inside the top tier with room for its offset and an icing margin.
+        const availableRadius = layout.radius * 0.9 - Math.abs(layout.z);
+        const footprintDiameter = Math.hypot(bounds.x, bounds.y);
+        const scale = Math.min(1, (availableRadius * 2) / footprintDiameter);
+
+        if (scale < 1) {
+            geometry.scale(scale, scale, 1);
+            geometry.computeBoundingBox();
+        }
+        geometry.computeBoundingSphere();
+    }, [layout.radius, layout.z]);
 
     if (!safeText) return null;
 
@@ -58,14 +66,14 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
             letterSpacing={0.01}
             removeOverlaps
             layout={{
-                width: layout.width,
+                width: maxWidth,
                 align: "center",
                 respectExistingBreaks: true,
             }}
             material={material}
             position={[0, topY ?? layout.y, layout.z]}
             rotation={[-Math.PI / 2, 0, 0]}
-            onLoad={centerGeometry}
+            onLoad={fitGeometry}
             onError={(error) => console.error("Cake inscription failed:", error)}
         >
             {safeText}

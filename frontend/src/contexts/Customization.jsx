@@ -1,5 +1,6 @@
 // src/contexts/Customization.jsx
 import { createContext, useContext, useEffect, useState } from "react";
+import { normalizeCakeMessage } from "../utils/cakeMessage";
 
 const cakeColors = [
     { color: "#683434", name: "brown" },
@@ -266,7 +267,7 @@ export const CustomizationProvider = (props) => {
     const [tierFlavorLabels] = useState(["Bottom Tier", "Middle Tier", "Top Tier", "Peak Tier"]);
     // LANDMARK: inscription + font hydrate fix
     const [inscriptionText, setInscriptionText] = useState(
-        () => initialState?.inscription_text || ""
+        () => normalizeCakeMessage(initialState?.inscription_text)
     );
 
     const [textFont, setTextFont] = useState(

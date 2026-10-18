@@ -10,6 +10,7 @@ import { useCart } from "../context/CartContext";
 import CakeInscription from "../components/CakeInscription";
 import CakeCompass from "../components/CakeCompass";
 import CakePreviewCapture from "../components/CakePreviewCapture";
+import { MAX_CAKE_MESSAGE_LENGTH, normalizeCakeMessage } from "../utils/cakeMessage";
 import { DraggableCakeTopping, ToppingDragIndicator, ToppingDragProvider, useToppingDragMarker, useToppingDragPlacement, useToppingDragStore } from "../components/ToppingDragControls";
 import {
     Cake,
@@ -1592,7 +1593,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
             tier: selectedTier.tier,
             size: selectedSize,
             tier_flavors: tierFlavorPayload,
-            inscription_text: inscriptionText.trim(),
+            inscription_text: normalizeCakeMessage(inscriptionText),
             text_font: textFont,
             inscription_color: inscriptionColor,
             has_candle: candle,
@@ -1627,7 +1628,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         } else {
             setOrderStatus("error");
             setErrorMessage(
-                result.error?.error || result.error?.message || "Failed to add cake to cart. Please try again."
+                result.error?.inscription_text?.[0] || result.error?.error || result.error?.message || "Failed to add cake to cart. Please try again."
             );
             setTimeout(() => setOrderStatus(null), 3000);
         }
@@ -1842,9 +1843,9 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                     <input
                         className="w-full px-4 py-2.5 text-sm rounded-xl bg-white border border-[#E6CCA2] text-[#6E473B] placeholder-[#CBB294] focus:outline-none focus:border-[#C05A11] focus:ring-1 focus:ring-[#C05A11]/30 transition-all"
                         value={inscriptionText}
-                        maxLength={48}
+                        maxLength={MAX_CAKE_MESSAGE_LENGTH}
                         placeholder="Add text on top"
-                        onChange={(event) => setInscriptionText(event.target.value)}
+                        onChange={(event) => setInscriptionText(event.target.value.slice(0, MAX_CAKE_MESSAGE_LENGTH))}
                     />
                     <div className="relative w-full">
                         <select
