@@ -20,6 +20,14 @@ function Signup() {
     const [msg, setMsg] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const nav = useNavigate();
+    const [showPasswordHints, setShowPasswordHints] = useState(false);
+    const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
+    const passwordValid = form.password.length >= 8;
+
+    const passwordsMatch =
+        form.password2.length > 0 &&
+        form.password === form.password2;
 
     useEffect(() => {
         if (step !== 2 || (otpTimer <= 0 && resendTimer <= 0)) return;
@@ -105,6 +113,16 @@ function Signup() {
 
         if (step !== 3) return;
 
+        if (form.password.length < 8) {
+            setMsg("Password must contain at least 8 characters.");
+            return;
+        }
+
+        if (form.password !== form.password2) {
+            setMsg("Passwords do not match.");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -183,14 +201,84 @@ function Signup() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-[#6E473B] tracking-wide uppercase">Password</label>
-                        <input name="password" type="password" onChange={handleChange} value={form.password} placeholder="••••••••" disabled={isLoading} required className="w-full px-4 py-2.5 bg-[#FCF8EE]/50 border border-[#E6CCA2] rounded-xl text-sm text-[#6E473B] placeholder-[#CBB294] outline-none focus:border-[#C05A11] focus:bg-white transition-all disabled:opacity-60" />
+
+                    <div className="flex flex-col gap-1.5 relative">
+                        <label className="text-xs font-bold text-[#6E473B] tracking-wide uppercase">
+                            Password
+                        </label>
+
+                        <input name="password" type="password" onChange={handleChange} onFocus={() => setShowPasswordHints(true)} onBlur={() => setShowPasswordHints(false)} value={form.password} placeholder="••••••••" disabled={isLoading} required minLength={8} aria-describedby="password-hints" className={`w-full px-4 py-2.5 bg-[#FCF8EE]/50 border rounded-xl text-sm text-[#6E473B] placeholder-[#CBB294] outline-none focus:bg-white transition-all disabled:opacity-60 ${form.password.length > 0 && !passwordValid ? "border-rose-400 focus:border-rose-500" : "border-[#E6CCA2] focus:border-[#C05A11]"}`} />
+
+                        {showPasswordHints && (
+                            <div
+                                id="password-hints"
+                                className="mt-1 p-3 rounded-xl border border-[#E6CCA2] bg-[#FFFCF5] shadow-sm"
+                            >
+                                <p className="text-xs font-bold text-[#6E473B] mb-2">
+                                    Password requirements
+                                </p>
+
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className={passwordValid ? "text-emerald-600" : "text-[#A07060]"}>
+                                        {passwordValid ? "✓" : "○"}
+                                    </span>
+
+                                    <span className={passwordValid ? "text-emerald-700" : "text-[#A07060]"}>
+                                        At least 8 characters
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {form.password.length > 0 && !passwordValid && (
+                            <p className="text-xs text-rose-600">
+                                Password must contain at least 8 characters.
+                            </p>
+                        )}
                     </div>
 
+
+
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-[#6E473B] tracking-wide uppercase">Confirm Password</label>
-                        <input name="password2" type="password" onChange={handleChange} value={form.password2} placeholder="••••••••" disabled={isLoading} required className="w-full px-4 py-2.5 bg-[#FCF8EE]/50 border border-[#E6CCA2] rounded-xl text-sm text-[#6E473B] placeholder-[#CBB294] outline-none focus:border-[#C05A11] focus:bg-white transition-all disabled:opacity-60" />
+                        <label className="text-xs font-bold text-[#6E473B] tracking-wide uppercase">
+                            Confirm Password
+                        </label>
+
+                        <input
+                            name="password2"
+                            type="password"
+                            onChange={(e) => {
+                                handleChange(e);
+                                setConfirmPasswordTouched(true);
+                            }}
+                            onBlur={() => setConfirmPasswordTouched(true)}
+                            value={form.password2}
+                            placeholder="••••••••"
+                            disabled={isLoading}
+                            required
+                            minLength={8}
+                            aria-describedby="confirm-password-message"
+                            className={`w-full px-4 py-2.5 bg-[#FCF8EE]/50 border rounded-xl text-sm text-[#6E473B] placeholder-[#CBB294] outline-none focus:bg-white transition-all disabled:opacity-60 ${confirmPasswordTouched && form.password2.length > 0
+                                ? passwordsMatch
+                                    ? "border-emerald-400 focus:border-emerald-500"
+                                    : "border-rose-400 focus:border-rose-500"
+                                : "border-[#E6CCA2] focus:border-[#C05A11]"
+                                }`}
+                        />
+
+                        <div id="confirm-password-message" aria-live="polite">
+                            {confirmPasswordTouched && form.password2.length > 0 && (
+                                passwordsMatch ? (
+                                    <p className="text-xs text-emerald-600">
+                                        ✓ Passwords match.
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-rose-600">
+                                        ✕ Passwords do not match.
+                                    </p>
+                                )
+                            )}
+                        </div>
                     </div>
 
                     {step === 1 && (
@@ -226,7 +314,7 @@ function Signup() {
                             <button type="button" onClick={verifyOtp} disabled={isLoading || otp.length !== 6 || otpTimer === 0} className="w-full py-3 bg-[#A05A2C] hover:bg-[#864A22] text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-[0.99] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                 {isLoading ? "Verifying..." : "Verify OTP"}
                             </button>
-                            
+
                             <button type="button" onClick={sendOtp} disabled={isLoading || resendTimer > 0} className="w-full py-2.5 bg-white hover:bg-[#FCF8EE] text-[#A05A2C] border border-[#E6CCA2] text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                 {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
                             </button>
