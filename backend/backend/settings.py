@@ -156,6 +156,26 @@ ASGI_APPLICATION = "backend.asgi.application"
 
 REDIS_URL = os.getenv("REDIS_URL")
 
+import logging
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+if REDIS_URL:
+    parsed_redis_url = urlparse(REDIS_URL)
+
+    logger.info(
+        "Chat channel layer: Redis configured; "
+        "scheme=%s, host=%s, port=%s",
+        parsed_redis_url.scheme,
+        parsed_redis_url.hostname,
+        parsed_redis_url.port,
+    )
+else:
+    logger.warning(
+        "Chat channel layer: InMemoryChannelLayer selected"
+    )
+
 if REDIS_URL:
     CHANNEL_LAYERS = {
         "default": {

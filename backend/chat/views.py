@@ -68,12 +68,21 @@ def send_message(request, order_id):
         message = ChatService.create_message(
             conversation=conversation,
             sender=request.user,
-            sender_type="admin" if request.user.is_staff else "customer",
+            sender_type=(
+                "admin"
+                if request.user.is_staff or request.user.is_superuser
+                else "customer"
+            ),
             content=serializer.validated_data.get("content", ""),
             attachment=serializer.validated_data.get("attachment"),
         )
 
-        return Response(MessageSerializer(message).data)
+        ChatService.broadcast_message(message)
+
+        return Response(
+            MessageSerializer(message).data,
+            status=201,
+        )
 
     return Response(
         serializer.errors,

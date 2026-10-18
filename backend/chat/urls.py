@@ -1,5 +1,6 @@
 # chat/urls.py
 from django.urls import path
+from .diagnostics import redis_health
 from . import views
 
 urlpatterns = [
@@ -10,4 +11,6 @@ urlpatterns = [
     path("orders/<int:order_id>/send/", views.send_message),
 
     path("orders/<int:order_id>/read/", views.mark_messages_read),
+    
+    path("diagnostics/redis/", redis_health),
 ]
