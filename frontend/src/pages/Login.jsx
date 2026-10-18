@@ -1,3 +1,4 @@
+// src/pages/Login.jsx
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
@@ -110,6 +111,15 @@ function Login() {
                         />
                     </div>
 
+                    <div className="flex justify-end -mt-1">
+                        <Link
+                            to="/forgot-password"
+                            className="text-xs font-bold text-[#C05A11] hover:underline"
+                        >
+                            Forgot Password?
+                        </Link>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={isLoading}
@@ -122,8 +132,8 @@ function Login() {
                 {/* Alert Message Popup box */}
                 {msg && (
                     <div className={`p-3.5 rounded-xl border text-xs font-medium text-center shadow-inner animate-fadeIn flex items-center justify-center gap-1.5 ${isSuccess
-                            ? 'bg-[#2E7D32]/10 border-[#2E7D32]/20 text-[#2E7D32]'
-                            : 'bg-red-50 border-red-100 text-red-600'
+                        ? 'bg-[#2E7D32]/10 border-[#2E7D32]/20 text-[#2E7D32]'
+                        : 'bg-red-50 border-red-100 text-red-600'
                         }`}>
                         {isSuccess ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-red-600" />}
                         {msg}

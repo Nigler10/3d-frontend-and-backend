@@ -73,3 +73,41 @@ class SMSVerification(models.Model):
 
     def __str__(self):
         return f"{self.phone} - {self.created_at}"
+    
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_otps",
+    )
+
+    # Store hashes instead of the actual OTP or reset token.
+    code_hash = models.CharField(max_length=128)
+    reset_token_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+    )
+
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    def is_expired(self):
+        return timezone.now() > (
+            self.created_at + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        )
+
+    def is_reset_token_expired(self):
+        if not self.verified_at:
+            return True
+
+        return timezone.now() > (
+            self.verified_at
+            + timedelta(minutes=VERIFICATION_VALID_MINUTES)
+        )
+
+    def __str__(self):
+        return f"Password reset for {self.user.username}"
