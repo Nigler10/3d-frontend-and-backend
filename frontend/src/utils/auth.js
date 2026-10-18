@@ -144,12 +144,29 @@ export const refreshAccessToken = async () => {
     }
 };
 
-export const authFetch = async (
-    url,
-    options = {}
-) => {
-    // Prevent API calls from refreshing a session
-    // that already expired due to inactivity.
+const shouldRefreshToken = async (response) => {
+    // Standard authentication failure.
+    if (response.status === 401) {
+        return true;
+    }
+
+    // Some authentication failures arrive as 403.
+    if (response.status === 403) {
+        try {
+            const data = await response.clone().json();
+            return data?.code === "token_not_valid";
+        } catch {
+            return false;
+        }
+    }
+
+    // Do not refresh for ordinary permission errors.
+    return false;
+};
+
+
+export const authFetch = async (url, options = {}) => {
+    // Do not revive a session that exceeded the inactivity limit.
     if (hasSessionTimedOut()) {
         clearTokens();
 
@@ -166,65 +183,71 @@ export const authFetch = async (
         );
     }
 
-    let token = getAccessToken();
-
-    const buildHeaders = (tkn) => {
+    const buildHeaders = (token) => {
         const headers = {
             ...(options.headers || {}),
         };
 
-        if (tkn) {
-            headers["Authorization"] =
-                `Bearer ${tkn}`;
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        } else {
+            delete headers.Authorization;
         }
 
         if (!(options.body instanceof FormData)) {
-            headers["Content-Type"] =
-                "application/json";
+            headers["Content-Type"] = "application/json";
         }
 
         return headers;
     };
 
-    let res = await fetch(url, {
-        ...options,
-        headers: buildHeaders(token),
-    });
+    const sendRequest = (token) =>
+        fetch(url, {
+            ...options,
+            headers: buildHeaders(token),
+        });
 
-    if (res.status === 401) {
+    let token = getAccessToken();
+    let res = await sendRequest(token);
+
+    // Refresh only for authentication failures, including
+    // token_not_valid responses returned with HTTP 403.
+    if (await shouldRefreshToken(res)) {
         if (isRefreshing) {
+            // Wait for the refresh already in progress.
             return new Promise((resolve) => {
-                refreshQueue.push(
-                    async (newToken) => {
-                        resolve(
-                            await fetch(url, {
-                                ...options,
-                                headers:
-                                    buildHeaders(
-                                        newToken
-                                    ),
-                            })
-                        );
+                refreshQueue.push(async (newToken) => {
+                    if (!newToken) {
+                        resolve(res);
+                        return;
                     }
-                );
+
+                    try {
+                        resolve(await sendRequest(newToken));
+                    } catch {
+                        resolve(res);
+                    }
+                });
             });
         }
 
         isRefreshing = true;
 
-        const newToken =
-            await refreshAccessToken();
+        let newToken = null;
 
-        isRefreshing = false;
+        try {
+            newToken = await refreshAccessToken();
+        } catch (err) {
+            console.error("Unable to refresh access token:", err);
+        } finally {
+            // Release requests that were waiting for this refresh.
+            notifyQueue(newToken);
+            isRefreshing = false;
+        }
 
         if (newToken) {
-            notifyQueue(newToken);
-
-            res = await fetch(url, {
-                ...options,
-                headers:
-                    buildHeaders(newToken),
-            });
+            // Retry the original request with the new access token.
+            res = await sendRequest(newToken);
         }
     }
 

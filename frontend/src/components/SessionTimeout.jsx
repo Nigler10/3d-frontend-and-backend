@@ -45,12 +45,6 @@ export default function SessionTimeout() {
                 return;
             }
 
-            // Very important:
-            // check expiration BEFORE recording activity.
-            //
-            // Otherwise reopening the browser after
-            // several hours could accidentally revive
-            // the old session.
             if (logoutIfExpired()) {
                 return;
             }
