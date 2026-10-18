@@ -6,9 +6,6 @@ import { getCheckoutSelection } from "../utils/checkoutSelection.js";
 import AddressSelector from "../components/address/AddressSelector";
 import { MapPin, Phone, Clock, FileText, ChevronDown } from "lucide-react";
 
-/**
- * Format a 24-hour "HH:MM" string into a 12-hour display like "01:00 PM".
- */
 function formatSlotLabel(slot24) {
     const [h, m] = slot24.split(":").map(Number);
     const period = h >= 12 ? "PM" : "AM";
@@ -86,8 +83,24 @@ function CheckoutPage() {
     const [bookingBufferMinutes, setBookingBufferMinutes] = useState(30);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const [deliveryFeeAcknowledged, setDeliveryFeeAcknowledged] = useState(false);
 
     const todayISO = getLocalDateISO();
+    const selectedAddress = useProfileAddress
+        ? profileAddress
+        : customAddress;
+
+    const isCheckoutValid =
+        !!selectedAddress.street?.trim() &&
+        !!selectedAddress.region_code &&
+        !!selectedAddress.city_code &&
+        !!selectedAddress.barangay_code &&
+        /^\d{4}$/.test(selectedAddress.postal_code || "") &&
+        !!deliveryDate &&
+        deliveryDate >= todayISO &&
+        !!deliveryTime &&
+        deliveryFeeAcknowledged &&
+        !loading;
 
     useEffect(() => {
         async function fetchProfile() {
@@ -575,15 +588,63 @@ function CheckoutPage() {
                         />
                     </section>
 
-                    {/* Form Submit Button */}
-                    <div className="pt-4">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-[#d67b27] hover:bg-[#b56219] disabled:bg-stone-300 text-white font-black py-4 px-6 rounded-full transition-colors duration-200 text-sm uppercase tracking-wider shadow-sm text-center cursor-pointer disabled:cursor-not-allowed"
-                        >
-                            {loading ? "Sending Order..." : "Confirm & Place Order"}
-                        </button>
+
+                    {/* Delivery Fee Notice & Acknowledgment */}
+                    <section className="rounded-2xl border border-[#E6CCA2] bg-[#FCF8EE] p-4 space-y-3">
+                        <div>
+                            <h3 className="font-bold text-[#844414] text-sm">
+                                Important: Delivery Fee
+                            </h3>
+                            <p className="text-sm text-stone-600 mt-1 leading-relaxed">
+                                The delivery fee is not included in your order total.
+                                It will depend on your delivery location and will be
+                                discussed with you by the baker through chat.
+                                Please confirm that you understand before placing your order.
+                            </p>
+                        </div>
+
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={deliveryFeeAcknowledged}
+                                onChange={(e) => setDeliveryFeeAcknowledged(e.target.checked)}
+                                className="mt-1 h-4 w-4 shrink-0 accent-[#d67b27] cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-[#6E473B]">
+                                I understand that the delivery fee is separate from my
+                                order total and will be discussed with the baker through chat.
+                            </span>
+                        </label>
+                    </section>
+
+                    {/* Form Submit Buttons */}
+                    <div className="pt-4 space-y-3">
+                        <div className="flex flex-col-reverse sm:flex-row gap-3">
+                            {/* Cancel Button */}
+                            <button
+                                type="button"
+                                onClick={() => navigate("/cart")}
+                                disabled={loading}
+                                className="w-full sm:w-1/3 bg-white border border-stone-300 hover:bg-stone-100 disabled:opacity-50 text-stone-700 font-bold py-4 px-6 rounded-full transition-colors duration-200 text-sm uppercase tracking-wider text-center cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                Cancel
+                            </button>
+
+                            {/* Confirm & Place Order Button */}
+                            <button
+                                type="submit"
+                                disabled={!isCheckoutValid}
+                                className="w-full sm:flex-1 bg-[#d67b27] hover:bg-[#b56219] disabled:bg-stone-300 text-white font-black py-4 px-6 rounded-full transition-colors duration-200 text-sm uppercase tracking-wider shadow-sm text-center cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Sending Order..." : "Confirm & Place Order"}
+                            </button>
+                        </div>
+
+                        {!deliveryFeeAcknowledged && (
+                            <p className="text-xs text-center text-stone-500 mt-2">
+                                Please acknowledge the delivery fee notice to continue.
+                            </p>
+                        )}
                     </div>
 
                     {/* Status Feedback Message Handling */}
