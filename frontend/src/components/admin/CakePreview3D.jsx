@@ -1,9 +1,10 @@
 // src/components/admin/CakePreview3D.jsx
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
 import { CakeModel } from "../../pages/BuildBentoPage.jsx";
 import { CAKE_SIZES, CustomizationProvider } from "../../contexts/Customization";
+import { ToppingDragProvider } from "../ToppingDragControls";
 
 function PreviewLoadingFallback({ setIsReady }) {
     useEffect(() => {
@@ -14,7 +15,13 @@ function PreviewLoadingFallback({ setIsReady }) {
 }
 
 export default function CakePreview3D({ customization }) {
+    return <InteractiveCakePreview key={JSON.stringify(customization)} customization={customization} />;
+}
+
+function InteractiveCakePreview({ customization }) {
     const [isReady, setIsReady] = useState(false);
+    const cakeGroupRef = useRef(null);
+    const controlsRef = useRef(null);
 
     const tierIndex = CAKE_SIZES.findIndex(
         t => t.tier === customization?.tier
@@ -24,6 +31,7 @@ export default function CakePreview3D({ customization }) {
 
     return (
         <CustomizationProvider initialState={customization}>
+            <ToppingDragProvider>
             <div className="relative h-full w-full bg-[#FCF8EE]">
                 {!isReady && (
                     <div
@@ -52,20 +60,22 @@ export default function CakePreview3D({ customization }) {
                     />
 
                     <Suspense fallback={<PreviewLoadingFallback setIsReady={setIsReady} />}>
-                        <CakeModel selectedTierIndex={safeTierIndex} onReady={setIsReady} />
+                        <CakeModel selectedTierIndex={safeTierIndex} cakeGroupRef={cakeGroupRef} controlsRef={controlsRef} onReady={setIsReady} readOnlyToppings />
                         <Environment preset="city" />
                     </Suspense>
 
                     <OrbitControls
+                        ref={controlsRef}
                         enablePan={false}
                         minDistance={3}
                         maxDistance={12}
-                        minPolarAngle={Math.PI / 6}
-                        maxPolarAngle={Math.PI / 2}
+                        minPolarAngle={0}
+                        maxPolarAngle={Math.PI}
                         target={[0, 1.2, 0]}
                     />
                 </Canvas>
             </div>
+            </ToppingDragProvider>
         </CustomizationProvider>
     );
 }

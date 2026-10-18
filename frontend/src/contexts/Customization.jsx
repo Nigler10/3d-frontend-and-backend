@@ -285,21 +285,39 @@ export const CustomizationProvider = (props) => {
         : tierFlavorOverrides[tier.tierKey] ?? [];
     const pricingFlavor = selectedTierFlavors[0] ?? flavor;
 
-    const setToppingPosition = (key, x, y) => {
+    const setToppingPosition = (key, x, y, position) => {
+        const coordinates = position ? { position: [...position] } : {};
         if (key.startsWith("cherry-")) {
             const index = Number.parseInt(key.slice("cherry-".length), 10);
             if (Number.isNaN(index)) return;
 
             setCherryLayouts((prev) => prev.map((layout, layoutIndex) => (
-                layoutIndex === index ? { ...layout, x, y } : layout
+                layoutIndex === index ? { ...layout, x, y, ...coordinates } : layout
             )));
             return;
         }
 
         setToppingLayout((prev) => ({
             ...prev,
-            [key]: { ...prev[key], x, y },
+            [key]: { ...prev[key], x, y, ...coordinates },
         }));
+    };
+
+    const rejectToppingAdditions = (keys) => {
+        const rejected = new Set(keys);
+        if (rejected.has("candle")) setCandle(false);
+        if (rejected.has("chocolate")) setChocolate(false);
+        if (rejected.has("balls")) setBalls(false);
+        if (rejected.has("nuts")) setNuts(false);
+
+        const cherryIndexes = new Set(keys.filter((key) => key.startsWith("cherry-")).map((key) => Number(key.slice(7))));
+        if (cherryIndexes.size) {
+            if (cherryLayouts.every((_, index) => cherryIndexes.has(index))) setCherry(false);
+            setCherryLayouts((prev) => {
+                const remaining = prev.filter((_, index) => !cherryIndexes.has(index));
+                return remaining.length ? remaining : [{ ...DEFAULT_TOPPING_LAYOUT.cherry }];
+            });
+        }
     };
 
     const setToppingSize = (key, size) => {
@@ -616,6 +634,7 @@ export const CustomizationProvider = (props) => {
                 addonPrices,
                 toppingLayout,
                 setToppingPosition,
+                rejectToppingAdditions,
                 setToppingSize,
                 tierFlavors,
                 setTierLayerFlavor,

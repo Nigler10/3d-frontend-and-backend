@@ -317,43 +317,57 @@ def create_order(request):
         ):
             return Response({"error": "Missing required fields"}, status=400)
 
-        cart, created = Cart.objects.get_or_create(user=request.user)
+        selected_id = data.get("cart_item_id")
+        if "cart_item_id" in data:
+            if (isinstance(selected_id, bool) or not isinstance(selected_id, (int, str))
+                    or not str(selected_id).isascii() or not str(selected_id).isdigit()
+                    or len(str(selected_id)) > 19
+                    or int(selected_id) <= 0 or int(selected_id) > 9223372036854775807):
+                return Response({"error": "Invalid cake selection"}, status=400)
+            selected_id = int(selected_id)
 
-        if not cart.items.exists():
-            return Response({"error": "Cart is empty"}, status=400)
+        with transaction.atomic():
+            cart, _ = Cart.objects.select_for_update().get_or_create(user=request.user)
+            selected_items = cart.items.select_for_update()
+            if selected_id is not None:
+                selected_items = selected_items.filter(pk=selected_id)
+            items = list(selected_items)
+            if not items:
+                message = "The selected cake is no longer in your cart" if selected_id is not None else "Cart is empty"
+                return Response({"error": message}, status=400)
 
-        total = sum(item.subtotal for item in cart.items.all())
-        order = Order.objects.create(
-            user=request.user, 
-            full_name=full_name, 
-            phone=phone, 
-            **address,
-            delivery_date=delivery_date, 
-            delivery_time=delivery_time, 
-            order_notes=notes, 
-            total_amount=total, 
-            status="pending_review", 
-            payment_status="pending"
-        )
+            total = sum(item.subtotal for item in items)
+            order = Order.objects.create(
+                user=request.user,
+                full_name=full_name,
+                phone=phone,
+                **address,
+                delivery_date=delivery_date,
+                delivery_time=delivery_time,
+                order_notes=notes,
+                total_amount=total,
+                status="pending_review",
+                payment_status="pending"
+            )
 
-        for item in cart.items.all():
-            if item.product:
-                OrderItem.objects.create(
-                    order=order, 
-                    product=item.product, 
-                    quantity=item.quantity, 
-                    price=item.product.price
-                )
-            elif item.customization:
-                OrderItem.objects.create(
-                    order=order, 
-                    product=None, 
-                    quantity=item.quantity, 
-                    price=item.item_price,
-                    customization=item.customization
-                )
+            for item in items:
+                if item.product:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=item.product,
+                        quantity=item.quantity,
+                        price=item.product.price
+                    )
+                elif item.customization:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=None,
+                        quantity=item.quantity,
+                        price=item.item_price,
+                        customization=item.customization
+                    )
 
-        cart.items.all().delete()
+            cart.items.filter(pk__in=[item.pk for item in items]).delete()
 
         return Response({
             "message": "Order submitted for review",

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useCart } from "../context/CartContext";
 import { authFetch } from "../utils/auth";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { getCheckoutSelection } from "../utils/checkoutSelection.js";
 import AddressSelector from "../components/address/AddressSelector";
 import { MapPin, Phone, Clock, FileText, ChevronDown } from "lucide-react";
 
@@ -37,10 +38,12 @@ function filterSlotsForLocalTime(slots, date, bufferMinutes) {
 function CheckoutPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
     const uploadOrderId = searchParams.get("upload_order_id");
     const isUploadedCake = !!uploadOrderId;
-    const { clearCart } = useCart();
+    const { cartItemId, error: selectionError } = getCheckoutSelection(searchParams, location.state);
+    const { clearCart, fetchCart } = useCart();
     const [useProfileAddress, setUseProfileAddress] = useState(true);
     const [profileAddress, setProfileAddress] = useState({
         street: "",
@@ -220,6 +223,11 @@ function CheckoutPage() {
         e.preventDefault();
         setMessage("");
 
+        if (!isUploadedCake && selectionError) {
+            setMessage(selectionError);
+            return;
+        }
+
         const selectedAddress = useProfileAddress
             ? profileAddress
             : customAddress;
@@ -294,6 +302,7 @@ function CheckoutPage() {
             delivery_date: deliveryDate,
             delivery_time: deliveryTime,
             notes,
+            ...(!isUploadedCake && cartItemId ? { cart_item_id: cartItemId } : {}),
         };
 
         if (uploadOrderId) {
@@ -346,7 +355,8 @@ function CheckoutPage() {
 
             if (res.ok) {
                 setMessage("Sweet! Order submitted for review!");
-                clearCart();
+                if (cartItemId) await fetchCart();
+                else clearCart();
                 const orderId = data.order_id;
                 setTimeout(() => {
                     navigate(`/orders/${orderId}`);
