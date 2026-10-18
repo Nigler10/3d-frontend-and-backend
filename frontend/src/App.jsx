@@ -17,6 +17,7 @@ import CheckoutPage from './pages/CheckoutPage';
 import PrivateRouter from './components/PrivateRouter';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from "./pages/ForgotPassword";
 import SessionTimeout from "./components/SessionTimeout";
 
 // Admin Page
@@ -77,6 +78,7 @@ function App() {
 
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/cart" element={<CartPage />} />
               </Route>
               </Routes>

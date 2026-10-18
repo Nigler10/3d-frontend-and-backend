@@ -4,12 +4,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import admin_views, views
 from .views import MyTokenObtainPairView
-from .views_verification import send_verification_code, verify_code
+from .views_verification import send_verification_code, verify_code, request_password_reset, verify_password_reset_otp, confirm_password_reset
 
 urlpatterns = [
     path('register/', views.register_view),
     path('send-code/', send_verification_code),
     path('verify-code/', verify_code),
+    path("password-reset/request/", request_password_reset, name="password_reset_request"),
+    path("password-reset/verify/", verify_password_reset_otp, name="password_reset_verify"),
+    path("password-reset/confirm/", confirm_password_reset, name="password_reset_confirm"),
     path('token/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_obtain_refresh'),
     path('profile/', views.profile_view, name='profile'),
