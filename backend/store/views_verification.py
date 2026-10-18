@@ -20,6 +20,7 @@ from django.core.exceptions import ValidationError
 
 from .models import UserProfile
 from .models_verification import PasswordResetOTP
+from .phone_networks import is_unsupported_sms_prefix
 
 RESEND_COOLDOWN_SECONDS = 60
 OTP_EXPIRY_SECONDS = 300
@@ -55,6 +56,20 @@ def send_verification_code(request):
                     "using 09XXXXXXXXX."
             },
             status=400,
+        )
+    
+    if is_unsupported_sms_prefix(phone):
+        return Response(
+            {
+                "success": False,
+                "code": "unsupported_sms_prefix",
+                "error": (
+                    "Sorry, OTP delivery is currently unavailable "
+                    "for this mobile number's prefix. Please use a "
+                    "Globe/TM or DITO number instead."
+                ),
+            },
+            status=200,
         )
 
     latest = (
@@ -325,7 +340,7 @@ def request_password_reset(request):
 
     phone = validate_phone(profile.phone)
 
-    if not phone:
+    if not phone or is_unsupported_sms_prefix(phone):
         return Response(generic_response, status=200)
 
     latest = PasswordResetOTP.objects.filter(

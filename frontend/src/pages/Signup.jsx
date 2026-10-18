@@ -57,6 +57,14 @@ function Signup() {
 
             const data = await res.json();
 
+            if (data.code === "unsupported_sms_prefix") {
+                setMsg(
+                    data.error ||
+                    "OTP delivery is unavailable for this number."
+                );
+                return;
+            }
+
             if (res.ok) {
                 setMsg("✅ OTP sent to your phone");
                 setOtp("");
@@ -183,6 +191,11 @@ function Signup() {
                             required
                             className="w-full px-4 py-2.5 bg-[#FCF8EE]/50 border border-[#E6CCA2] rounded-xl text-sm text-[#6E473B] placeholder-[#CBB294] outline-none focus:border-[#C05A11] focus:bg-white transition-all disabled:opacity-60"
                         />
+                        <p className="text-xs text-[#A07060] leading-relaxed">
+                            OTP verification currently supports Globe/TM and DITO numbers.
+                            Smart/TNT numbers and legacy Sun prefixes are not supported.
+                            Please use a supported number to receive your verification code.
+                        </p>
                     </div>
 
                     {/* Name Grid */}
