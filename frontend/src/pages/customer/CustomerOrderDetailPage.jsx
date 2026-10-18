@@ -54,7 +54,7 @@ export default function CustomerOrderDetailPage() {
             const min =
                 totalPaid === 0
                     ? roundMoney(
-                        Number(data.total_amount) * 0.2
+                        Number(data.total_amount) * 0.5
                     )
                     : Math.min(remaining, 0.01);
 
@@ -93,7 +93,7 @@ export default function CustomerOrderDetailPage() {
     const minAmount = order
         ? Number(order.total_paid) === 0
             ? roundMoney(
-                Number(order.total_amount) * 0.2
+                Number(order.total_amount) * 0.5
             )
             : 0.01
         : 0;

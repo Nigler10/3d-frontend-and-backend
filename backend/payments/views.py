@@ -22,17 +22,12 @@ from rest_framework.response import Response
 
 from .models import Payment
 from store.models import Order
-from .services import (
-    PaymentAlreadyCompletedError,
-    PaymentGatewayError,
-    expire_pending_checkout_sessions,
-)
+from .services import ( PaymentAlreadyCompletedError, PaymentGatewayError, expire_pending_checkout_sessions, )
 
 logger = logging.getLogger(__name__)
 
 CENT = Decimal("0.01")
 WEBHOOK_TIMESTAMP_TOLERANCE = 300  # 5 minutes
-
 
 def parse_money(value, field_name, *, allow_zero=False):
     try:
@@ -174,7 +169,7 @@ def create_checkout_session(request, order_id):
 
             if total_paid == 0:
                 minimum_amount = (
-                    total_amount * Decimal("0.20")
+                    total_amount * Decimal("0.50")
                 ).quantize(CENT)
 
                 if amount < minimum_amount:
@@ -187,10 +182,6 @@ def create_checkout_session(request, order_id):
                         status=400
                     )
 
-            # Only one unfinished Checkout Session per order.
-            #
-            # This prevents double-clicks / multiple browser tabs
-            # from generating several payable sessions.
             pending_payment = (
                 order.payments
                 .select_for_update()
