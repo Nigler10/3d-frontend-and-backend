@@ -1,7 +1,8 @@
 import { Box3, Matrix4, Raycaster, Vector2, Vector3 } from "three";
 
-export const TOPPING_PLACEMENT_GAP = 0.015;
+export const TOPPING_PLACEMENT_GAP = 0.002;
 export const TOPPING_SURFACE_OFFSET = 0.001;
+const TOPPING_COLLISION_FOOTPRINT_SCALE = 0.9;
 const EPSILON = 1e-8;
 
 export function getToppingDragClientPoint(data) {
@@ -64,6 +65,19 @@ export function getTransformedToppingBox(object, parent) {
     return box;
 }
 
+export function getToppingCollisionBox(object, parent) {
+    const box = getTransformedToppingBox(object, parent);
+    if (box.isEmpty()) return box;
+    // Trim horizontal AABB padding around irregular toppings about the measured
+    // center, not their often offset pivots. Keep the actual bottom/top for seating.
+    const inset = box.getSize(new Vector3()).multiplyScalar((1 - TOPPING_COLLISION_FOOTPRINT_SCALE) / 2);
+    box.min.x += inset.x;
+    box.max.x -= inset.x;
+    box.min.z += inset.z;
+    box.max.z -= inset.z;
+    return box;
+}
+
 function isInsideSurface(box, position, surface, gap) {
     if (!surface || box.isEmpty()) return false;
     const minX = box.min.x + position.x;
@@ -108,8 +122,8 @@ function isInsideSurface(box, position, surface, gap) {
 export function isToppingPositionValid({ box, position, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP }) {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z) ||
         !isInsideSurface(box, position, surface, gap)) return false;
-    // Block footprints regardless of height: toppings cannot be stacked or dragged
-    // through one another merely because one mesh sits higher above the icing.
+    // Validate footprints regardless of height so no accepted placement overlaps
+    // another topping merely because its mesh sits higher above the icing.
     const candidate = box.clone().translate(position);
     candidate.min.x -= gap - EPSILON;
     candidate.max.x += gap - EPSILON;
@@ -167,13 +181,16 @@ function constrainSegment(box, from, to, surface, obstacles, gap) {
     return new Vector3().lerpVectors(from, to, fraction);
 }
 
-export function constrainToppingPosition({ box, from, to, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP }) {
+export function constrainToppingPosition({ box, from, to, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP, allowTunneling = false }) {
     const target = new Vector3(
         Number.isFinite(to.x) ? to.x : from.x,
         Number.isFinite(to.y) ? to.y : from.y,
         Number.isFinite(to.z) ? to.z : from.z
     );
     if (!isToppingPositionValid({ box, position: from, surface, obstacles, gap })) return from.clone();
+    // An intentional relocation may cross occupied space only when the entire
+    // destination footprint is clear and contained by the cake surface.
+    if (allowTunneling && isToppingPositionValid({ box, position: target, surface, obstacles, gap })) return target;
     const stopped = constrainSegment(box, from, target, surface, obstacles, gap);
     let nearest = stopped;
     // One-axis sliding keeps contact smooth without teleporting across a blocker.
@@ -181,12 +198,12 @@ export function constrainToppingPosition({ box, from, to, surface, obstacles = [
         const slideTarget = stopped.clone();
         slideTarget[axis] = target[axis];
         const slid = constrainSegment(box, stopped, slideTarget, surface, obstacles, gap);
-        // The rendered group moves directly to the result. Reject a slide whose
-        // shortcut from the previous frame would cross a different decoration.
+        // The rendered group moves directly to the result. Sweep that shortcut
+        // against every decoration, keeping safe tangential progress up to the
+        // next obstacle instead of discarding the entire move.
         const direct = constrainSegment(box, from, slid, surface, obstacles, gap);
-        if (isToppingPositionValid({ box, position: slid, surface, obstacles, gap }) &&
-            direct.distanceToSquared(slid) <= EPSILON ** 2 &&
-            slid.distanceToSquared(target) < nearest.distanceToSquared(target) - EPSILON) nearest = slid;
+        if (isToppingPositionValid({ box, position: direct, surface, obstacles, gap }) &&
+            direct.distanceToSquared(target) < nearest.distanceToSquared(target) - EPSILON ** 2) nearest = direct;
     }
     return isToppingPositionValid({ box, position: nearest, surface, obstacles, gap }) ? nearest : from.clone();
 }

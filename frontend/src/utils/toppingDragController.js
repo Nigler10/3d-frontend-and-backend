@@ -215,7 +215,7 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             controlsEnabled = controls?.enabled;
             if (controls) controls.enabled = false;
             controller.isDragging.current = true;
-            active = { id, position: entry.position.clone(), target: entry.position.clone(), lastValidPosition: entry.position.clone() };
+            active = { id, position: entry.position.clone(), target: entry.position.clone(), requestedTarget: entry.position.clone(), lastValidPosition: entry.position.clone() };
             eventTarget.addEventListener("pointercancel", controller.cancel);
             eventTarget.addEventListener("blur", controller.cancel);
             return true;
@@ -223,13 +223,12 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
         move(id, target) {
             if (active?.id !== id || ![target.x, target.y, target.z].every(Number.isFinite)) return;
             const entry = entries.get(id);
-            // Sweep the measured Box3 from the rendered position to the pointer.
-            // Clamp at the first edge and allow sliding along it. Starting from
-            // the rendered position also prevents smoothing from cutting corners
-            // when several pointer events arrive before the next frame.
+            active.requestedTarget.copy(target);
+            // A clear destination can be reached across other toppings. Occupied
+            // targets still clamp at contact and slide along the obstacle edge.
             active.target = constrainToppingPosition({
                 box: entry.box, from: entry.position, to: target, surface,
-                obstacles: controller.obstacles(id),
+                obstacles: controller.obstacles(id), allowTunneling: true,
             });
             active.target.y = controller.height(entry, active.target);
             if (controller.valid(entry, active.target)) active.lastValidPosition.copy(active.target);
@@ -238,11 +237,26 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
         update(delta) {
             if (!active || !Number.isFinite(delta) || delta <= 0) return;
             const entry = entries.get(active.id);
-            if (!entry?.position || entry.position.distanceToSquared(active.target) < 1e-12) return;
+            if (!entry?.position) return;
+            // Recheck the pointer goal from the rendered position each frame.
+            // Once tangential motion clears an edge, the inward component can
+            // resume without requiring another pointer event to release contact.
+            active.target = constrainToppingPosition({
+                box: entry.box, from: entry.position, to: active.requestedTarget, surface,
+                obstacles: controller.obstacles(active.id), allowTunneling: true,
+            });
+            active.target.y = controller.height(entry, active.target);
+            if (entry.position.distanceToSquared(active.target) < 1e-12) return;
             // Exponential visual smoothing uses elapsed time, not frame count.
             const position = entry.position.clone().lerp(active.target, -Math.expm1(-24 * delta));
+            // Skip an occupied interpolation step to the clear destination;
+            // tunneling must never leave the rendered topping inside an obstacle.
+            if (!controller.valid(entry, position)) {
+                position.copy(active.target);
+                if (!controller.valid(entry, position)) return;
+            }
             position.y = controller.height(entry, position);
-            if (controller.valid(entry, position)) active.lastValidPosition.copy(position);
+            active.lastValidPosition.copy(position);
             controller.apply(entry, position);
         },
         startPointer(id, data, camera, canvas) {

@@ -6,6 +6,7 @@ import {
     TOPPING_SURFACE_OFFSET,
     constrainToppingPosition,
     findToppingPosition,
+    getToppingCollisionBox,
     getTransformedToppingBox,
     getToppingSurfaceHeight,
     isToppingPositionValid,
@@ -115,6 +116,49 @@ test("mesh vertices give tighter bounds than transforming a local bounding box",
     assert.ok(Math.abs(actual.min.z + 1 / Math.sqrt(2)) < 1e-6);
 });
 
+test("collision bounds trim horizontal padding about the transformed mesh center and preserve seating height", () => {
+    const parent = new Group();
+    parent.position.set(4, 3, -2);
+    parent.rotation.set(0.2, 0.9, -0.1);
+    parent.scale.set(0.9, 1.2, 0.8);
+    const mesh = new Mesh(new BoxGeometry(2, 1, 4));
+    mesh.geometry.translate(3, 0.5, -2);
+    mesh.position.set(0.3, 1.1, -0.2);
+    mesh.rotation.y = Math.PI / 3;
+    mesh.scale.set(-0.5, 2, 0.25);
+    parent.add(mesh);
+    const visual = getTransformedToppingBox(mesh, parent);
+    const collision = getToppingCollisionBox(mesh, parent);
+    const size = visual.getSize(new Vector3());
+    const collisionSize = collision.getSize(new Vector3());
+    assert.ok(collision.getCenter(new Vector3()).distanceTo(visual.getCenter(new Vector3())) < 1e-10);
+    assert.ok(Math.abs(collisionSize.x / size.x - 0.9) < 1e-10);
+    assert.ok(Math.abs(collisionSize.z / size.z - 0.9) < 1e-10);
+    assert.equal(collision.min.y, visual.min.y);
+    assert.equal(collision.max.y, visual.max.y);
+    assert.ok(getTransformedToppingBox(mesh, parent).equals(visual), "collision measurement must leave the mesh unchanged");
+    mesh.visible = false;
+    assert.equal(getToppingCollisionBox(mesh, parent).isEmpty(), true);
+});
+
+test("compact collision footprints fit side by side in a slot that padded bounds reject", () => {
+    const mesh = new Mesh(new BoxGeometry(0.4, 0.4, 0.4));
+    const visual = getTransformedToppingBox(mesh);
+    const collision = getToppingCollisionBox(mesh);
+    const slot = { minX: -0.375, maxX: 0.375, minZ: -0.21, maxZ: 0.21 };
+    for (const bounds of [visual, collision]) {
+        const first = findToppingPosition({ box: bounds, position: new Vector3(-0.18, 1, 0), surface: slot });
+        assert.ok(first);
+        const obstacles = [bounds.clone().translate(first)];
+        const second = findToppingPosition({ box: bounds, position: new Vector3(0.18, 1, 0), surface: slot, obstacles });
+        if (bounds === visual) assert.equal(second, null);
+        else {
+            assert.ok(second, "the tighter footprint must occupy the remaining slot");
+            assert.equal(valid(bounds, second, { surface: slot, obstacles }), true);
+        }
+    }
+});
+
 for (const number of ["1", "10", "100"]) {
     test(`number candle ${number} is one placement group containing all digits`, () => {
         const group = new Group();
@@ -181,6 +225,10 @@ test("collisions enforce a consistent gap and do not allow vertically stacked de
     assert.equal(valid(box(), new Vector3(0.2 + TOPPING_PLACEMENT_GAP / 2, -5, 0), { obstacles: [obstacle] }), false);
 });
 
+test("nearby toppings can occupy a visually empty five-thousandths gap", () => {
+    assert.equal(valid(box(), new Vector3(0.205, 0, 0), { obstacles: [at(box(), 0, 0)] }), true);
+});
+
 test("a fast drag cannot tunnel through a thin obstacle even when its final target is valid", () => {
     const decoration = box(0.08);
     const obstacles = [at(box(0.01, 1.5), 0, 0)];
@@ -191,6 +239,21 @@ test("a fast drag cannot tunnel through a thin obstacle even when its final targ
     assert.ok(result.x < 0);
     assert.equal(valid(decoration, result, { obstacles }), true);
     assert.equal(result.y, to.y);
+});
+
+test("intentional tunneling crosses a barrier only for a clear destination inside the surface", () => {
+    const decoration = box(0.08);
+    const obstacles = [at(box(0.01, 1.5), 0, 0)];
+    const from = new Vector3(-0.7, 2.2, 0);
+    const options = { box: decoration, from, surface, obstacles, allowTunneling: true };
+    const to = new Vector3(0.7, 2.2, 0);
+    assert.ok(constrainToppingPosition({ ...options, to }).equals(to));
+    // Checking only the anchor would miss this partial footprint overlap.
+    for (const occupiedOrOutside of [new Vector3(0.03, 2.2, 0), new Vector3(1.1, 2.2, 0)]) {
+        const result = constrainToppingPosition({ ...options, to: occupiedOrOutside });
+        assert.equal(valid(decoration, result, { obstacles }), true);
+        assert.ok(result.x < 0, "an invalid destination must retain collision clamping");
+    }
 });
 
 test("dragging slides smoothly at contact and remains stable across repeated events", () => {
@@ -208,6 +271,30 @@ test("dragging slides smoothly at contact and remains stable across repeated eve
     const slid = constrainToppingPosition({ box: decoration, from, to: new Vector3(0, 1.2, 0.7), surface, obstacles });
     assert.ok(slid.z > from.z);
     assert.equal(valid(decoration, slid, { obstacles }), true);
+});
+
+test("inward pointer pressure permits tangential motion on all four contact edges", () => {
+    const decoration = box();
+    const obstacles = [at(box(0.3), 0, 0)];
+    for (const gap of [0, TOPPING_PLACEMENT_GAP]) {
+        for (const axis of ["x", "z"]) {
+            const tangent = axis === "x" ? "z" : "x";
+            for (const sign of [-1, 1]) {
+                let from = new Vector3(0, 1, 0);
+                from[axis] = sign * (0.25 + gap);
+                from[tangent] = -0.1;
+                for (const offset of [0.1, -0.1, 0.15]) {
+                    const to = new Vector3(0, 1, 0);
+                    to[tangent] = offset;
+                    const result = constrainToppingPosition({ box: decoration, from, to, surface, obstacles, gap });
+                    assert.ok(Math.abs(result[tangent] - offset) < 1e-7);
+                    assert.ok(Math.abs(result[axis] - from[axis]) < 1e-7);
+                    assert.equal(valid(decoration, result, { obstacles, gap }), true);
+                    from = result;
+                }
+            }
+        }
+    }
 });
 
 test("a contact slide cannot shortcut through a second topping between frames", () => {

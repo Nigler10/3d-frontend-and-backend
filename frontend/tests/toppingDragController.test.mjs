@@ -99,7 +99,7 @@ test("toppings added in one commit immediately occupy separate geometry-based pl
     assert.equal(getTransformedToppingBox(first.object, parent).intersectsBox(getTransformedToppingBox(second.object, parent)), false);
 });
 
-test("a fast pointer drag stops the chocolate at the edge of remeasured nuts without tunneling", () => {
+test("an outside pointer destination still clamps at remeasured nuts instead of tunneling", () => {
     const { controller, register, start, drag, parent, current } = setup();
     const moving = register("chocolate", -1.2);
     const obstacle = register("nuts", 0, 0, 0.8, 0.8);
@@ -120,6 +120,58 @@ test("a fast pointer drag stops the chocolate at the edge of remeasured nuts wit
     assert.ok(Math.abs(finalSeparation - TOPPING_PLACEMENT_GAP) < 1e-7);
     assert.ok(current.state.toppingLayout.chocolate.x < 50);
     assert.ok(controller.entries.get("nuts").position.equals(obstaclePosition));
+});
+
+test("a clear pointer destination tunnels across barriers in either direction without overlapping rendered frames", () => {
+    for (const axis of ["x", "z"]) {
+        for (const sign of [-1, 1]) {
+            const { controller, register, start, drag, parent, current } = setup();
+            const moving = register("chocolate", axis === "x" ? sign * 1.2 : 0, axis === "z" ? sign * 1.2 : 0);
+            const obstacle = register("nuts", 0, 0, axis === "x" ? 0.8 : 3.5, axis === "z" ? 0.8 : 3.5);
+            controller.reconcile();
+            const obstaclePosition = controller.entries.get("nuts").position.clone();
+            const obstacleBox = getTransformedToppingBox(obstacle.object, parent);
+            const target = controller.entries.get("chocolate").position.clone();
+            target[axis] = -sign * 1.2;
+            start("chocolate");
+            drag("chocolate", target);
+            for (let frame = 0; frame < 120; frame++) {
+                controller.update(1 / 60);
+                const bounds = getTransformedToppingBox(moving.object, parent);
+                assert.equal(bounds.intersectsBox(obstacleBox), false);
+                assert.ok(Math.abs(bounds.min.y - 1.001) < 1e-8);
+            }
+            controller.end();
+            const placed = controller.entries.get("chocolate").position;
+            assert.ok(placed.distanceTo(target) < 0.003, `a clear pointer destination across the barrier must be reachable: ${placed.toArray()} versus ${target.toArray()}`);
+            assert.deepEqual(current.state.toppingLayout.chocolate.position, placed.toArray());
+            assert.ok(controller.entries.get("nuts").position.equals(obstaclePosition));
+        }
+    }
+});
+
+test("tunneling skips an overlapping smoothing step and can commit before another rendered frame", () => {
+    for (const renderFrame of [false, true]) {
+        const { controller, register, parent } = setup();
+        const moving = register("chocolate", -0.8);
+        const obstacle = register("nuts", 0, 0, 0.8, 0.8);
+        controller.reconcile();
+        const target = controller.entries.get("chocolate").position.clone();
+        target.x = 0.8;
+        const obstacleBox = getTransformedToppingBox(obstacle.object, parent);
+        const interpolated = controller.entries.get("chocolate").position.clone().lerp(target, -Math.expm1(-24 / 30));
+        assert.equal(moving.box.clone().translate(interpolated).intersectsBox(obstacleBox), true);
+        controller.begin("chocolate");
+        controller.move("chocolate", target);
+        if (renderFrame) {
+            controller.update(1 / 30);
+            assert.ok(controller.entries.get("chocolate").position.distanceTo(target) < 1e-8);
+            assert.equal(getTransformedToppingBox(moving.object, parent).intersectsBox(obstacleBox), false);
+        }
+        controller.end();
+        assert.ok(controller.entries.get("chocolate").position.distanceTo(target) < 1e-8);
+        assert.equal(getTransformedToppingBox(moving.object, parent).intersectsBox(obstacleBox), false);
+    }
 });
 
 test("dragging into another topping clamps continuously without a release or reconciliation jump", () => {
@@ -165,7 +217,7 @@ test("drag clamping is symmetric at all four bounding box edges", () => {
     }
 });
 
-test("several pointer events before a frame cannot make smoothing cut through a topping", () => {
+test("several pointer events before a frame keep rendered relocations clear of other toppings", () => {
     const { controller, register, parent } = setup();
     const moving = register("chocolate", -0.8, -0.8);
     const obstacle = register("nuts", 0, 0, 0.6, 0.6);
@@ -197,6 +249,26 @@ test("contact permits sliding along an edge and then around a topping without cl
     controller.end();
     const placed = controller.entries.get("chocolate").position;
     assert.ok(placed.x > 0.79 && placed.z > 0.79);
+});
+
+test("one diagonal pointer event reaches a clear destination without overlapping rendered frames", () => {
+    const { controller, register, parent } = setup();
+    const moving = register("chocolate", -0.8, -0.1);
+    const obstacle = register("nuts", 0, 0, 0.6, 0.6);
+    controller.reconcile();
+    controller.begin("chocolate");
+    const target = new Vector3(0.8, 1, 0.8);
+    controller.move("chocolate", target);
+    const obstacleBox = getTransformedToppingBox(obstacle.object, parent);
+    for (let frame = 0; frame < 120; frame++) {
+        controller.update(1 / 60);
+        assert.equal(getTransformedToppingBox(moving.object, parent).intersectsBox(obstacleBox), false);
+    }
+    const placed = controller.entries.get("chocolate").position;
+    assert.ok(Math.abs(placed.x - target.x) < 1e-5, "a clear destination must be reached without another pointer event");
+    assert.ok(Math.abs(placed.z - target.z) < 1e-5);
+    controller.end();
+    assert.ok(controller.entries.get("chocolate").position.distanceTo(placed) < 1e-5);
 });
 
 test("pointer drags snap to the cake geometry with a micro-offset and contain the footprint", () => {
@@ -313,7 +385,7 @@ test("saved previews never reject selected toppings or emit an addition notifica
     assert.equal(controller.entries.has("nuts"), true);
 });
 
-test("cancel restores the starting placement after a blocked drag", () => {
+test("cancel restores the starting placement after tunneling across another topping", () => {
     const { controller, register, start } = setup();
     register("chocolate", -0.8);
     register("candle", 0);
@@ -322,6 +394,7 @@ test("cancel restores the starting placement after a blocked drag", () => {
     start("chocolate");
     controller.move("chocolate", new Vector3(0.8, 1, 0));
     controller.update(0.2);
+    assert.ok(controller.entries.get("chocolate").position.x > 0);
     controller.cancel();
     assert.ok(controller.entries.get("chocolate").position.equals(before));
 });
