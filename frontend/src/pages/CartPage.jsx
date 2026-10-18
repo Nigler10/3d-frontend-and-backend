@@ -1,5 +1,6 @@
 import { useCart } from "../context/CartContext";
 import { Link, useNavigate } from "react-router-dom";
+import CakePreview3D from "../components/admin/CakePreview3D";
 import {
     ShoppingBag,
     Cake,
@@ -37,7 +38,7 @@ function CartPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     const handleSingleCheckout = (item) => {
-        navigate("/checkout", { state: { directBuyItem: item } });
+        navigate(`/checkout?cart_item_id=${item.id}`, { state: { directBuyItem: item } });
     };
 
     return (
@@ -70,7 +71,7 @@ function CartPage() {
                                         {/* Image wrapper */}
                                         <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-[#fffbf4] border border-[#f5e9d6] rounded-xl flex items-center justify-center overflow-hidden">
                                             {item.is_custom_cake ? (
-                                                <Cake className="w-10 h-10 text-[#d67b27] animate-bounce" />
+                                                <CakePreview3D customization={item.customization_detail} />
                                             ) : (
                                                 <img
                                                     src={

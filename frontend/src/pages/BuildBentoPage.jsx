@@ -9,6 +9,8 @@ import { CAKE_SIZES, CustomizationProvider, FLAVOR_VISUALS, INSCRIPTION_COLOR_OP
 import { useCart } from "../context/CartContext";
 import CakeInscription from "../components/CakeInscription";
 import CakeCompass from "../components/CakeCompass";
+import CakePreviewCapture from "../components/CakePreviewCapture";
+import { DraggableCakeTopping, ToppingDragIndicator, ToppingDragProvider, useToppingDragMarker, useToppingDragPlacement, useToppingDragStore } from "../components/ToppingDragControls";
 import {
     Cake,
     Circle,
@@ -699,10 +701,26 @@ function CherryTextureLoader({ onLoad }) {
     return null;
 }
 
-export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }) {
+export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef, onReady, readOnlyToppings = false }) {
     const activeTierUrl = TIER_MODEL_URLS[`tier${selectedTierIndex + 1}`] || TIER_MODEL_URLS.tier1;
-    const activeTier = useGLTF(activeTierUrl);
+    const loadedTier = useGLTF(activeTierUrl);
+    // Each canvas needs its own scene graph and material instances. Reusing the
+    // cached scene reparents it when several rotatable previews are mounted.
+    const activeTier = useMemo(() => {
+        const materialCopies = new Map();
+        const copyMaterial = (material) => {
+            if (!materialCopies.has(material)) materialCopies.set(material, material.clone());
+            return materialCopies.get(material);
+        };
+        const scene = loadedTier.scene.clone(true);
+        scene.traverse((object) => {
+            if (object.isMesh) object.material = Array.isArray(object.material)
+                ? object.material.map(copyMaterial) : copyMaterial(object.material);
+        });
+        return { ...loadedTier, scene, materials: Object.fromEntries(Object.entries(loadedTier.materials).map(([name, material]) => [name, copyMaterial(material)])) };
+    }, [loadedTier]);
     const { nodes, materials } = activeTier;
+    const customization = useCustomization();
     const {
         form,
         cakeColor,
@@ -726,7 +744,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
         inscriptionText,
         textFont,
         inscriptionColor,
-    } = useCustomization();
+    } = customization;
 
     const baseFlavor = selectedTierFlavors?.[0] || flavor;
     const activeTextureKey = flavorTextureMap[baseFlavor] || "choco";
@@ -880,8 +898,10 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
         });
     }, [activeTier, matProps, selectedTierIndex]);
 
+    const toppingDrag = useToppingDragPlacement({ scene: activeTier.scene, cakeGroupRef, controlsRef, state: customization, readOnly: readOnlyToppings });
+
     useFrame((_, delta) => {
-        if (autoSpin && cakeGroupRef.current) {
+        if (autoSpin && cakeGroupRef.current && !toppingDrag.isDragging.current) {
             cakeGroupRef.current.rotation.y -= delta * 0.4;
         }
     });
@@ -972,6 +992,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
             if (!goldCandleMesh) return null;
 
             return (
+                <DraggableCakeTopping id="candle" controller={toppingDrag} anchor={candlePosition} layout={toppingLayout.candle} insertionDepth="existing">
                 <mesh
                     geometry={goldCandleMesh}
                     material={materials.chandel || materials.Candle_White_Default || materials.Default}
@@ -981,6 +1002,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
                     castShadow
                     receiveShadow
                 />
+                </DraggableCakeTopping>
             );
         }
 
@@ -993,6 +1015,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
             if (!fallbackCandle) return null;
 
             return (
+                <DraggableCakeTopping id="candle" controller={toppingDrag} anchor={candleNumberPosition} layout={toppingLayout.candle} insertionDepth="existing">
                 <mesh
                     geometry={fallbackCandle}
                     material={candleMaterial}
@@ -1002,8 +1025,20 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
                     castShadow
                     receiveShadow
                 />
+                </DraggableCakeTopping>
             );
         }
+
+        const digitWidths = digits.map((digit) => {
+            const node = nodes[`candle_${digit}`];
+            if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+            return (node.geometry.boundingBox.max.x - node.geometry.boundingBox.min.x) * Math.abs(getNodeScaleArray(node, effectiveCandleScale)[0]);
+        });
+        const digitCenters = [0];
+        for (let index = 1; index < digits.length; index += 1) {
+            digitCenters.push(digitCenters[index - 1] + Math.max(spacing, (digitWidths[index - 1] + digitWidths[index]) / 2 + 0.015));
+        }
+        const digitGroupCenter = (digitCenters[0] - digitWidths[0] / 2 + digitCenters.at(-1) + digitWidths.at(-1) / 2) / 2;
 
         const cakeTopY =
     activeTierBounds?.max.y ??
@@ -1013,6 +1048,7 @@ export function CakeModel({ selectedTierIndex, autoSpin, cakeGroupRef, onReady }
 const candleEmbedDepth = 0.10 * effectiveCandleScale;
 
 return (
+    <DraggableCakeTopping id="candle" controller={toppingDrag} anchor={candlePosition} layout={toppingLayout.candle} insertionDepth={candleEmbedDepth}>
     <group
         position={[
             candlePosition[0],
@@ -1040,7 +1076,7 @@ return (
                 : 0;
 
             const xOffset =
-                (idx - (digits.length - 1) / 2) * spacing;
+                digitCenters[idx] - digitGroupCenter - (bounds.min.x + bounds.max.x) * digitScale[0] / 2;
 
             return (
                 <mesh
@@ -1056,6 +1092,7 @@ return (
             );
         })}
     </group>
+    </DraggableCakeTopping>
 );
     };
 
@@ -1064,6 +1101,7 @@ return (
             {selectedToppings.candle && renderCandleNumber()}
 
             {selectedToppings.nuts && nodes.nuts?.geometry && (
+                <DraggableCakeTopping id="nuts" controller={toppingDrag} anchor={nutTransform.position} layout={toppingLayout.nuts}>
                 <mesh
                     geometry={nodes.nuts.geometry}
                     material={materials.Default}
@@ -1071,9 +1109,11 @@ return (
                     rotation={TOPPING_3D_CONFIG.nuts.rotation}
                     scale={nutTransform.scale}
                 />
+                </DraggableCakeTopping>
             )}
 
             {selectedToppings.nuts && !nodes.nuts?.geometry && nodes.Mesh021?.geometry && nodes.Mesh021_1?.geometry && (
+                <DraggableCakeTopping id="nuts" controller={toppingDrag} anchor={nutTransform.position} layout={toppingLayout.nuts}>
                 <group
                     position={nutTransform.position}
                     rotation={TOPPING_3D_CONFIG.nuts.rotation}
@@ -1082,9 +1122,11 @@ return (
                     <mesh geometry={nodes.Mesh021.geometry} material={materials.Default} />
                     <mesh geometry={nodes.Mesh021_1.geometry} material={materials.Default} />
                 </group>
+                </DraggableCakeTopping>
             )}
 
             {selectedToppings.chocolate && chocolateGeometry && (
+                <DraggableCakeTopping id="chocolate" controller={toppingDrag} anchor={getToppingPosition(chocolateLayout, TOPPING_3D_CONFIG.chocolate, selectedTierIndex, undefined, form, activeTierBounds, chocolateFootprint)} layout={chocolateLayout}>
                 <mesh
                     geometry={chocolateGeometry}
                     material={materials.choco || chocolateNode.material || new THREE.MeshStandardMaterial({
@@ -1107,9 +1149,11 @@ return (
                     castShadow
                     receiveShadow
                 />
+                </DraggableCakeTopping>
             )}
 
             {selectedToppings.balls && nodes.balls?.geometry && (
+                <DraggableCakeTopping id="balls" controller={toppingDrag} anchor={getToppingPosition(toppingLayout.balls, TOPPING_3D_CONFIG.balls, selectedTierIndex, undefined, form, activeTierBounds, ballsFootprint)} layout={toppingLayout.balls}>
                 <mesh
                     geometry={nodes.balls.geometry}
                     material={materials.balls}
@@ -1125,9 +1169,11 @@ return (
                     rotation={TOPPING_3D_CONFIG.balls.rotation}
                     scale={TOPPING_3D_CONFIG.balls.scale * TOPPING_SIZES[toppingLayout.balls.size] * (BALLS_TIER_SCALE[selectedTierIndex] ?? 1)}
                 />
+                </DraggableCakeTopping>
             )}
             {selectedToppings.cherry && nodes.cherry?.geometry && (
                 cherryLayouts.map((layout, index) => (
+                    <DraggableCakeTopping key={`cherry-${index}`} id={`cherry-${index}`} controller={toppingDrag} anchor={getToppingPosition(layout, TOPPING_3D_CONFIG.cherry, selectedTierIndex, undefined, form, activeTierBounds, cherryFootprint)} layout={layout}>
                     <mesh
                         key={`cherry-${index}`}
                         geometry={nodes.cherry.geometry}
@@ -1145,6 +1191,7 @@ return (
                         scale={TOPPING_3D_CONFIG.cherry.scale * TOPPING_SIZES[layout.size]}
                         castShadow
                     />
+                    </DraggableCakeTopping>
                 ))
             )}
 
@@ -1180,6 +1227,7 @@ return (
 
 // ──────── DraggableTopping ────────
 function DraggableTopping({ topping, layout, isEnabled = true, form, boardWidth, boardHeight }) {
+    const livePosition = useToppingDragMarker(topping.key);
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: topping.key,
     });
@@ -1189,10 +1237,10 @@ function DraggableTopping({ topping, layout, isEnabled = true, form, boardWidth,
     const sizeStr = (layout?.size || "medium").toLowerCase();
     const markerDiameter = { small: 22, medium: 28, large: 36 }[sizeStr] ?? 28;
 
-    let displayX = safeX;
-    let displayY = safeY;
+    let displayX = livePosition?.x ?? safeX;
+    let displayY = livePosition?.y ?? safeY;
 
-    if (transform && boardWidth > 0 && boardHeight > 0) {
+    if (!livePosition && transform && boardWidth > 0 && boardHeight > 0) {
         const tentativeX = safeX + (transform.x / boardWidth) * 100;
         const tentativeY = safeY + (transform.y / boardHeight) * 100;
         [displayX, displayY] = clampToppingToBoard(
@@ -1229,6 +1277,8 @@ function DraggableTopping({ topping, layout, isEnabled = true, form, boardWidth,
 
 // ────── ToppingPlacementBoard ──────
 function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppingLayout, cherryLayouts, candleEnabled, onMove }) {
+    const dragStore = useToppingDragStore();
+    const dragStartLayout = useRef(null);
     const boardRef = useRef(null);
     const [boardDimensions, setBoardDimensions] = useState({ width: 0, height: 0 });
     const { setNodeRef } = useDroppable({ id: "cake-placement" });
@@ -1265,6 +1315,9 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
             setBoardDimensions((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
 
             activeToppings.forEach((topping) => {
+                // Geometry validation owns the positions of individually placed
+                // meshes. Pixel-sized marker margins must not move them again.
+                if (dragStore.controller?.entries.has(topping.key)) return;
                 const layout = topping.key.startsWith("cherry-")
                     ? cherryLayouts[Number.parseInt(topping.key.slice("cherry-".length), 10)]
                     : toppingLayout[topping.key];
@@ -1313,9 +1366,30 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
             observer.disconnect();
             cancelAnimationFrame(raf);
         };
-    }, [activeToppings, form, toppingLayout, cherryLayouts, onMove, selectedTierIndex]);
+    }, [activeToppings, form, toppingLayout, cherryLayouts, onMove, selectedTierIndex, dragStore]);
+
+    const handleDragStart = ({ active }) => {
+        const key = active.id;
+        dragStartLayout.current = key.startsWith("cherry-")
+            ? cherryLayouts[Number.parseInt(key.slice("cherry-".length), 10)]
+            : toppingLayout[key];
+    };
+
+    const handleDragMove = ({ active, delta }) => {
+        const start = dragStartLayout.current;
+        const board = boardRef.current;
+        if (!start || !board?.clientWidth || !board.clientHeight) return false;
+        return dragStore.controller?.moveMarker(active.id,
+            start.x + (delta.x / board.clientWidth) * 100,
+            start.y + (delta.y / board.clientHeight) * 100);
+    };
 
     const handleDragEnd = ({ active, delta }) => {
+        if (handleDragMove({ active, delta })) {
+            dragStore.controller.end();
+            dragStartLayout.current = null;
+            return;
+        }
         const key = active?.id;
         if (!key || !boardRef.current) return;
 
@@ -1343,7 +1417,7 @@ function ToppingPlacementBoard({ form, selectedTierIndex, activeToppings, toppin
     const tierScale = TIER_TOP_RADIUS[selectedTierIndex] ?? TIER_TOP_RADIUS[0];
 
     return (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd} onDragCancel={() => { dragStore.controller?.cancel(); dragStartLayout.current = null; }}>
             <div className="topping-board">
                 <div
                     ref={setBoardNode}
@@ -1405,7 +1479,7 @@ function ConfiguratorSection({
 }
 
 // ────── Configurator ──────
-function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, setSelectedSize }) {
+function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, setSelectedSize, capturePreview }) {
     const {
         cakeColors, cakeColor, setCakeColor,
         icingColors, icingColor, setIcingColor,
@@ -1441,6 +1515,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     } = useCustomization();
 
     const { addCustomCakeToCart } = useCart();
+    const dragStore = useToppingDragStore();
     const navigate = useNavigate();
     const [orderStatus, setOrderStatus] = useState(null);
     const [errorMessage, setErrorMessage] = useState("");
@@ -1472,6 +1547,20 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     const handleAddToCart = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
+
+        let previewImage;
+        try {
+            if (dragStore.controller?.isDragging.current) throw new Error("Finish placing your topping before saving your cake.");
+            if (dragStore.controller?.hasUnplacedToppings) throw new Error("There is not enough space for these toppings. Move, resize, or remove a topping before saving your cake.");
+            previewImage = capturePreview?.();
+            if (!previewImage) throw new Error("The cake preview is still loading. Please try again.");
+        } catch (error) {
+            setOrderStatus("error");
+            setErrorMessage(error.message || "Unable to capture your cake preview. Please try again.");
+            setIsSubmitting(false);
+            setTimeout(() => setOrderStatus(null), 3000);
+            return;
+        }
 
         const selectedTier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
         const selectedTierKey = selectedTier.tierKey;
@@ -1512,6 +1601,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
             candle_color: candleColor,
             topping_layout: {
                 ...toppingLayout,
+                _preview: { version: 1, image: previewImage },
                 cherry: cherryLayouts,
                 candle: {
                     ...toppingLayout.candle,
@@ -2068,6 +2158,7 @@ function BuildBentoContent() {
 
     const cakeGroupRef = useRef(null);
     const orbitControlsRef = useRef(null);
+    const capturePreviewRef = useRef(null);
 
     const handleResetView = () => {
         setAutoSpin(false);
@@ -2100,6 +2191,7 @@ function BuildBentoContent() {
 
     return (
         <div className="cake-builder-page min-h-screen lg:h-dvh lg:min-h-0 lg:overflow-hidden w-full max-w-full overflow-x-clip lg:overflow-x-hidden bg-[#FCF8EE] pt-2 flex flex-col antialiased font-sans">
+            <ToppingDragIndicator />
             {/* Main responsive wrapper layout */}
             <div className="max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 gap-4 items-start">
 
@@ -2183,8 +2275,10 @@ function BuildBentoContent() {
                                             selectedTierIndex={selectedTierIndex}
                                             autoSpin={autoSpin}
                                             cakeGroupRef={cakeGroupRef}
+                                            controlsRef={orbitControlsRef}
                                             onReady={setIsCakeReady}
                                         />
+                                        <CakePreviewCapture captureRef={capturePreviewRef} />
 
                                         <ContactShadows
                                             position={[0, -2.3, 0]}
@@ -2226,6 +2320,7 @@ function BuildBentoContent() {
                         setSelectedTierIndex={setSelectedTierIndex}
                         selectedSize={selectedSize}
                         setSelectedSize={setSelectedSize}
+                        capturePreview={() => capturePreviewRef.current?.()}
                     />
                 </div>
             </div>
@@ -2239,7 +2334,9 @@ export default function BuildBentoPage() {
 
     return (
         <CustomizationProvider initialState={reorderCustomization}>
+            <ToppingDragProvider>
             <BuildBentoContent />
+            </ToppingDragProvider>
         </CustomizationProvider>
     );
 }

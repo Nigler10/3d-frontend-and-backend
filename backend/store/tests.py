@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
-from .models import AddonPricing, CakeCustomization, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile
+from .models import AddonPricing, CakeCustomization, Cart, CartItem, Category, CustomCakePricing, Order, OrderItem, Product, UserProfile
 from .views import _get_available_delivery_slots
 
 
@@ -20,6 +20,75 @@ class DeliveryScheduleTests(APITestCase):
 
         self.assertNotIn("10:30", slots)
         self.assertIn("11:00", slots)
+
+
+class SingleCakeCheckoutTests(APITestCase):
+    def setUp(self):
+        self.customer = User.objects.create_user(username="single-cake-customer", first_name="Cake", last_name="Customer")
+        UserProfile.objects.create(user=self.customer, phone="09123456789", street="123 Cake Street")
+        self.client.force_authenticate(user=self.customer)
+        self.cart = Cart.objects.create(user=self.customer)
+        design = {"shape": "round", "price": "120.50", "topping_layout": {"chocolate": {"position": [0.2, 2.5, -0.3]}}}
+        self.selected = CartItem.objects.create(cart=self.cart, customization=design, quantity=2)
+        self.other_cake = CartItem.objects.create(cart=self.cart, customization=design, quantity=1)
+        category = Category.objects.create(name="Checkout Cakes", slug="checkout-cakes")
+        product = Product.objects.create(category=category, name="Regular Cake", description="", price=Decimal("10.00"))
+        self.other_product = CartItem.objects.create(cart=self.cart, product=product, quantity=3)
+        self.payload = {"delivery_date": (timezone.localdate() + timedelta(days=1)).isoformat(), "delivery_time": "10:00"}
+
+    def submit(self, **selection):
+        return self.client.post("/api/orders/create/", {**self.payload, **selection}, format="json")
+
+    def test_selected_custom_cake_only_is_ordered_and_other_cart_lines_remain(self):
+        response = self.submit(cart_item_id=self.selected.pk)
+        self.assertEqual(response.status_code, 200)
+        order = Order.objects.get(pk=response.data["order_id"])
+        self.assertEqual(order.total_amount, Decimal("241.00"))
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.items.get().quantity, 2)
+        self.assertEqual(order.items.get().customization, self.selected.customization)
+        self.assertSetEqual(set(self.cart.items.values_list("pk", flat=True)), {self.other_cake.pk, self.other_product.pk})
+
+    def test_selected_regular_cake_uses_its_cart_line_quantity_and_price(self):
+        response = self.submit(cart_item_id=self.other_product.pk)
+        self.assertEqual(response.status_code, 200)
+        order = Order.objects.get(pk=response.data["order_id"])
+        self.assertEqual(order.total_amount, Decimal("30.00"))
+        self.assertEqual(order.items.get().product_id, self.other_product.product_id)
+        self.assertEqual(self.cart.items.count(), 2)
+
+    def test_whole_cart_checkout_still_orders_all_lines(self):
+        response = self.submit()
+        self.assertEqual(response.status_code, 200)
+        order = Order.objects.get(pk=response.data["order_id"])
+        self.assertEqual(order.items.count(), 3)
+        self.assertEqual(order.total_amount, Decimal("391.50"))
+        self.assertFalse(self.cart.items.exists())
+
+    def test_missing_or_foreign_cart_line_never_falls_back_to_whole_cart(self):
+        other_user = User.objects.create_user(username="other-cake-customer")
+        foreign_cart = Cart.objects.create(user=other_user)
+        foreign_item = CartItem.objects.create(cart=foreign_cart, customization={"price": "1000.00"})
+        for item_id in [foreign_item.pk, foreign_item.pk + 100]:
+            with self.subTest(item_id=item_id):
+                self.assertEqual(self.submit(cart_item_id=item_id).status_code, 400)
+                self.assertEqual(self.cart.items.count(), 3)
+                self.assertFalse(Order.objects.exists())
+        self.assertTrue(CartItem.objects.filter(pk=foreign_item.pk).exists())
+
+    def test_invalid_item_ids_do_not_checkout_any_items(self):
+        for item_id in [None, True, 0, -1, 1.2, "", "abc", "9" * 100, [], {}]:
+            with self.subTest(item_id=item_id):
+                self.assertEqual(self.submit(cart_item_id=item_id).status_code, 400)
+                self.assertEqual(self.cart.items.count(), 3)
+                self.assertFalse(Order.objects.exists())
+
+    def test_order_item_failure_rolls_back_order_without_removing_cart_lines(self):
+        with patch("store.views.OrderItem.objects.create", side_effect=RuntimeError("test order failure")):
+            response = self.submit(cart_item_id=self.selected.pk)
+        self.assertEqual(response.status_code, 500)
+        self.assertFalse(Order.objects.exists())
+        self.assertEqual(self.cart.items.count(), 3)
 
 
 class BestSellingProductsTests(APITestCase):
