@@ -12,6 +12,7 @@ import { TIER_TOP_RADIUS } from "../components/cake/tierConfig";
 import CakeCompass from "../components/CakeCompass";
 import CakePreviewCapture from "../components/CakePreviewCapture";
 import { MAX_CAKE_MESSAGE_LENGTH, normalizeCakeMessage } from "../utils/cakeMessage";
+import { normalizeChocolateRotation } from "../utils/chocolateRotation";
 import { ToppingDragIndicator, ToppingDragProvider, useToppingDragMarker, useToppingDragStore } from "../components/ToppingDragControls";
 import {
     Cake,
@@ -475,7 +476,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         candleColor, setCandleColor,
         candleNumber, setCandleNumber,
         chocolate, setChocolate,
-        chocolateCount, setChocolateCount, chocolateLayouts,
+        chocolateCount, setChocolateCount, chocolateLayouts, setChocolateRotation,
         balls, setBalls,
         nuts, setNuts,
         cherry, setCherry,
@@ -1065,6 +1066,30 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                         </div>
                                     )}
                                 </div>
+                            ))}
+
+                            {chocolate && chocolateLayouts.map((layout, index) => (
+                                <fieldset key={`chocolate-rotation-${index}`} aria-label={`Chocolate ${index + 1} rotation`} className="flex flex-col gap-3 p-3 bg-white rounded-xl border border-[#E6CCA2] shadow-sm">
+                                    <span className="text-xs font-semibold text-[#6E473B]">Chocolate {index + 1} rotation</span>
+                                    {["x", "y"].map((axis) => (
+                                        <label key={axis} className="flex flex-col gap-2">
+                                            <span className="flex items-center justify-between text-xs font-semibold text-[#6E473B]">
+                                                {axis.toUpperCase()} axis
+                                                <output>{normalizeChocolateRotation(layout.rotation)[axis]}°</output>
+                                            </span>
+                                            <input
+                                                type="range"
+                                                aria-label={`Chocolate ${index + 1} ${axis.toUpperCase()} rotation`}
+                                                min="0"
+                                                max="360"
+                                                step="5"
+                                                value={normalizeChocolateRotation(layout.rotation)[axis]}
+                                                onChange={(event) => setChocolateRotation(index, axis, event.target.value)}
+                                                className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#C05A11] bg-[#E6CCA2]"
+                                            />
+                                        </label>
+                                    ))}
+                                </fieldset>
                             ))}
 
                             {chocolate && (

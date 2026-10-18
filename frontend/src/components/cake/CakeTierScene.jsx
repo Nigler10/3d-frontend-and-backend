@@ -7,6 +7,7 @@ import CakeInscription from "../CakeInscription";
 import { DraggableCakeTopping, useToppingDragPlacement } from "../ToppingDragControls";
 import { CAKE_GROUP_POSITION, TIER_TOP_Y, TIER_TOP_RADIUS } from "./tierConfig";
 import { getGroundedNutY } from "../../utils/nutPlacement";
+import { getChocolateQuaternion } from "../../utils/chocolateRotation";
 
 const TIER_MODEL_URLS = {
     tier1: "https://cake-assets-decc.patrickticoy78.workers.dev/tier1/tier1.gltf",
@@ -872,28 +873,24 @@ return (
             {selectedToppings.candle && renderCandleNumber()}
 
             {selectedToppings.nuts && nodes.nuts?.geometry && (
-                <DraggableCakeTopping id="nuts" controller={toppingDrag} anchor={nutTransform.position} layout={toppingLayout.nuts}>
                 <mesh
                     geometry={nodes.nuts.geometry}
                     material={materials.Default}
-                    position={nutTransform.position}
+                    position={[0, nutTransform.position[1], 0]}
                     rotation={TOPPING_3D_CONFIG.nuts.rotation}
                     scale={nutTransform.scale}
                 />
-                </DraggableCakeTopping>
             )}
 
             {selectedToppings.nuts && !nodes.nuts?.geometry && nodes.Mesh021?.geometry && nodes.Mesh021_1?.geometry && (
-                <DraggableCakeTopping id="nuts" controller={toppingDrag} anchor={nutTransform.position} layout={toppingLayout.nuts}>
                 <group
-                    position={nutTransform.position}
+                    position={[0, nutTransform.position[1], 0]}
                     rotation={TOPPING_3D_CONFIG.nuts.rotation}
                     scale={nutTransform.scale}
                 >
                     <mesh geometry={nodes.Mesh021.geometry} material={materials.Default} />
                     <mesh geometry={nodes.Mesh021_1.geometry} material={materials.Default} />
                 </group>
-                </DraggableCakeTopping>
             )}
 
             {selectedToppings.chocolate && chocolateGeometry && chocolateLayouts.map((layout, index) => {
@@ -910,7 +907,7 @@ return (
                                 metalness: 0,
                             })}
                             position={position}
-                            rotation={TOPPING_3D_CONFIG.chocolate.rotation}
+                            quaternion={getChocolateQuaternion(layout.rotation, TOPPING_3D_CONFIG.chocolate.rotation)}
                             scale={scale}
                             visible={true}
                             castShadow

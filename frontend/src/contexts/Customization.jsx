@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { normalizeCakeMessage } from "../utils/cakeMessage";
 import { DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts } from "../utils/chocolateQuantity";
+import { updateChocolateRotation } from "../utils/chocolateRotation";
 
 const cakeColors = [
     { color: "#683434", name: "brown" },
@@ -370,6 +371,10 @@ export const CustomizationProvider = (props) => {
         setChocolateLayouts((prev) => resizeChocolateLayouts(prev, count));
     };
 
+    const setChocolateRotation = (index, axis, value) => {
+        setChocolateLayouts((prev) => updateChocolateRotation(prev, index, axis, value));
+    };
+
     const setCherryCount = (count) => {
         const nextCount = Math.max(1, Math.min(12, Number(count) || 1));
         setCherry(true);
@@ -653,6 +658,7 @@ export const CustomizationProvider = (props) => {
                 chocolateLayouts,
                 chocolateCount: chocolateLayouts.length,
                 setChocolateCount,
+                setChocolateRotation,
                 balls,
                 setBalls,
                 nuts,
