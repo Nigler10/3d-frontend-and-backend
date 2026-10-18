@@ -174,6 +174,9 @@ export default function ChatBox({
 
             reconnectAttemptsRef.current = 0;
             setSocketStatus("connected");
+
+            // Sync messages that may have arrived while disconnected.
+            void loadConversation();
         };
 
         ws.onmessage = (event) => {
@@ -323,20 +326,26 @@ export default function ChatBox({
                 clearTimeout(sendTimeoutRef.current);
             }
 
-            sendTimeoutRef.current = setTimeout(() => {
+            sendTimeoutRef.current = setTimeout(async () => {
+                if (
+                    pendingMessageRef.current !== trimmedMessage
+                ) {
+                    return;
+                }
+
+                console.warn(
+                    "Chat message was not confirmed; syncing conversation."
+                );
+
+                // Refresh saved messages instead of forcibly disconnecting
+                // the current WebSocket.
+                await loadConversation();
+
                 if (
                     pendingMessageRef.current === trimmedMessage
                 ) {
-                    console.warn(
-                        "Chat message was not confirmed by the server."
-                    );
-
                     pendingMessageRef.current = null;
                     setIsSending(false);
-
-                    if (socket.current) {
-                        socket.current.close();
-                    }
                 }
             }, 8000);
 
