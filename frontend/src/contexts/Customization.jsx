@@ -29,7 +29,8 @@ const icingColors = [
     { color: "#F3C96B", name: "caramel" },
 ];
 
-const flavors = ["Choco Moist", "Vanilla Chiffon", "Ube Chiffon"];
+export const DEFAULT_FLAVOR = "Choco Moist";
+const flavors = [DEFAULT_FLAVOR, "Vanilla Chiffon", "Ube Chiffon"];
 
 const flavorTextureMap = {
     "Choco Moist": "choco",
@@ -105,30 +106,26 @@ export const CAKE_SIZES = [
     },
 ];
 
-// LANDMARK: hydrate tierFlavors from saved payload
+export const TIER_FLAVOR_LABELS = {
+    1: ["Cake"],
+    2: ["Bottom Tier", "Top Tier"],
+    3: ["Bottom Tier", "Middle Tier", "Top Tier"],
+    4: ["Bottom Tier", "Second Tier", "Third Tier", "Top Tier"],
+};
+
 const hydrateTierFlavors = (initialState) => {
-    if (!initialState?.tier_flavors) return null;
+    const savedTierKey = CAKE_SIZES.find((item) => item.tier === initialState?.tier)?.tierKey || "tier1";
 
-    const map = initialState.tier_flavors;
-
-    return {
-        tier2: map["Bottom Tier"] && map["Top Tier"]
-            ? [map["Bottom Tier"], map["Top Tier"]]
-            : [flavors[0], flavors[0]],
-
-        tier3: [
-            map["Bottom Tier"] || flavors[0],
-            map["Middle Tier"] || flavors[0],
-            map["Top Tier"] || flavors[0],
-        ],
-
-        tier4: [
-            map["Bottom Tier"] || flavors[0],
-            map["Second Tier"] || flavors[0],
-            map["Third Tier"] || flavors[0],
-            map["Top Tier"] || flavors[0],
-        ],
-    };
+    return Object.fromEntries(CAKE_SIZES.map(({ tierKey }, index) => [
+        tierKey,
+        TIER_FLAVOR_LABELS[index + 1].map((label, layerIndex) => (
+            tierKey === savedTierKey
+                ? initialState?.tier_flavors?.[label]
+                    || (layerIndex === 0 ? initialState?.flavor : null)
+                    || DEFAULT_FLAVOR
+                : DEFAULT_FLAVOR
+        )),
+    ]));
 };
 
 const hydrateToppingLayout = (initialState) => {
@@ -241,9 +238,6 @@ export const CustomizationProvider = (props) => {
     const [icingColor, setIcingColor] = useState(
         () => icingColors.find(c => c.color === initialState?.icing_color) || icingColors[0]
     );
-    const [flavor, setFlavor] = useState(
-        () => initialState?.flavor || flavors[0]
-    );
     const [basePrices, setBasePrices] = useState([]);
     const [addonPrices, setAddonPrices] = useState([]);
     const [pricingLoading, setPricingLoading] = useState(true);
@@ -253,17 +247,9 @@ export const CustomizationProvider = (props) => {
         () => hydrateToppingLayout(initialState)
     );
     // LANDMARK: init tier flavors from admin payload
-    const [tierFlavors, setTierFlavors] = useState(() => {
-        const hydrated = hydrateTierFlavors(initialState);
-        if (hydrated) return hydrated;
-
-        return {
-            tier2: [flavors[0], flavors[0]],
-            tier3: [flavors[0], flavors[0], flavors[0]],
-            tier4: [flavors[0], flavors[0], flavors[0], flavors[0]],
-        };
-    });
-      const [tierFlavorOverrides, setTierFlavorOverrides] = useState({
+    const [tierFlavors, setTierFlavors] = useState(() => hydrateTierFlavors(initialState));
+    const [tierFlavorOverrides, setTierFlavorOverrides] = useState({
+        tier1: [false],
         tier2: [false, false],
         tier3: [false, false, false],
         tier4: [false, false, false, false],
@@ -283,12 +269,15 @@ export const CustomizationProvider = (props) => {
     );
 
     const tier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
-    const selectedTierFlavors = tier.tierKey === "tier1"
-        ? [flavor]
-        : tierFlavors[tier.tierKey] ?? [flavor];
-    const selectedTierFlavorOverrides = tier.tierKey === "tier1"
-        ? [false]
-        : tierFlavorOverrides[tier.tierKey] ?? [];
+    const flavor = tierFlavors.tier1[0];
+    const setFlavor = (newFlavor) => {
+        setTierFlavors((prev) => ({
+            ...prev,
+            tier1: [typeof newFlavor === "function" ? newFlavor(prev.tier1[0]) : newFlavor],
+        }));
+    };
+    const selectedTierFlavors = tierFlavors[tier.tierKey];
+    const selectedTierFlavorOverrides = tierFlavorOverrides[tier.tierKey];
     const pricingFlavor = selectedTierFlavors[0] ?? flavor;
 
     const setToppingPosition = (key, x, y, position) => {
@@ -387,9 +376,9 @@ export const CustomizationProvider = (props) => {
         )));
     };
 
-        const setTierLayerFlavor = (layerIdx, newFlavor) => {
+    const setTierLayerFlavor = (layerIdx, newFlavor) => {
         const tierKey = CAKE_SIZES[selectedTierIndex]?.tierKey;
-        if (!tierKey || tierKey === "tier1") return;
+        if (!tierKey) return;
         setTierFlavors((prev) => ({
             ...prev,
             [tierKey]: prev[tierKey].map((f, idx) => (idx === layerIdx ? newFlavor : f)),
@@ -399,17 +388,16 @@ export const CustomizationProvider = (props) => {
             [tierKey]: (prev[tierKey] || []).map((v, idx) => (idx === layerIdx ? true : v)),
         }));
     };
-     const resetTierFlavorOverrides = () => {
-        setTierFlavors({
-            tier2: [flavors[0], flavors[0]],
-            tier3: [flavors[0], flavors[0], flavors[0]],
-            tier4: [flavors[0], flavors[0], flavors[0], flavors[0]],
-        });
-        setTierFlavorOverrides({
-            tier2: [false, false],
-            tier3: [false, false, false],
-            tier4: [false, false, false, false],
-        });
+    const resetTierFlavorOverrides = () => {
+        const tierKey = tier.tierKey;
+        setTierFlavors((prev) => ({
+            ...prev,
+            [tierKey]: prev[tierKey].map(() => DEFAULT_FLAVOR),
+        }));
+        setTierFlavorOverrides((prev) => ({
+            ...prev,
+            [tierKey]: prev[tierKey].map(() => false),
+        }));
     };
 
     const setCandleNumber = (value) => {
@@ -579,10 +567,10 @@ export const CustomizationProvider = (props) => {
         setSelectedSize(CAKE_SIZES[randomTierIdx].sizes[0]);
         setCakeColor(randomCakeColor);
         setIcingColor(icingColors[Math.floor(Math.random() * icingColors.length)]);
-        setFlavor(randomFlavor);
         setCandleNumber(Math.floor(Math.random() * 100) + 1);
         setCandleMode(Math.random() < 0.5 ? "gold" : "number");
         setTierFlavors({
+            tier1: [randomFlavor],
             tier2: Array.from({ length: 2 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
             tier3: Array.from({ length: 3 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
             tier4: Array.from({ length: 4 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
@@ -681,6 +669,7 @@ export const CustomizationProvider = (props) => {
                 rejectToppingAdditions,
                 setToppingSize,
                 tierFlavors,
+                tierFlavorOverrides,
                 setTierLayerFlavor,
                 tierFlavorLabels,
                 inscriptionText,

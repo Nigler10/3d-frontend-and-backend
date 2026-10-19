@@ -5,7 +5,7 @@ import { OrbitControls, ContactShadows } from "@react-three/drei";
 import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { useLocation, useNavigate } from "react-router-dom";
 import * as THREE from "three";
-import { CAKE_SIZES, CustomizationProvider, FLAVOR_VISUALS, INSCRIPTION_COLOR_OPTIONS, TEXT_FONT_OPTIONS, TOPPING_OPTIONS, TOPPING_SIZES, useCustomization } from "../contexts/Customization";
+import { CAKE_SIZES, CustomizationProvider, DEFAULT_FLAVOR, FLAVOR_VISUALS, INSCRIPTION_COLOR_OPTIONS, TEXT_FONT_OPTIONS, TIER_FLAVOR_LABELS, TOPPING_OPTIONS, TOPPING_SIZES, useCustomization } from "../contexts/Customization";
 import { useCart } from "../context/CartContext";
 import CakeModel, { TierLoadingFallback } from "../components/cake/CakeModel";
 import { TIER_TOP_RADIUS } from "../components/cake/tierConfig";
@@ -33,13 +33,6 @@ import {
 import './BuildBentoPage.css';
 
 export { CakeModel };
-
-const TIER_FLAVOR_LABELS = {
-    1: ["Cake"],
-    2: ["Bottom Tier", "Top Tier"],
-    3: ["Bottom Tier", "Middle Tier", "Top Tier"],
-    4: ["Bottom Tier", "Second Tier", "Third Tier", "Top Tier"],
-};
 
 const FLAVOR_LABELS = {
     "Choco Moist": "Chocolate",
@@ -489,7 +482,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         toppingLayout,
         setToppingPosition,
         setToppingSize,
-        tierFlavors,
+        selectedTierFlavors,
         setTierLayerFlavor,
         resetTierFlavorOverrides,
         tierFlavorLabels,
@@ -508,6 +501,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     const [errorMessage, setErrorMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [openSection, setOpenSection] = useState("tier");
+    const isCakeColorAvailable = selectedTierFlavors.every((layerFlavor) => layerFlavor === "Choco Moist");
 
     const toggleSection = (section) => {
         setOpenSection((current) =>
@@ -559,13 +553,10 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         const selectedTierKey = selectedTier.tierKey;
         const layerCount = selectedTierIndex + 1;
 
-        const activeTierFlavors =
-            selectedTierKey === "tier1"
-                ? [flavor]
-                : Array.from(
-                    { length: layerCount },
-                    (_, idx) => tierFlavors[selectedTierKey]?.[idx] ?? flavors[idx % flavors.length]
-                );
+        const activeTierFlavors = Array.from(
+            { length: layerCount },
+            (_, idx) => selectedTierFlavors[idx] || DEFAULT_FLAVOR
+        );
 
         const tierFlavorPayload =
             selectedTierKey === "tier1"
@@ -719,17 +710,22 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                         <button
                             key={c.name}
                             type="button"
-                            className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 focus:outline-none ${cakeColor.name === c.name
+                            className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:active:scale-100 focus:outline-none ${cakeColor.name === c.name
                                 ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
                                 : "border-transparent shadow-sm"
                                 }`}
                             style={{ background: c.color }}
                             title={c.name}
                             onClick={() => setCakeColor(c)}
+                            disabled={!isCakeColorAvailable}
                             aria-label={`Cake color ${c.name}`}
+                            aria-describedby="cake-color-note"
                         />
                     ))}
                 </div>
+                <p id="cake-color-note" className="mt-3 text-xs text-[#A07060]">
+                    Note: Cake colors are only available for Choco Moist flavor.
+                </p>
             </ConfiguratorSection>
 
             {/* ── Icing Color ── */}
@@ -796,7 +792,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                             className="self-start px-3 py-1.5 text-[11px] font-semibold text-[#A05A2C] bg-white border border-[#E6CCA2] rounded-lg hover:bg-[#FDF6E2] transition-all cursor-pointer active:scale-95"
                             onClick={resetTierFlavorOverrides}
                         >
-                            ↺ Reset all tiers to Cake Color
+                            ↺ Reset tier flavors to Choco Moist
                         </button>
                         {Array.from({ length: selectedTierIndex + 1 }).map((_, idx) => (
                             <label className="flex items-center justify-between gap-4 p-3 bg-white rounded-xl border border-[#E6CCA2]" key={`tier-flavor-${idx}`}>
@@ -805,7 +801,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                         className="w-3 h-3 rounded-full border border-black/10 inline-block shadow-sm"
                                         style={{
                                             backgroundColor:
-                                                FLAVOR_VISUALS[tierFlavors[CAKE_SIZES[selectedTierIndex]?.tierKey]?.[idx]]
+                                                FLAVOR_VISUALS[selectedTierFlavors[idx]]
                                                     ?.color || cakeColor.color,
                                         }}
                                     />
@@ -813,7 +809,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                 </span>
                                 <select
                                     className="px-3 py-1.5 text-xs rounded-lg bg-[#FFFDF9] border border-[#E6CCA2] text-[#6E473B] focus:outline-none focus:border-[#C05A11] cursor-pointer"
-                                    value={tierFlavors[CAKE_SIZES[selectedTierIndex]?.tierKey]?.[idx] || flavors[0]}
+                                    value={selectedTierFlavors[idx] || DEFAULT_FLAVOR}
                                     onChange={(event) => setTierLayerFlavor(idx, event.target.value)}
                                 >
                                     {flavors.map((f) => (

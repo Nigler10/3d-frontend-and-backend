@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { FLAVOR_VISUALS, TOPPING_SIZES, useCustomization } from "../../contexts/Customization";
+import { DEFAULT_FLAVOR, FLAVOR_VISUALS, TOPPING_SIZES, useCustomization } from "../../contexts/Customization";
 import CakeInscription from "../CakeInscription";
 import { DraggableCakeTopping, useToppingDragPlacement } from "../ToppingDragControls";
 import { CAKE_GROUP_POSITION, TIER_TOP_Y, TIER_TOP_RADIUS } from "./tierConfig";
@@ -455,6 +455,7 @@ function applyMaterialsToScene(scene, {
         child.receiveShadow = true;
     });
 
+    scene.updateWorldMatrix(true, true);
     cakeMeshes
         .filter((mesh) => mesh.visible)
         .map((mesh) => {
@@ -497,11 +498,10 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
         form,
         cakeColor,
         icingColor,
-        flavor,
         flavors,
         flavorTextureMap,
-        selectedTierFlavors,
-        selectedTierFlavorOverrides,
+        tierFlavors,
+        tierFlavorOverrides,
         candle,
         candleMode,
         candleColor,
@@ -519,7 +519,10 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
         inscriptionColor,
     } = customization;
 
-    const baseFlavor = selectedTierFlavors?.[0] || flavor;
+    const tierKey = `tier${selectedTierIndex + 1}`;
+    const selectedTierFlavors = tierFlavors[tierKey];
+    const selectedTierFlavorOverrides = tierFlavorOverrides[tierKey];
+    const baseFlavor = selectedTierFlavors?.[0] || DEFAULT_FLAVOR;
     const activeTextureKey = flavorTextureMap[baseFlavor] || "choco";
     const flavorTextureKeys = useMemo(() => [...new Set(
         [baseFlavor, ...(selectedTierFlavors || [])]
