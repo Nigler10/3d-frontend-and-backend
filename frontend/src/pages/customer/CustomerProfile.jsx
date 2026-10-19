@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../../utils/auth";
 import { Link } from "react-router-dom";
 import ChangePasswordModal from "../../components/customer/ChangePasswordModal";
+import { House, Phone, UserRoundKey } from "lucide-react";
 
 function CustomerProfile() {
     const [profile, setProfile] = useState(null);
@@ -76,14 +77,18 @@ function CustomerProfile() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-5 bg-[#FCF8EE]/30 border border-[#E6CCA2]/40 rounded-2xl">
                         <h3 className="text-xs font-black text-[#A05A2C] uppercase tracking-wider mb-2 flex items-center gap-2">
-                            📞 Contact Details
+                            <span>
+                                <Phone className="inline-block h-3 w-3 shrink-0 align-middle" aria-hidden="true" /> Contact Details
+                            </span>
                         </h3>
                         <p className="text-sm text-[#6E473B] font-medium">{profile.phone || "No phone number added"}</p>
                     </div>
 
                     <div className="p-5 bg-[#FCF8EE]/30 border border-[#E6CCA2]/40 rounded-2xl">
                         <h3 className="text-xs font-black text-[#A05A2C] uppercase tracking-wider mb-2 flex items-center gap-2">
-                            🏠 Default Delivery Address
+                            <span>
+                                <House className="inline-block h-3 w-3 shrink-0 align-middle" aria-hidden="true" /> Default Delivery Address
+                            </span>
                         </h3>
                         <p className="text-sm text-[#6E473B] leading-relaxed">
                             {profile.street ? (
@@ -127,7 +132,7 @@ function CustomerProfile() {
                         onClick={() => setShowChangePassword(true)}
                         className="w-full py-3 bg-white hover:bg-[#FCF8EE] border border-[#E6CCA2] text-[#6E473B] text-sm font-bold rounded-xl transition-all active:scale-[0.99] flex items-center justify-center gap-2"
                     >
-                        <span>🔒</span>
+                        <UserRoundKey color="#d02f2f" strokeWidth={1.0} />
                         Change Password
                     </button>
                     {msg && (
