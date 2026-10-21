@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
-import { CustomizationProvider } from "../../contexts/Customization";
 import spcLogo from "../../assets/images/spc.png";
 import "../../styles/order-invoice.css";
 import {
@@ -30,7 +29,7 @@ const ACTIVE_STATUSES = new Set([
 ]);
 
 const FINISHED_STATUSES = new Set(["delivered", "completed"]);
-const CANCELLED_STATUSES = new Set(["cancelled"]);
+const CANCELLED_STATUSES = new Set(["cancelled", "rejected"]);
 const ORDERS_PER_PAGE = 4;
 
 const formatDate = (value, fallback = "Date unavailable") => {
@@ -337,6 +336,7 @@ function ActiveOrderCard({ order, unreadCount, onView, onInvoice, onItemClick })
             case "ready_for_delivery":
                 return "bg-[#DBEAFE] text-[#1D4ED8] border-[#93C5FD]";
             case "cancelled":
+            case "rejected":
                 return "bg-rose-50 text-rose-700 border-rose-200";
             default:
                 return "bg-[#ECFDF5] text-[#047857] border-[#6EE7B7]";
@@ -513,8 +513,9 @@ export default function CustomerOrdersPage() {
     const [invoiceOrder, setInvoiceOrder] = useState(null);
 
     // Cake 3D / Sample Photo Modal State
-    const [selectedCakeCustomization, setSelectedCakeCustomization] = useState(null);
+    const [selectedCakeItemId, setSelectedCakeItemId] = useState(null);
     const [selectedCakeOrderId, setSelectedCakeOrderId] = useState(null);
+    const selectedCake = orders.find((order) => order.id === selectedCakeOrderId)?.items?.find((item) => item.id === selectedCakeItemId);
     const [showCakeModal, setShowCakeModal] = useState(false);
 
     const [activeTab, setActiveTab] = useState("all");
@@ -593,7 +594,7 @@ export default function CustomerOrdersPage() {
     // Item Click Handler -> Opens 3D / Photo Customization Modal or Details Page
     const handleItemClick = (item, orderId) => {
         if (item?.customization) {
-            setSelectedCakeCustomization(item.customization);
+            setSelectedCakeItemId(item.id);
             setSelectedCakeOrderId(orderId);
             setShowCakeModal(true);
         } else {
@@ -872,19 +873,18 @@ export default function CustomerOrdersPage() {
             />
 
             {/* Interactive 3D Customization & Sample Photo Modal */}
-            <CustomizationProvider>
-                <CustomCakeModal
-                    isOpen={showCakeModal}
-                    onClose={() => {
-                        setShowCakeModal(false);
-                        setSelectedCakeCustomization(null);
-                        setSelectedCakeOrderId(null);
-                    }}
-                    customization={selectedCakeCustomization}
-                    orderId={selectedCakeOrderId}
-                    canAddImages={false}
-                />
-            </CustomizationProvider>
+            <CustomCakeModal
+                isOpen={showCakeModal}
+                onClose={() => {
+                    setShowCakeModal(false);
+                    setSelectedCakeItemId(null);
+                    setSelectedCakeOrderId(null);
+                }}
+                customization={selectedCake?.customization}
+                orderId={selectedCakeOrderId}
+                orderItemId={selectedCakeItemId}
+                canAddImages={false}
+            />
 
             {/* Scroll To Top Button (Appears when scroll > 30% of webpage height) */}
             {showScrollTop && (

@@ -114,17 +114,23 @@ export const TIER_FLAVOR_LABELS = {
 };
 
 const hydrateTierFlavors = (initialState) => {
-    const savedTierKey = CAKE_SIZES.find((item) => item.tier === initialState?.tier)?.tierKey || "tier1";
-
+    const savedTierIndex = Math.max(0, CAKE_SIZES.findIndex((item) => item.tier === initialState?.tier));
+    const savedLayers = TIER_FLAVOR_LABELS[savedTierIndex + 1].map((label, layerIndex) => (
+        initialState?.tier_flavors?.[label]
+            || (layerIndex === 0 ? initialState?.flavor : null)
+            || DEFAULT_FLAVOR
+    ));
     return Object.fromEntries(CAKE_SIZES.map(({ tierKey }, index) => [
         tierKey,
-        TIER_FLAVOR_LABELS[index + 1].map((label, layerIndex) => (
-            tierKey === savedTierKey
-                ? initialState?.tier_flavors?.[label]
-                    || (layerIndex === 0 ? initialState?.flavor : null)
-                    || DEFAULT_FLAVOR
-                : DEFAULT_FLAVOR
-        )),
+        Array.from({ length: index + 1 }, (_, layerIndex) => savedLayers[layerIndex] || DEFAULT_FLAVOR),
+    ]));
+};
+
+const hydrateTierFlavorOverrides = (initialState) => {
+    const savedOverrides = initialState?.topping_layout?._design?.tier_flavor_overrides || [];
+    return Object.fromEntries(CAKE_SIZES.map(({ tierKey }, index) => [
+        tierKey,
+        Array.from({ length: index + 1 }, (_, layerIndex) => savedOverrides[layerIndex] === true),
     ]));
 };
 
@@ -248,12 +254,7 @@ export const CustomizationProvider = (props) => {
     );
     // LANDMARK: init tier flavors from admin payload
     const [tierFlavors, setTierFlavors] = useState(() => hydrateTierFlavors(initialState));
-    const [tierFlavorOverrides, setTierFlavorOverrides] = useState({
-        tier1: [false],
-        tier2: [false, false],
-        tier3: [false, false, false],
-        tier4: [false, false, false, false],
-    });
+    const [tierFlavorOverrides, setTierFlavorOverrides] = useState(() => hydrateTierFlavorOverrides(initialState));
 
     const [tierFlavorLabels] = useState(["Bottom Tier", "Middle Tier", "Top Tier", "Peak Tier"]);
     // LANDMARK: inscription + font hydrate fix
@@ -271,10 +272,15 @@ export const CustomizationProvider = (props) => {
     const tier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
     const flavor = tierFlavors.tier1[0];
     const setFlavor = (newFlavor) => {
-        setTierFlavors((prev) => ({
-            ...prev,
-            tier1: [typeof newFlavor === "function" ? newFlavor(prev.tier1[0]) : newFlavor],
-        }));
+        setTierFlavors((prev) => {
+            const nextFlavor = typeof newFlavor === "function" ? newFlavor(prev.tier1[0]) : newFlavor;
+            return Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+                key, layers.map((value, index) => index === 0 ? nextFlavor : value),
+            ]));
+        });
+        setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+            key, layers.map((value, index) => index === 0 ? false : value),
+        ])));
     };
     const selectedTierFlavors = tierFlavors[tier.tierKey];
     const selectedTierFlavorOverrides = tierFlavorOverrides[tier.tierKey];
@@ -377,27 +383,21 @@ export const CustomizationProvider = (props) => {
     };
 
     const setTierLayerFlavor = (layerIdx, newFlavor) => {
-        const tierKey = CAKE_SIZES[selectedTierIndex]?.tierKey;
-        if (!tierKey) return;
-        setTierFlavors((prev) => ({
-            ...prev,
-            [tierKey]: prev[tierKey].map((f, idx) => (idx === layerIdx ? newFlavor : f)),
-        }));
-        setTierFlavorOverrides((prev) => ({
-            ...prev,
-            [tierKey]: (prev[tierKey] || []).map((v, idx) => (idx === layerIdx ? true : v)),
-        }));
+        if (!Number.isInteger(layerIdx) || layerIdx < 0 || layerIdx > selectedTierIndex) return;
+        setTierFlavors((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+            key, layers.map((value, index) => index === layerIdx ? newFlavor : value),
+        ])));
+        setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+            key, layers.map((value, index) => index === layerIdx ? true : value),
+        ])));
     };
     const resetTierFlavorOverrides = () => {
-        const tierKey = tier.tierKey;
-        setTierFlavors((prev) => ({
-            ...prev,
-            [tierKey]: prev[tierKey].map(() => DEFAULT_FLAVOR),
-        }));
-        setTierFlavorOverrides((prev) => ({
-            ...prev,
-            [tierKey]: prev[tierKey].map(() => false),
-        }));
+        setTierFlavors((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+            key, layers.map((value, index) => index <= selectedTierIndex ? DEFAULT_FLAVOR : value),
+        ])));
+        setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
+            key, layers.map((value, index) => index <= selectedTierIndex ? false : value),
+        ])));
     };
 
     const setCandleNumber = (value) => {
@@ -569,12 +569,9 @@ export const CustomizationProvider = (props) => {
         setIcingColor(icingColors[Math.floor(Math.random() * icingColors.length)]);
         setCandleNumber(Math.floor(Math.random() * 100) + 1);
         setCandleMode(Math.random() < 0.5 ? "gold" : "number");
-        setTierFlavors({
-            tier1: [randomFlavor],
-            tier2: Array.from({ length: 2 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
-            tier3: Array.from({ length: 3 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
-            tier4: Array.from({ length: 4 }, () => flavors[Math.floor(Math.random() * flavors.length)]),
-        });
+        const randomLayers = [randomFlavor, ...Array.from({ length: 3 }, () => flavors[Math.floor(Math.random() * flavors.length)])];
+        setTierFlavors(Object.fromEntries(CAKE_SIZES.map(({ tierKey }, index) => [tierKey, randomLayers.slice(0, index + 1)])));
+        setTierFlavorOverrides(hydrateTierFlavorOverrides());
 
         setCandle(false);
         setChocolate(false);

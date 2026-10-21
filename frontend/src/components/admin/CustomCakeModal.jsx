@@ -4,7 +4,7 @@ import "./CustomCakeModal.css";
 import CakePreview3D from "./CakePreview3D";
 import { X } from "lucide-react";
 
-export function CustomCakeModal({ isOpen, onClose, customization, orderId, canAddImages = false, onImagesAdded }) {
+export function CustomCakeModal({ isOpen, onClose, customization, orderId, orderItemId, canAddImages = false, onImagesAdded }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const fileInputRef = useRef(null);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -302,7 +302,7 @@ export function CustomCakeModal({ isOpen, onClose, customization, orderId, canAd
                         )}
                     </div>
                 ) : (
-                    <CakePreview3D customization={customization} />
+                    <CakePreview3D key={`${orderId ?? "cart"}:${orderItemId ?? customization.id ?? "cake"}`} customization={customization} />
                 )}
             </div>
         </div>

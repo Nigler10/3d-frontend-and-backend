@@ -63,18 +63,18 @@ export function Cake(props) {
 
     //Vanilla
     const milkshakeTextureProps = useTexture({
-        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_diffuse.jpg",
-        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_normal.jpg",
-        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_ao.jpg",
-        //displacementMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla_chiffon_height.jpg",
+        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_diffuseOriginal.jpg",
+        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_normal.jpg",
+        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_ao.jpg",
+        roughnessMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla_chiffon_roughness.jpg",
     });
 
     //Ube
     const abstractTextureProps = useTexture({
-        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_diffuseOriginal.jpg",
-        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_normal.jpg",
-        // displacementMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_height.jpg",
-        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_ao.jpg",
+        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_diffuseOriginal.jpg",
+        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_normal.jpg",
+        roughnessMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_roughness.jpg",
+        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_ao.jpg",
     });
     ;
 

@@ -304,7 +304,7 @@ const LandingPage = () => {
                         <div className="flex flex-col gap-4">
                             <h4 className="font-bold text-white text-sm tracking-wider uppercase">Visit Us</h4>
                             <div className="flex flex-col gap-2 text-xs text-[#E6CCA2]">
-                                <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#ffffff]" /> Bacoor, Cavite, Philippines</p>
+                                <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-[#ffffff]" /> Silang, Cavite, Philippines</p>
                                 <p className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#ffffff]" /> +63 912 345 6789</p>
                                 <p className="flex items-center gap-1.5"><Mail className="w-4 h-4 text-[#ffffff]" /> hello@smileypage.com</p>
                             </div>

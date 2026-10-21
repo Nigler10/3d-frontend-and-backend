@@ -4,7 +4,6 @@ import { authFetch } from "../../utils/auth";
 import Logistics from "../../components/Logistics";
 import ProductReviewForm from "../../components/customer/ProductReviewForm";
 import ChatBox from "../../components/chat/ChatBox";
-import { CustomizationProvider } from "../../contexts/Customization";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
@@ -27,7 +26,8 @@ export default function CustomerOrderDetailPage() {
     const [isReplacingCheckout, setIsReplacingCheckout] = useState(false);
     const [agreeNoRefund, setAgreeNoRefund] = useState(false);
     const [showCakeModal, setShowCakeModal] = useState(false);
-    const [selectedCake, setSelectedCake] = useState(null);
+    const [selectedCakeId, setSelectedCakeId] = useState(null);
+    const selectedCake = order?.items?.find((item) => item.id === selectedCakeId);
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
@@ -570,7 +570,7 @@ export default function CustomerOrderDetailPage() {
                                                         type="button"
                                                         className="mt-1 text-xs font-semibold text-[#d67b27] underline hover:text-[#b56219] cursor-pointer"
                                                         onClick={() => {
-                                                            setSelectedCake(item.customization);
+                                                            setSelectedCakeId(item.id);
                                                             setShowCakeModal(true);
                                                         }}
                                                     >
@@ -687,19 +687,18 @@ export default function CustomerOrderDetailPage() {
                 onRefreshOrder={fetchOrder}
             />
 
-            <CustomizationProvider>
-                <CustomCakeModal
-                    isOpen={showCakeModal}
-                    onClose={() => {
-                        setShowCakeModal(false);
-                        setSelectedCake(null);
-                    }}
-                    customization={selectedCake}
-                    orderId={order.id}
-                    canAddImages={true}
-                    onImagesAdded={() => fetchOrder()}
-                />
-            </CustomizationProvider>
+            <CustomCakeModal
+                isOpen={showCakeModal}
+                onClose={() => {
+                    setShowCakeModal(false);
+                    setSelectedCakeId(null);
+                }}
+                customization={selectedCake?.customization}
+                orderId={order.id}
+                orderItemId={selectedCake?.id}
+                canAddImages={true}
+                onImagesAdded={() => fetchOrder()}
+            />
 
             <ExistingCheckoutModal
                 isOpen={Boolean(checkoutChoice)}

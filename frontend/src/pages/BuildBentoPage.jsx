@@ -11,8 +11,9 @@ import CakeModel, { TierLoadingFallback } from "../components/cake/CakeModel";
 import { TIER_TOP_RADIUS } from "../components/cake/tierConfig";
 import CakeCompass from "../components/CakeCompass";
 import CakePreviewCapture from "../components/CakePreviewCapture";
-import { MAX_CAKE_MESSAGE_LENGTH, normalizeCakeMessage } from "../utils/cakeMessage";
+import { MAX_CAKE_MESSAGE_LENGTH } from "../utils/cakeMessage";
 import { normalizeChocolateRotation } from "../utils/chocolateRotation";
+import { createCakeCustomization } from "../utils/cakeCustomization";
 import { ToppingDragIndicator, ToppingDragProvider, useToppingDragMarker, useToppingDragStore } from "../components/ToppingDragControls";
 import {
     Cake,
@@ -164,7 +165,7 @@ class CanvasErrorBoundary extends Component {
 }
 
 // ────────── RealisticLighting ───────────────
-function RealisticLighting() {
+export function RealisticLighting() {
     return (
         <>
             <ambientLight intensity={0.9} color="#fff8f2" />
@@ -459,6 +460,7 @@ function ConfiguratorSection({
 
 // ────── Configurator ──────
 function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, setSelectedSize, capturePreview }) {
+    const customization = useCustomization();
     const {
         cakeColors, cakeColor, setCakeColor,
         icingColors, icingColor, setIcingColor,
@@ -492,7 +494,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         setTextFont,
         inscriptionColor,
         setInscriptionColor,
-    } = useCustomization();
+    } = customization;
 
     const { addCustomCakeToCart } = useCart();
     const dragStore = useToppingDragStore();
@@ -550,56 +552,11 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         }
 
         const selectedTier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
-        const selectedTierKey = selectedTier.tierKey;
-        const layerCount = selectedTierIndex + 1;
-
-        const activeTierFlavors = Array.from(
-            { length: layerCount },
-            (_, idx) => selectedTierFlavors[idx] || DEFAULT_FLAVOR
-        );
-
-        const tierFlavorPayload =
-            selectedTierKey === "tier1"
-                ? {}
-                : Object.fromEntries(
-                    activeTierFlavors.map((layerFlavor, idx) => [
-                        activeTierLabels[idx] ?? `Tier ${idx + 1}`,
-                        layerFlavor,
-                    ])
-                );
-
-        const payload = {
-            shape: form === 1 ? "round" : "rectangle",
-            cake_color: cakeColor.color,
-            icing_color: icingColor.color,
-            flavor: activeTierFlavors[0] || flavor,
-            tier: selectedTier.tier,
-            size: selectedSize,
-            tier_flavors: tierFlavorPayload,
-            inscription_text: normalizeCakeMessage(inscriptionText),
-            text_font: textFont,
-            inscription_color: inscriptionColor,
-            has_candle: candle,
-            candle_number: candleNumber,
-            candle_mode: candleMode,
-            candle_color: candleColor,
-            topping_layout: {
-                ...toppingLayout,
-                _preview: { version: 1, image: previewImage },
-                cherry: cherryLayouts,
-                chocolate: chocolateLayouts,
-                candle: {
-                    ...toppingLayout.candle,
-                    mode: candleMode,
-                    color: candleColor,
-                },
-            },
-            has_chocolate: chocolate,
-            has_balls: balls,
-            has_nuts: nuts,
-            has_cherry: cherry,
-            has_sprinkles: sprinkles,
-        };
+        const payload = createCakeCustomization(customization, {
+            tier: selectedTier,
+            labels: activeTierLabels,
+            previewImage,
+        });
 
         const result = await addCustomCakeToCart(payload);
 

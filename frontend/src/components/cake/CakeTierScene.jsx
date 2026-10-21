@@ -26,14 +26,16 @@ const TEXTURE_URLS = {
         aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/choco_chiffon/Abstract_Organic_006_ambientOcclusion.jpg",
     },
     vanilla: {
-        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_diffuse.jpg",
-        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_normal.jpg",
-        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/vanilla/vanilla/vanilla_chiffon_ao.jpg",
+        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_diffuseOriginal.jpg",
+        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_normal.jpg",
+        roughnessMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_roughness.jpg",
+        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/vanilla/vanilla_chiffon_ao.jpg",
     },
     ube: {
-        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_diffuseOriginal.jpg",
-        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_normal.jpg",
-        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/textures/ube/ube_chiffon_ao.jpg",
+        map: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_diffuseOriginal.jpg",
+        normalMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_normal.jpg",
+        roughnessMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_roughness.jpg",
+        aoMap: "https://cdn.jsdelivr.net/gh/patzylifts/cake-assets@main/ube/ube_chiffon_ao.jpg",
     },
 };
 
@@ -174,7 +176,7 @@ const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor, useF
     color: useFlavorColor
         ? (FLAVOR_VISUALS[flavorName]?.color || fallbackColor)
         : (fallbackColor || FLAVOR_VISUALS[flavorName]?.color),
-    roughness: 0.65,
+    roughness: flavorName === "Vanilla Chiffon" ? 1 : 0.65,
     metalness: 0.0,
     ...(textureByFlavor[flavorName] || {})
 });
@@ -337,7 +339,7 @@ function applyMaterialsToScene(scene, {
 }) {
     if (!scene) return;
 
-    const cakeMatProps = { color: cakeColor.color, roughness: 0.65, metalness: 0.0, ...activeTexture };
+    const cakeMatProps = { color: cakeColor.color, roughness: selectedLayerFlavors[0] === "Vanilla Chiffon" ? 1 : 0.65, metalness: 0.0, ...activeTexture };
     const cherryMatProps = {
         color: "#FFFFFF",
         roughness: 0.42,

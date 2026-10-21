@@ -8,7 +8,6 @@ import Logistics from "../../components/Logistics";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import AdminQuotationPanel from "../../components/admin/AdminQuotationPanel";
 import ChatBox from "../../components/chat/ChatBox";
-import { CustomizationProvider } from "../../contexts/Customization";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
 import OrderItemDetailsModal from "../../components/admin/OrderItemDetailsModal";
@@ -25,7 +24,8 @@ export default function AdminOrderDetailPage() {
     const [error, setError] = useState(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [showCakeModal, setShowCakeModal] = useState(false);
-    const [selectedCake, setSelectedCake] = useState(null);
+    const [selectedCakeId, setSelectedCakeId] = useState(null);
+    const selectedCake = order?.items?.find((item) => item.id === selectedCakeId);
     const [selectedItemDetails, setSelectedItemDetails] = useState(null);
     const [statusToUpdate, setStatusToUpdate] = useState(null);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -291,9 +291,7 @@ export default function AdminOrderDetailPage() {
                                                                 type="button"
                                                                 className="text-xs font-bold text-[#C05A11] underline cursor-pointer"
                                                                 onClick={() => {
-                                                                    setSelectedCake(
-                                                                        item.customization
-                                                                    );
+                                                                    setSelectedCakeId(item.id);
                                                                     setShowCakeModal(true);
                                                                 }}
                                                             >
@@ -394,16 +392,16 @@ export default function AdminOrderDetailPage() {
                 }}
             />
 
-            <CustomizationProvider>
-                <CustomCakeModal
-                    isOpen={showCakeModal}
-                    onClose={() => {
-                        setShowCakeModal(false);
-                        setSelectedCake(null);
-                    }}
-                    customization={selectedCake}
-                />
-            </CustomizationProvider>
+            <CustomCakeModal
+                isOpen={showCakeModal}
+                onClose={() => {
+                    setShowCakeModal(false);
+                    setSelectedCakeId(null);
+                }}
+                customization={selectedCake?.customization}
+                orderId={order.id}
+                orderItemId={selectedCake?.id}
+            />
         </div>
     );
 }
