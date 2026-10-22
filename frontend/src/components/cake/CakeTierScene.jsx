@@ -172,14 +172,16 @@ const getCandlePlacementBounds = (selectedTierIndex, candleMode = "number") => {
     // Allow the 2D UI dot to be dragged freely to the edges
     return [0, 100];
 };
-const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor, useFlavorColor = false) => ({
-    color: useFlavorColor
-        ? (FLAVOR_VISUALS[flavorName]?.color || fallbackColor)
-        : (fallbackColor || FLAVOR_VISUALS[flavorName]?.color),
-    roughness: flavorName === "Vanilla Chiffon" ? 1 : 0.65,
-    metalness: 0.0,
-    ...(textureByFlavor[flavorName] || {})
-});
+const getFlavorMaterialProps = (flavorName, textureByFlavor, fallbackColor, useFlavorColor = false) => {
+    // Choco's original material tint is darker than its UI flavor swatch.
+    const flavorColor = flavorName === DEFAULT_FLAVOR ? "#683434" : FLAVOR_VISUALS[flavorName]?.color;
+    return {
+        color: useFlavorColor ? (flavorColor || fallbackColor) : (fallbackColor || flavorColor),
+        roughness: flavorName === "Vanilla Chiffon" ? 1 : 0.65,
+        metalness: 0.0,
+        ...(textureByFlavor[flavorName] || {})
+    };
+};
 
 const getCakeShape = (name) => {
     const lname = (name || "").toLowerCase();
@@ -326,7 +328,6 @@ const ICING_TRANSFORMS = {
 
 function applyMaterialsToScene(scene, {
     cakeColor,
-    activeTexture,
     form,
     selectedLayerOverrides = [],
     selectedLayerFlavors = [],
@@ -339,7 +340,9 @@ function applyMaterialsToScene(scene, {
 }) {
     if (!scene) return;
 
-    const cakeMatProps = { color: cakeColor.color, roughness: selectedLayerFlavors[0] === "Vanilla Chiffon" ? 1 : 0.65, metalness: 0.0, ...activeTexture };
+    // The shared cake color is editable only for an all-Choco layout. In a
+    // mixed layout, each tier must use its own flavor's tint and textures.
+    const useCakeColor = selectedLayerFlavors.every((flavorName) => flavorName === DEFAULT_FLAVOR);
     const cherryMatProps = {
         color: "#FFFFFF",
         roughness: 0.42,
@@ -444,12 +447,12 @@ function applyMaterialsToScene(scene, {
 
         if (isRound) {
             child.visible = form === 1;
-            if (form === 1) child.material = new THREE.MeshStandardMaterial(cakeMatProps);
+            cakeMeshes.push(child);
             return;
         }
         if (isRect) {
             child.visible = form === 2;
-            if (form === 2) child.material = new THREE.MeshStandardMaterial(cakeMatProps);
+            cakeMeshes.push(child);
             return;
         }
 
@@ -466,10 +469,10 @@ function applyMaterialsToScene(scene, {
         })
         .sort((a, b) => a.y - b.y)
         .forEach(({ mesh }, idx) => {
-            const flavorName = selectedLayerFlavors[idx] ?? selectedLayerFlavors[0];
+            const flavorName = selectedLayerFlavors[idx] ?? DEFAULT_FLAVOR;
             const isOverridden = selectedLayerOverrides[idx];
             mesh.material = new THREE.MeshStandardMaterial(
-                getFlavorMaterialProps(flavorName, textureByFlavor, cakeColor.color, isOverridden)
+                getFlavorMaterialProps(flavorName, textureByFlavor, cakeColor.color, isOverridden || !useCakeColor)
             );
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -482,11 +485,8 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
     // Each canvas needs its own scene graph and material instances. Reusing the
     // cached scene reparents it when several rotatable previews are mounted.
     const activeTier = useMemo(() => {
-        const materialCopies = new Map();
-        const copyMaterial = (material) => {
-            if (!materialCopies.has(material)) materialCopies.set(material, material.clone());
-            return materialCopies.get(material);
-        };
+        // Clone per mesh, even when tiers share a material in the source GLTF.
+        const copyMaterial = (material) => material.clone();
         const scene = loadedTier.scene.clone(true);
         scene.traverse((object) => {
             if (object.isMesh) object.material = Array.isArray(object.material)
@@ -525,7 +525,6 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
     const selectedTierFlavors = tierFlavors[tierKey];
     const selectedTierFlavorOverrides = tierFlavorOverrides[tierKey];
     const baseFlavor = selectedTierFlavors?.[0] || DEFAULT_FLAVOR;
-    const activeTextureKey = flavorTextureMap[baseFlavor] || "choco";
     const flavorTextureKeys = useMemo(() => [...new Set(
         [baseFlavor, ...(selectedTierFlavors || [])]
             .map((flavorName) => flavorTextureMap[flavorName] || "choco")
@@ -547,7 +546,6 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
             ])),
         ])
     ), [flavorTextureKeys, loadedFlavorTextures]);
-    const activeTexture = textureSetsByKey[activeTextureKey];
     const cherryTexture = loadedFlavorTextures.cherry || null;
     useLayoutEffect(() => {
         if (!cherryTexture) return;
@@ -650,7 +648,6 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
 
     const matProps = useMemo(() => ({
         cakeColor,
-        activeTexture,
         form,
         selectedLayerFlavors: selectedTierFlavors,
         selectedLayerOverrides: selectedTierFlavorOverrides,
@@ -661,7 +658,6 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
         sprinklesVisible: sprinkles,
     }), [
         cakeColor,
-        activeTexture,
         form,
         selectedTierFlavors,
         selectedTierFlavorOverrides,

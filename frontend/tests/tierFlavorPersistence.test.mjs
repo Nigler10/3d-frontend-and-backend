@@ -48,7 +48,7 @@ function createBuilder(initialState) {
     return { ...exports, render, select };
 }
 
-test("adding or removing tiers keeps the existing lower-layer flavors", () => {
+test("Tier 1 flavor cascades to every layout and upper-tier overrides survive navigation", () => {
     const builder = createBuilder();
     const state = builder.render();
     for (let index = 0; index < 4; index++) {
@@ -57,13 +57,62 @@ test("adding or removing tiers keeps the existing lower-layer flavors", () => {
         assert.equal(builder.select(index).selectedTierFlavors, state.tierFlavors[key]);
     }
     builder.select(0).setFlavor((previous) => previous === "Choco Moist" ? "Ube Chiffon" : previous);
-    assert.deepEqual(plain(builder.select(1).selectedTierFlavors), ["Ube Chiffon", "Choco Moist"]);
+    assert.deepEqual(plain(builder.select(1).selectedTierFlavors), ["Ube Chiffon", "Ube Chiffon"]);
     builder.render().setTierLayerFlavor(1, "Vanilla Chiffon");
     assert.equal(builder.select(0).flavor, "Ube Chiffon");
-    assert.deepEqual(plain(builder.select(3).selectedTierFlavors), ["Ube Chiffon", "Vanilla Chiffon", "Choco Moist", "Choco Moist"]);
-    builder.render().setTierLayerFlavor(3, "Ube Chiffon");
+    assert.deepEqual(plain(builder.select(3).selectedTierFlavors), ["Ube Chiffon", "Vanilla Chiffon", "Ube Chiffon", "Ube Chiffon"]);
+    builder.render().setTierLayerFlavor(3, "Choco Moist");
     builder.select(0);
-    assert.deepEqual(plain(builder.select(3).selectedTierFlavors), ["Ube Chiffon", "Vanilla Chiffon", "Choco Moist", "Ube Chiffon"]);
+    assert.deepEqual(plain(builder.select(3).selectedTierFlavors), ["Ube Chiffon", "Vanilla Chiffon", "Ube Chiffon", "Choco Moist"]);
+});
+
+test("both Tier 1 flavor handlers replace earlier overrides and retain the cascade on every model", () => {
+    for (const handler of ["setFlavor", "setTierLayerFlavor"]) {
+        for (const flavor of ["Vanilla Chiffon", "Ube Chiffon"]) {
+            const builder = createBuilder();
+            builder.select(3);
+            for (let layer = 0; layer < 4; layer++) builder.render().setTierLayerFlavor(layer, "Choco Moist");
+            const previous = builder.render();
+            const state = builder.select(0);
+            if (handler === "setFlavor") state.setFlavor(flavor);
+            else state.setTierLayerFlavor(0, flavor);
+            const saved = builder.render();
+            for (const index of [3, 0, 2, 1, 3]) {
+                const current = builder.select(index);
+                assert.deepEqual(plain(current.selectedTierFlavors), Array(index + 1).fill(flavor));
+                assert.deepEqual(plain(current.selectedTierFlavorOverrides), Array(index + 1).fill(false));
+                assert.equal(current.tierFlavors, saved.tierFlavors);
+                assert.equal(current.tierFlavorOverrides, saved.tierFlavorOverrides);
+                for (const form of [1, 2]) {
+                    current.setForm(form);
+                    const meshes = cakeMaterials(builder);
+                    assert.equal(meshes.length, index + 1);
+                    assert.ok(meshes.every((mesh) => mesh.map.includes(`/${current.flavorTextureMap[flavor]}/`)));
+                }
+            }
+            assert.deepEqual(plain(previous.tierFlavors.tier4), Array(4).fill("Choco Moist"));
+            assert.deepEqual(plain(previous.tierFlavorOverrides.tier4), Array(4).fill(true));
+        }
+    }
+});
+
+test("manual upper-tab flavor changes affect only the chosen level after a Tier 1 cascade", () => {
+    for (const index of [1, 2, 3]) {
+        const builder = createBuilder();
+        builder.select(0).setFlavor("Vanilla Chiffon");
+        builder.select(index).setTierLayerFlavor(index, "Choco Moist");
+        builder.render().setTierLayerFlavor(0, "Ube Chiffon");
+        const saved = builder.render();
+        const expected = Array(4).fill("Vanilla Chiffon");
+        expected[0] = "Ube Chiffon";
+        expected[index] = "Choco Moist";
+        for (const selected of [0, 3, 1, 2, index]) {
+            const current = builder.select(selected);
+            assert.deepEqual(plain(current.selectedTierFlavors), expected.slice(0, selected + 1));
+            assert.equal(current.tierFlavors, saved.tierFlavors);
+            assert.equal(current.tierFlavorOverrides, saved.tierFlavorOverrides);
+        }
+    }
 });
 
 test("editing and revisiting every layout preserves its bottom-to-top flavors and other customizations", () => {

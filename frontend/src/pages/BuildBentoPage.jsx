@@ -681,7 +681,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                     ))}
                 </div>
                 <p id="cake-color-note" className="mt-3 text-xs text-[#A07060]">
-                    Note: Cake colors are only available for Choco Moist flavor.
+                    Note: Cake colors are only available when both tiers are Choco Moist.
                 </p>
             </ConfiguratorSection>
 

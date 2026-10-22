@@ -272,14 +272,15 @@ export const CustomizationProvider = (props) => {
     const tier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
     const flavor = tierFlavors.tier1[0];
     const setFlavor = (newFlavor) => {
+        const shouldCascade = selectedTierIndex === 0;
         setTierFlavors((prev) => {
             const nextFlavor = typeof newFlavor === "function" ? newFlavor(prev.tier1[0]) : newFlavor;
             return Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
-                key, layers.map((value, index) => index === 0 ? nextFlavor : value),
+                key, layers.map((value, index) => shouldCascade || index === 0 ? nextFlavor : value),
             ]));
         });
         setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
-            key, layers.map((value, index) => index === 0 ? false : value),
+            key, layers.map((value, index) => shouldCascade || index === 0 ? false : value),
         ])));
     };
     const selectedTierFlavors = tierFlavors[tier.tierKey];
@@ -384,6 +385,10 @@ export const CustomizationProvider = (props) => {
 
     const setTierLayerFlavor = (layerIdx, newFlavor) => {
         if (!Number.isInteger(layerIdx) || layerIdx < 0 || layerIdx > selectedTierIndex) return;
+        if (selectedTierIndex === 0) {
+            setFlavor(newFlavor);
+            return;
+        }
         setTierFlavors((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
             key, layers.map((value, index) => index === layerIdx ? newFlavor : value),
         ])));
