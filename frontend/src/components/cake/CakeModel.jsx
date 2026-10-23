@@ -2,12 +2,8 @@ import { lazy, useLayoutEffect } from "react";
 import { Html } from "@react-three/drei";
 import { getTierLoadingPosition } from "./tierConfig";
 
-const TIERS = [
-    lazy(() => import("./CakeTierScene").then((module) => ({ default: module.Tier1Cake }))),
-    lazy(() => import("./CakeTierScene").then((module) => ({ default: module.Tier2Cake }))),
-    lazy(() => import("./CakeTierScene").then((module) => ({ default: module.Tier3Cake }))),
-    lazy(() => import("./CakeTierScene").then((module) => ({ default: module.Tier4Cake }))),
-];
+// Keep the scene and its draggable message mounted while the tier model changes.
+const Tier = lazy(() => import("./CakeTierScene").then((module) => ({ default: module.CakeTierScene })));
 
 export function TierLoadingFallback({ selectedTierIndex = 0, onReady }) {
     useLayoutEffect(() => { onReady?.(false); }, [onReady]);
@@ -21,7 +17,6 @@ export function TierLoadingFallback({ selectedTierIndex = 0, onReady }) {
 }
 
 export default function CakeModel(props) {
-    const index = TIERS[props.selectedTierIndex] ? props.selectedTierIndex : 0;
-    const Tier = TIERS[index];
-    return <Tier {...props} />;
+    const index = Number.isInteger(props.selectedTierIndex) && props.selectedTierIndex >= 0 && props.selectedTierIndex < 4 ? props.selectedTierIndex : 0;
+    return <Tier {...props} selectedTierIndex={index} />;
 }

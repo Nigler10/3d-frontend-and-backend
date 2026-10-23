@@ -479,7 +479,7 @@ function applyMaterialsToScene(scene, {
         });
 }
 
-function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef, onReady, readOnlyToppings = false }) {
+export function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef, onReady, readOnlyToppings = false }) {
     const activeTierUrl = TIER_MODEL_URLS[`tier${selectedTierIndex + 1}`] || TIER_MODEL_URLS.tier1;
     const loadedTier = useGLTF(activeTierUrl);
     // Each canvas needs its own scene graph and material instances. Reusing the
@@ -519,6 +519,9 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
         inscriptionText,
         textFont,
         inscriptionColor,
+        inscriptionLayout,
+        setInscriptionLayout,
+        textSize,
     } = customization;
 
     const tierKey = `tier${selectedTierIndex + 1}`;
@@ -677,9 +680,10 @@ function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, controlsRef,
     }, [activeTier, matProps, selectedTierIndex, onReady]);
 
     const toppingDrag = useToppingDragPlacement({ scene: activeTier.scene, cakeGroupRef, controlsRef, state: customization, readOnly: readOnlyToppings });
+    const inscriptionDragging = useMemo(() => ({ current: false }), []);
 
     useFrame((_, delta) => {
-        if (autoSpin && cakeGroupRef.current && !toppingDrag.isDragging.current) {
+        if (autoSpin && cakeGroupRef.current && !toppingDrag.isDragging.current && !inscriptionDragging.current) {
             cakeGroupRef.current.rotation.y -= delta * 0.4;
         }
     });
@@ -980,6 +984,15 @@ return (
                 font={textFont}
                 color={inscriptionColor}
                 topY={activeTierBounds?.max.y}
+                messageLayout={inscriptionLayout}
+                textSize={textSize}
+                onLayoutChange={setInscriptionLayout}
+                surfaceBounds={activeTierBounds}
+                surfaceScene={activeTier.scene}
+                controlsRef={controlsRef}
+                draggingRef={inscriptionDragging}
+                round={form === 1}
+                readOnly={readOnlyToppings}
             />
         </group>
     );

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformWithOxc } from "vite";
 import * as THREE from "three";
-import { normalizeCakeMessage } from "../src/utils/cakeMessage.js";
+import { DEFAULT_CAKE_MESSAGE_LAYOUT, normalizeCakeMessage, normalizeCakeMessageLayout } from "../src/utils/cakeMessage.js";
 import { DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts } from "../src/utils/chocolateQuantity.js";
 import { getChocolateQuaternion, updateChocolateRotation } from "../src/utils/chocolateRotation.js";
 import { getGroundedNutY } from "../src/utils/nutPlacement.js";
@@ -31,7 +31,7 @@ function createBuilder(initialState) {
     const slots = [];
     let cursor = 0;
     const exports = runInNewContext(providerCode, {
-        React, normalizeCakeMessage, DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts, updateChocolateRotation,
+        React, DEFAULT_CAKE_MESSAGE_LAYOUT, normalizeCakeMessage, normalizeCakeMessageLayout, DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts, updateChocolateRotation,
         createContext: () => ({ Provider: "Provider" }),
         useEffect() {},
         useState(initial) {
@@ -215,6 +215,57 @@ function saveDesign(builder) {
         previewImage: "data:image/png;base64,Y2FrZQ==",
     });
 }
+
+test("message position, text size and curve survive tier navigation and saved previews", () => {
+    const builder = createBuilder();
+    const initial = builder.render();
+    initial.setInscriptionText("Happy Birthday Ana!");
+    initial.setInscriptionLayout({ x: 65, y: 40, width: 45, curve: -60 });
+    initial.setTextSize(150);
+    const expected = { x: 65, y: 40, width: 45, curve: -60, textSize: 150 };
+    for (const index of [3, 1, 0, 2]) {
+        const state = builder.select(index);
+        assert.deepEqual(plain(state.inscriptionLayout), expected);
+        assert.equal(state.textSize, 150);
+        assert.equal(state.inscriptionText, "Happy Birthday Ana!");
+    }
+    const saved = saveDesign(builder);
+    const restored = createBuilder(saved);
+    assert.deepEqual(plain(restored.render().inscriptionLayout), expected);
+    assert.deepEqual(saveDesign(restored), saved);
+    builder.render().setTextSize((previous) => previous + 25);
+    assert.equal(builder.render().textSize, 175);
+    assert.deepEqual(saved.topping_layout.inscription, expected);
+    assert.deepEqual(plain(restored.render().inscriptionLayout), expected);
+    assert.deepEqual(plain(builder.render().toppingLayout.cherry), plain(initial.toppingLayout.cherry));
+});
+
+test("older saved messages default their text size without moving their position", () => {
+    const builder = createBuilder({ topping_layout: { inscription: { x: 72, y: 35, width: 60, curve: 45 } } });
+    assert.deepEqual(plain(builder.render().inscriptionLayout), { x: 72, y: 35, width: 60, curve: 45, textSize: 70 });
+    builder.render().setTextSize(500);
+    assert.equal(builder.render().textSize, 200);
+    builder.render().setTextSize(0);
+    assert.equal(builder.render().textSize, 50);
+    assert.equal(builder.render().inscriptionLayout.x, 72);
+    assert.equal(builder.render().inscriptionLayout.y, 35);
+});
+
+test("tier tabs retain the same scene component identity for the draggable message", async () => {
+    const source = readFileSync(new URL("../src/components/cake/CakeModel.jsx", import.meta.url), "utf8")
+        .replace(/^import .+;\r?$/gm, "").replace(/^export default /gm, "").replace(/^export /gm, "");
+    const { code } = await transformWithOxc(source, "CakeModel.jsx", { jsx: { runtime: "classic" } });
+    const { CakeModel } = runInNewContext(`${code}\n;({ CakeModel });`, {
+        React, lazy: (load) => ({ load }), useLayoutEffect() {}, Html: "Html", ...tierConfig,
+    });
+    const initial = CakeModel({ selectedTierIndex: 0 });
+    for (const selectedTierIndex of [3, 1, 0, 2, 0]) {
+        const next = CakeModel({ selectedTierIndex });
+        assert.equal(next.type, initial.type, "tier selection updates props instead of replacing the message's ancestor");
+        assert.equal(next.props.key, initial.props.key);
+        assert.equal(next.props.selectedTierIndex, selectedTierIndex);
+    }
+});
 
 test("the bottom Ube material remains on the model when a second tier is added", () => {
     const builder = createBuilder();

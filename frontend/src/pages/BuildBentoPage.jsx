@@ -30,6 +30,7 @@ import {
     CheckCircle2,
     XCircle,
     MousePointer,
+    HandGrab,
 } from "lucide-react";
 import './BuildBentoPage.css';
 
@@ -494,6 +495,10 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
         setTextFont,
         inscriptionColor,
         setInscriptionColor,
+        inscriptionLayout,
+        setInscriptionLayout,
+        textSize,
+        setTextSize,
     } = customization;
 
     const { addCustomCakeToCart } = useCart();
@@ -823,6 +828,21 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                             />
                         ))}
                     </div>
+                    <label className="flex flex-col gap-2 text-xs font-medium text-[#6E473B]" htmlFor="cake-message-size">
+                        <span className="flex justify-between">Text Size <span>{textSize}%</span></span>
+                        <input id="cake-message-size" type="range" min="50" max="200" step="5" value={textSize}
+                            onChange={(event) => setTextSize(Number(event.target.value))}
+                            className="w-full accent-[#C05A11] cursor-pointer" />
+                    </label>
+                    <label className="flex flex-col gap-2 text-xs font-medium text-[#6E473B]" htmlFor="cake-message-curve">
+                        <span className="flex justify-between">Curve Text <span>{inscriptionLayout.curve === 0 ? "Straight" : `${inscriptionLayout.curve}%`}</span></span>
+                        <input id="cake-message-curve" type="range" min="-100" max="100" step="1" value={inscriptionLayout.curve}
+                            onChange={(event) => setInscriptionLayout({ curve: Number(event.target.value) })}
+                            className="w-full accent-[#C05A11] cursor-pointer" />
+                    </label>
+                    <p className="flex items-center gap-1.5 text-xs text-[#6E473B]">
+                        <HandGrab className="h-4 w-4" aria-hidden="true" /> Double tap the message on the cake to position it.
+                    </p>
                 </div>
             </ConfiguratorSection>
 
@@ -1247,7 +1267,7 @@ function BuildBentoContent() {
 
                                     <RealisticLighting />
 
-                                    <Suspense key={selectedTierIndex} fallback={<TierLoadingFallback selectedTierIndex={selectedTierIndex} onReady={setIsCakeReady} />}>
+                                    <Suspense fallback={<TierLoadingFallback selectedTierIndex={selectedTierIndex} onReady={setIsCakeReady} />}>
                                         <CakeModel
                                             selectedTierIndex={selectedTierIndex}
                                             autoSpin={autoSpin}

@@ -1,6 +1,6 @@
 // src/contexts/Customization.jsx
 import { createContext, useContext, useEffect, useState } from "react";
-import { normalizeCakeMessage } from "../utils/cakeMessage";
+import { DEFAULT_CAKE_MESSAGE_LAYOUT, normalizeCakeMessage, normalizeCakeMessageLayout } from "../utils/cakeMessage";
 import { DEFAULT_CHOCOLATE_LAYOUT, hydrateChocolateLayouts, resizeChocolateLayouts } from "../utils/chocolateQuantity";
 import { updateChocolateRotation } from "../utils/chocolateRotation";
 
@@ -75,6 +75,7 @@ export const TOPPING_SIZES = {
 };
 
 const DEFAULT_TOPPING_LAYOUT = {
+    inscription: DEFAULT_CAKE_MESSAGE_LAYOUT,
     candle: { x: 50, y: 50, size: "medium", mode: "gold", color: "gold" },
     chocolate: DEFAULT_CHOCOLATE_LAYOUT,
     balls: { x: 50, y: 50, size: "medium" },
@@ -140,7 +141,7 @@ const hydrateToppingLayout = (initialState) => {
     return Object.fromEntries(
         Object.entries(DEFAULT_TOPPING_LAYOUT).map(([key, defaultLayout]) => [
             key,
-            {
+            key === "inscription" ? normalizeCakeMessageLayout(savedLayout[key]) : {
                 ...defaultLayout,
                 ...(key === "chocolate" && Array.isArray(savedLayout[key]) ? savedLayout[key][0] : (savedLayout[key] || {})),
             },
@@ -268,6 +269,21 @@ export const CustomizationProvider = (props) => {
     const [inscriptionColor, setInscriptionColor] = useState(
         () => initialState?.inscription_color || INSCRIPTION_COLOR_OPTIONS[0].value
     );
+    const setInscriptionLayout = (changes) => {
+        setToppingLayout((previous) => ({
+            ...previous,
+            inscription: normalizeCakeMessageLayout({ ...previous.inscription, ...changes }),
+        }));
+    };
+    const setTextSize = (size) => {
+        setToppingLayout((previous) => ({
+            ...previous,
+            inscription: normalizeCakeMessageLayout({
+                ...previous.inscription,
+                textSize: typeof size === "function" ? size(previous.inscription.textSize) : size,
+            }),
+        }));
+    };
 
     const tier = CAKE_SIZES[selectedTierIndex] ?? CAKE_SIZES[0];
     const flavor = tierFlavors.tier1[0];
@@ -680,6 +696,10 @@ export const CustomizationProvider = (props) => {
                 setTextFont,
                 inscriptionColor,
                 setInscriptionColor,
+                inscriptionLayout: toppingLayout.inscription,
+                setInscriptionLayout,
+                textSize: toppingLayout.inscription.textSize,
+                setTextSize,
             }}
         >
             {props.children}
