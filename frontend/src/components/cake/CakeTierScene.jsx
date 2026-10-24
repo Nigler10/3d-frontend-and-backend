@@ -283,8 +283,8 @@ const getCenteredNutTransform = (tierBounds, selectedTierIndex, form, geometries
 const ICING_TRANSFORMS = {
     0: {
         round: {
-            position: [-0.0119, -0.7735, 0.0015],
-            scale: [1.235, 1.013, 1.235],
+            position: [0, -0.775166, 0],
+            scale: [1.2, 1.013, 1.2],
         },
         rectangle: {
             position: [0.008, -1.249, -0.000],
