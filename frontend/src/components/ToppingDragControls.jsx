@@ -4,7 +4,7 @@ import Draggable from "react-draggable-3d";
 import { HandGrab } from "lucide-react";
 import { toast } from "react-toastify";
 import * as THREE from "three";
-import { getToppingCollisionBox } from "../utils/toppingDragPlacement";
+import { getToppingCollisionBox, getTransformedToppingBox } from "../utils/toppingDragPlacement";
 import { createToppingDragController } from "../utils/toppingDragController.js";
 
 const DragPlacementContext = createContext(null);
@@ -109,8 +109,9 @@ export function DraggableCakeTopping({ id, controller, anchor, layout, insertion
             const parent = object.parent;
             const position = new THREE.Vector3(...anchor);
             const box = getToppingCollisionBox(object, parent).translate(position.clone().negate());
+            const messageBox = getTransformedToppingBox(object, parent).translate(position.clone().negate());
             const depth = insertionDepth === "existing" ? Math.max(0, Math.min(0.15, anchor[1] + 0.01 - (position.y + box.min.y))) : insertionDepth;
-            controller.register(id, { id, object, anchor: position, box, layout, insertionDepth: depth, position: null });
+            controller.register(id, { id, object, anchor: position, box, messageBox, layout, insertionDepth: depth, position: null });
         };
         if (controller.isDragging.current) controller.defer(id, measure);
         else measure();

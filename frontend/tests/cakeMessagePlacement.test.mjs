@@ -3,11 +3,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformWithOxc } from "vite";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { HandGrab } from "lucide-react";
 import * as THREE from "three";
 import { Text } from "three-text";
 import { DEFAULT_CAKE_MESSAGE_LAYOUT, normalizeCakeMessage, normalizeCakeMessageLayout, wrapCakeMessage } from "../src/utils/cakeMessage.js";
 import { clampCakeMessagePosition, curveCakeMessageGeometry, fitCakeMessageGeometry, getCakeMessageDragPosition, getCakeMessagePadding, getCakeMessageSurface, MESSAGE_EDGE_GAP, MESSAGE_HEIGHT_OFFSET, MESSAGE_MAX_ARC_SWEEP, MESSAGE_SURFACE_GAP } from "../src/utils/cakeMessagePlacement.js";
 import { isToppingPositionValid } from "../src/utils/toppingDragPlacement.js";
+import { createToppingDragController } from "../src/utils/toppingDragController.js";
 
 const buffer = (path) => {
     const bytes = readFileSync(new URL(path, import.meta.url));
@@ -364,7 +368,7 @@ function renderInscription(props = {}, wrapped = null, previous = null) {
     let refIndex = 0, memoIndex = 0;
     const { CakeInscription } = runInNewContext(`${inscriptionCode}\n;({CakeInscription});`, {
         React: { createElement: (type, attributes, ...children) => ({ type, props: { ...attributes, children } }) },
-        THREE, DragControls: "DragControls", ThreeText: { setHarfBuzzPath() {} },
+        THREE, createElement, renderToStaticMarkup, HandGrab, DragControls: "DragControls", ThreeText: { setHarfBuzzPath() {} },
         TEXT_FONT_OPTIONS: [{ value: "classic", path: "test.ttf" }],
         normalizeCakeMessage, normalizeCakeMessageLayout, wrapCakeMessage,
         clampCakeMessagePosition, curveCakeMessageGeometry, fitCakeMessageGeometry, getCakeMessageDragPosition, getCakeMessageSurface,
@@ -561,7 +565,12 @@ test("the message component locks height, pauses controls and saves its clamped 
     assert.ok(component.updates.some((update) => update.text.includes("\n")));
     assert.equal(component.drag.props.axisLock, "y");
     component.tree.props.onPointerDown({ button: 0, stopPropagation() {} });
-    assert.equal(component.canvas.style.cursor, "grabbing");
+    const cursor = component.canvas.style.cursor;
+    assert.match(cursor, /^url\("data:image\/svg\+xml,/);
+    const svg = decodeURIComponent(cursor.slice(cursor.indexOf(",") + 1, cursor.indexOf('\")')));
+    assert.match(svg, /class="lucide lucide-hand-grab"/);
+    assert.match(svg, /stroke="#DDD8C6"/);
+    assert.match(svg, /width="40" height="40"/);
     assert.equal(component.controlsRef.current.enabled, false);
     assert.equal(component.draggingRef.current, true);
     component.drag.props.onDragStart();
@@ -603,4 +612,57 @@ test("cancel and unmount restore orbit controls; saved previews have no message 
     assert.equal(preview.drag.props.onDrag, undefined);
     assert.equal(preview.canvas.style.cursor, "crosshair");
     preview.cleanups.forEach((cleanup) => cleanup());
+});
+
+test("message tunnels through pearls in rotated cake coordinates and adjusts exactly once on drop", async () => {
+    for (const [goalX, cancel] of [[0, false], [0.5, false], [0, true]]) {
+        const toppingDrag = createToppingDragController({ getCurrent() {}, store: {}, invalidate() {} });
+        toppingDrag.enabled = true;
+        const box = new THREE.Box3(new THREE.Vector3(-0.1, 0, -0.1), new THREE.Vector3(0.1, 0.2, 0.1));
+        const object = new THREE.Group();
+        toppingDrag.register("balls", { id: "balls", object, anchor: new THREE.Vector3(), box, layout: {} });
+        toppingDrag.apply(toppingDrag.entries.get("balls"), new THREE.Vector3(0, 2.35, 0), false);
+        const component = await settleInscription({ text: "Ana", toppingDrag, messageLayout: { x: 20, y: 50, width: 30 } });
+        let adjustments = 0;
+        const placeMessage = toppingDrag.placeMessage;
+        toppingDrag.placeMessage = (...args) => { adjustments++; return placeMessage(...args); };
+        component.drag.props.onDragStart();
+        const before = new THREE.Vector3().setFromMatrixPosition(component.group.matrix);
+        const goal = before.clone().setX(goalX);
+        const worldDelta = component.root.localToWorld(goal.clone()).sub(component.root.localToWorld(before.clone()));
+        const proposed = new THREE.Matrix4().makeTranslation(...before.clone().add(worldDelta).toArray());
+        component.drag.props.onDrag(proposed);
+        const during = new THREE.Vector3().setFromMatrixPosition(component.group.matrix);
+        assert.ok(during.distanceTo(goal) < 1e-7, "text reaches the pointer even across or inside a pearl");
+        assert.equal(adjustments, 0, "no collision adjustment runs during dragging");
+        if (cancel) {
+            component.tree.props.onPointerCancel();
+            component.drag.props.onDragEnd();
+            assert.equal(adjustments, 0, "canceling a drag does not run drop adjustment");
+            assert.ok(new THREE.Vector3().setFromMatrixPosition(component.group.matrix).equals(before), "canceled tunneling returns to the original safe position");
+            component.cleanups.forEach((cleanup) => cleanup());
+            component.loaded.forEach((text) => text.dispose());
+            continue;
+        }
+        const changesBeforeDrop = component.changes.length;
+        component.drag.props.onDragEnd();
+        component.tree.props.onPointerUp();
+        assert.equal(adjustments, 1, "duplicate release events cannot adjust twice");
+        assert.equal(component.changes.length, changesBeforeDrop + 1, "only the resolved layout is saved");
+        const after = new THREE.Vector3().setFromMatrixPosition(component.group.matrix);
+        const footprint = new THREE.Box3();
+        for (const point of renderedFootprint(component.geometry)) footprint.expandByPoint(new THREE.Vector3(point.x + after.x, after.y, point.z + after.z));
+        const separated = footprint.max.x <= -0.102 + 1e-7 || footprint.min.x >= 0.102 - 1e-7 || footprint.max.z <= -0.102 + 1e-7 || footprint.min.z >= 0.102 - 1e-7;
+        assert.ok(separated, "drop leaves the full message beside the pearl with clearance");
+        if (goalX === 0.5) assert.ok(after.distanceTo(during) < 1e-7, "a clear drop beyond a topping stays where it was released");
+        else assert.ok(after.distanceTo(during) > 0.1, "an overlapping drop moves only at release");
+        assert.equal(after.y, before.y);
+        const pearl = toppingDrag.entries.get("balls");
+        assert.ok(toppingDrag.messageObstacle(pearl).containsPoint(after), "reverse dragging reads the new message position immediately");
+        assert.ok(Math.abs(component.changes.at(-1).x - (after.x + 1) * 50) < 1e-6);
+        assert.ok(Math.abs(component.changes.at(-1).y - (after.z + 1) * 50) < 1e-6);
+        component.cleanups.forEach((cleanup) => cleanup());
+        assert.equal(toppingDrag.messageObstacle(pearl), null, "unmount releases the text footprint");
+        component.loaded.forEach((text) => text.dispose());
+    }
 });

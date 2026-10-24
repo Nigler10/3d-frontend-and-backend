@@ -991,6 +991,7 @@ return (
                 surfaceScene={activeTier.scene}
                 controlsRef={controlsRef}
                 draggingRef={inscriptionDragging}
+                toppingDrag={toppingDrag}
                 round={form === 1}
                 readOnly={readOnlyToppings}
             />

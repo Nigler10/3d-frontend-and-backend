@@ -157,9 +157,9 @@ function sweptObstacleEntry(box, from, to, obstacle, gap) {
     return exit > 0 && entry < 1 ? Math.max(0, entry) : null;
 }
 
-function constrainSegment(box, from, to, surface, obstacles, gap) {
+export function constrainToppingPath(box, from, to, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP) {
     let fraction = 1;
-    if (!isInsideSurface(box, to, surface, gap)) {
+    if (surface && !isInsideSurface(box, to, surface, gap)) {
         let low = 0;
         let high = 1;
         const candidate = new Vector3();
@@ -181,7 +181,8 @@ function constrainSegment(box, from, to, surface, obstacles, gap) {
     return new Vector3().lerpVectors(from, to, fraction);
 }
 
-export function constrainToppingPosition({ box, from, to, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP, allowTunneling = false }) {
+export function constrainToppingPosition({ box, from, to, surface, obstacles = [], blockingObstacles = [], gap = TOPPING_PLACEMENT_GAP, allowTunneling = false }) {
+    obstacles = [...obstacles, ...blockingObstacles];
     const target = new Vector3(
         Number.isFinite(to.x) ? to.x : from.x,
         Number.isFinite(to.y) ? to.y : from.y,
@@ -190,26 +191,27 @@ export function constrainToppingPosition({ box, from, to, surface, obstacles = [
     if (!isToppingPositionValid({ box, position: from, surface, obstacles, gap })) return from.clone();
     // An intentional relocation may cross occupied space only when the entire
     // destination footprint is clear and contained by the cake surface.
-    if (allowTunneling && isToppingPositionValid({ box, position: target, surface, obstacles, gap })) return target;
-    const stopped = constrainSegment(box, from, target, surface, obstacles, gap);
+    if (allowTunneling && blockingObstacles.every((obstacle) => sweptObstacleEntry(box, from, target, obstacle, gap) === null) &&
+        isToppingPositionValid({ box, position: target, surface, obstacles, gap })) return target;
+    const stopped = constrainToppingPath(box, from, target, surface, obstacles, gap);
     let nearest = stopped;
     // One-axis sliding keeps contact smooth without teleporting across a blocker.
     for (const axis of ["x", "z"]) {
         const slideTarget = stopped.clone();
         slideTarget[axis] = target[axis];
-        const slid = constrainSegment(box, stopped, slideTarget, surface, obstacles, gap);
+        const slid = constrainToppingPath(box, stopped, slideTarget, surface, obstacles, gap);
         // The rendered group moves directly to the result. Sweep that shortcut
         // against every decoration, keeping safe tangential progress up to the
         // next obstacle instead of discarding the entire move.
-        const direct = constrainSegment(box, from, slid, surface, obstacles, gap);
+        const direct = constrainToppingPath(box, from, slid, surface, obstacles, gap);
         if (isToppingPositionValid({ box, position: direct, surface, obstacles, gap }) &&
             direct.distanceToSquared(target) < nearest.distanceToSquared(target) - EPSILON ** 2) nearest = direct;
     }
     return isToppingPositionValid({ box, position: nearest, surface, obstacles, gap }) ? nearest : from.clone();
 }
 
-export function findToppingPosition({ box, position, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP }) {
-    if (isToppingPositionValid({ box, position, surface, obstacles, gap })) return position.clone();
+export function findToppingPosition({ box, position, surface, obstacles = [], gap = TOPPING_PLACEMENT_GAP, isPositionAllowed = () => true }) {
+    if (isPositionAllowed(position) && isToppingPositionValid({ box, position, surface, obstacles, gap })) return position.clone();
     if (!surface || box.isEmpty()) return null;
     const minX = surface.minX + gap - box.min.x;
     const maxX = surface.maxX - gap - box.max.x;
@@ -240,5 +242,5 @@ export function findToppingPosition({ box, position, surface, obstacles = [], ga
         }
     }
     candidates.sort((a, b) => a.distanceToSquared(position) - b.distanceToSquared(position) || a.x - b.x || a.z - b.z);
-    return candidates.find((candidate) => isToppingPositionValid({ box, position: candidate, surface, obstacles, gap })) || null;
+    return candidates.find((candidate) => isPositionAllowed(candidate) && isToppingPositionValid({ box, position: candidate, surface, obstacles, gap })) || null;
 }

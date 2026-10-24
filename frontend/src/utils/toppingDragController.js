@@ -52,6 +52,7 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
     let surface;
     let surfaceKey;
     let active;
+    let messageFootprint;
     let controlsEnabled;
     let reconcileQueued = false;
     const rejected = new Set();
@@ -95,6 +96,7 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
                 layout: { ...entry.layout },
                 anchor: entry.anchor.clone(),
                 box: entry.box.clone(),
+                messageBox: (entry.messageBox || entry.box).clone(),
                 position: old?.position?.clone() || null,
                 changed: !old || !old.box.equals(entry.box) || old.layout.size !== entry.layout.size || old.layout.x !== entry.layout.x || old.layout.y !== entry.layout.y,
             };
@@ -139,12 +141,52 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
                 parent: getCurrent().cakeGroupRef.current, raycaster,
             });
         },
-        obstacles(id) {
+        setMessageFootprint(box, position) {
+            messageFootprint = box ? box.clone().translate(position) : null;
+        },
+        messageObstacle(entry) {
+            if (!messageFootprint) return null;
+            const obstacle = messageFootprint.clone();
+            const fullBox = entry.messageBox || entry.box;
+            // Undo only this topping's collision-box inset so its visible edges
+            // stop before the text, while topping-to-topping spacing stays intact.
+            for (const axis of ["x", "z"]) {
+                obstacle.min[axis] -= fullBox.max[axis] - entry.box.max[axis];
+                obstacle.max[axis] += entry.box.min[axis] - fullBox.min[axis];
+            }
+            return obstacle;
+        },
+        messageObstacles() {
+            return [...entries.values()].filter((entry) => entry.position)
+                .map((entry) => entry.messageBox.clone().translate(entry.position));
+        },
+        placeMessage(box, position, messageSurface, { isPositionAllowed, fallback = position } = {}) {
+            const obstacles = controller.messageObstacles();
+            // The message already clamps its curved outline against the cake.
+            // Test collisions here without imposing rectangular corner limits.
+            const bounds = { ...messageSurface, round: false, outline: undefined };
+            if ((!isPositionAllowed || isPositionAllowed(position)) && isToppingPositionValid({ box, position, surface: bounds, obstacles })) return position;
+            // Exact edge candidates give the smallest X/Z separation vector;
+            // validate every candidate against the message's cake-edge limits.
+            return findToppingPosition({ box, position, surface: isPositionAllowed ? bounds : messageSurface, obstacles, isPositionAllowed }) || fallback;
+        },
+        obstacles(id, includeMessage = true) {
             // Registration measures the transformed mesh geometry. Translation
             // of those Box3s keeps collision checks inexpensive during dragging.
-            return [...entries.values()]
+            const obstacles = [...entries.values()]
                 .filter((entry) => entry.id !== id && entry.position)
                 .map((entry) => entry.box.clone().translate(entry.position));
+            const entry = entries.get(id);
+            const message = includeMessage && entry && controller.messageObstacle(entry);
+            if (message) obstacles.push(message);
+            return obstacles;
+        },
+        constrain(entry, target) {
+            return constrainToppingPosition({
+                box: entry.box, from: entry.position, to: target, surface,
+                obstacles: controller.obstacles(entry.id, false),
+                allowTunneling: true,
+            });
         },
         valid(entry, position, obstacles = controller.obstacles(entry.id)) {
             return isToppingPositionValid({ box: entry.box, position, surface, obstacles });
@@ -191,8 +233,9 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             const ordered = [...entries.values()].sort((a, b) => Number(!a.position) - Number(!b.position) || Number(a.changed) - Number(b.changed));
             for (const entry of ordered) {
                 const desired = controller.fromLayout(entry.layout, entry.anchor.y);
+                const message = controller.messageObstacle(entry);
                 const position = controller.interactive === false && entry.layout.position
-                    ? desired : findToppingPosition({ box: entry.box, position: desired, surface, obstacles });
+                    ? desired : findToppingPosition({ box: entry.box, position: desired, surface, obstacles: message ? [...obstacles, message] : obstacles });
                 if (!position) {
                     entry.object.visible = false;
                     entries = new Map(entries).set(entry.id, { ...entry, position: null });
@@ -228,12 +271,9 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             active.requestedTarget.copy(target);
             // A clear destination can be reached across other toppings. Occupied
             // targets still clamp at contact and slide along the obstacle edge.
-            active.target = constrainToppingPosition({
-                box: entry.box, from: entry.position, to: target, surface,
-                obstacles: controller.obstacles(id), allowTunneling: true,
-            });
+            active.target = controller.constrain(entry, target);
             active.target.y = controller.height(entry, active.target);
-            if (controller.valid(entry, active.target)) active.lastValidPosition.copy(active.target);
+            if (controller.valid(entry, active.target, controller.obstacles(id, false))) active.lastValidPosition.copy(active.target);
             invalidate();
         },
         update(delta) {
@@ -243,19 +283,17 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             // Recheck the pointer goal from the rendered position each frame.
             // Once tangential motion clears an edge, the inward component can
             // resume without requiring another pointer event to release contact.
-            active.target = constrainToppingPosition({
-                box: entry.box, from: entry.position, to: active.requestedTarget, surface,
-                obstacles: controller.obstacles(active.id), allowTunneling: true,
-            });
+            active.target = controller.constrain(entry, active.requestedTarget);
             active.target.y = controller.height(entry, active.target);
             if (entry.position.distanceToSquared(active.target) < 1e-12) return;
             // Exponential visual smoothing uses elapsed time, not frame count.
             const position = entry.position.clone().lerp(active.target, -Math.expm1(-24 * delta));
-            // Skip an occupied interpolation step to the clear destination;
-            // tunneling must never leave the rendered topping inside an obstacle.
-            if (!controller.valid(entry, position)) {
+            // Keep other toppings clear during smoothing. The message can be
+            // crossed freely and is checked only when the topping is dropped.
+            const obstacles = controller.obstacles(active.id, false);
+            if (!controller.valid(entry, position, obstacles)) {
                 position.copy(active.target);
-                if (!controller.valid(entry, position)) return;
+                if (!controller.valid(entry, position, obstacles)) return;
             }
             position.y = controller.height(entry, position);
             active.lastValidPosition.copy(position);
@@ -297,7 +335,11 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
                 const obstacles = controller.obstacles(entry.id);
                 const position = controller.valid(entry, active.target, obstacles)
                     ? active.target.clone()
-                    : findToppingPosition({ box: entry.box, position: active.lastValidPosition, surface, obstacles });
+                    // Resolve from the drop point so exact edge candidates pick
+                    // the shortest X/Z separation from the message and toppings.
+                    : findToppingPosition({ box: entry.box, position: active.target, surface, obstacles })
+                        || findToppingPosition({ box: entry.box, position: active.lastValidPosition, surface, obstacles })
+                        || findToppingPosition({ box: entry.box, position: active.position, surface, obstacles });
                 if (position) {
                     position.y = controller.height(entry, position);
                     controller.commit(controller.apply(entry, position));

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BoxGeometry, Group, Mesh, PerspectiveCamera, Vector3 } from "three";
+import { Box3, BoxGeometry, Group, Mesh, PerspectiveCamera, Vector3 } from "three";
 import { createToppingDragController } from "../src/utils/toppingDragController.js";
 import { getTransformedToppingBox, TOPPING_PLACEMENT_GAP } from "../src/utils/toppingDragPlacement.js";
 
@@ -426,4 +426,154 @@ test("drag indicator state tracks package pointer events and clears on drop or c
     start("chocolate");
     controller.cancel();
     assert.equal(dragEvents.at(-1).isDragging, false);
+});
+
+test("toppings tunnel through text on every X/Z edge and separate only on drop", () => {
+    for (const axis of ["x", "z"]) for (const sign of [-1, 1]) for (const cross of [false, true]) {
+        const { controller, register, parent, current } = setup();
+        const moving = register("balls", axis === "x" ? sign * 1.2 : 0, axis === "z" ? sign * 1.2 : 0);
+        const entry = controller.entries.get("balls");
+        const inset = entry.box.clone();
+        for (const direction of ["x", "z"]) { inset.min[direction] += 0.02; inset.max[direction] -= 0.02; }
+        controller.register("balls", { ...entry, box: inset, messageBox: entry.box });
+        controller.reconcile();
+        // Deliberately separate the heights: collision must use X/Z footprints.
+        const message = new Box3(new Vector3(-0.3, -4, -0.3), new Vector3(0.3, -3.9, 0.3));
+        controller.setMessageFootprint(message, new Vector3());
+        const before = controller.entries.get("balls").position.clone();
+        const target = before.clone();
+        target[axis] = cross ? -sign * 1.2 : sign * 0.48;
+        controller.begin("balls");
+        controller.move("balls", target);
+        let passedThroughText = false;
+        for (let frame = 0; frame < 90; frame++) {
+            controller.update(1 / 60);
+            const bounds = getTransformedToppingBox(moving.object, parent);
+            bounds.min.y = -Infinity; bounds.max.y = Infinity;
+            if (bounds.intersectsBox(message)) passedThroughText = true;
+            assert.equal(controller.entries.get("balls").position.y, before.y);
+        }
+        assert.equal(passedThroughText, true, `text cannot block the moving pearl on ${axis}`);
+        const during = controller.entries.get("balls").position.clone();
+        assert.ok(during.distanceTo(target) < 1e-6, "the topping reaches its pointer target within the existing smoothing tolerance before release");
+        controller.end();
+        const released = controller.entries.get("balls").position.clone();
+        const bounds = getTransformedToppingBox(moving.object, parent);
+        if (cross) assert.ok(released.distanceTo(target) < 1e-8, "a clear drop beyond the text stays put");
+        else {
+            const gap = sign < 0 ? message.min[axis] - bounds.max[axis] : bounds.min[axis] - message.max[axis];
+            assert.ok(Math.abs(gap - TOPPING_PLACEMENT_GAP) < 1e-7, "an overlapping drop separates at the nearest visible edge");
+            assert.equal(released[axis === "x" ? "z" : "x"], target[axis === "x" ? "z" : "x"], "separation follows the shortest collision vector");
+        }
+        assert.equal(controller.valid(controller.entries.get("balls"), released), true);
+        assert.deepEqual(current.state.toppingLayout.balls.position, released.toArray(), "only the resolved position is saved");
+        controller.end();
+        assert.ok(controller.entries.get("balls").position.equals(released), "duplicate drop events do not adjust twice");
+        controller.reconcile();
+        assert.ok(controller.entries.get("balls").position.distanceTo(released) < 1e-8, "reconciliation retains the resolved drop");
+    }
+});
+
+test("a fast topping drop resolves from the pointer target before a smoothing frame", () => {
+    const { controller, register, current } = setup();
+    register("balls", -1.2);
+    controller.reconcile();
+    controller.setMessageFootprint(new Box3(new Vector3(-0.3, 0, -0.3), new Vector3(0.3, 0.02, 0.3)), new Vector3(0, 1, 0));
+    const before = controller.entries.get("balls").position.clone();
+    const target = before.clone().setX(0.48);
+    controller.begin("balls");
+    controller.move("balls", target);
+    assert.ok(controller.entries.get("balls").position.equals(before), "no frame has rendered the pointer move yet");
+    controller.end();
+    const released = controller.entries.get("balls").position;
+    assert.ok(Math.abs(released.x - 0.502) < 1e-7, "drop chooses the nearby right edge rather than the starting side");
+    assert.equal(released.z, target.z);
+    assert.equal(released.y, before.y);
+    assert.deepEqual(current.state.toppingLayout.balls.position, released.toArray());
+});
+
+test("topping drop adjustment clears text without moving other toppings, and canceled tunneling restores its start", () => {
+    const { controller, register, parent } = setup();
+    const moving = register("balls", -1.2);
+    const other = register("candle", 0.75, 0, 0.2, 0.2);
+    controller.reconcile();
+    controller.setMessageFootprint(new Box3(new Vector3(-0.3, 0, -0.3), new Vector3(0.3, 0.02, 0.3)), new Vector3(0, 1, 0));
+    const otherPosition = controller.entries.get("candle").position.clone();
+    const before = controller.entries.get("balls").position.clone();
+    controller.begin("balls");
+    controller.move("balls", before.clone().setX(0.48));
+    controller.update(0.2);
+    controller.end();
+    const placed = controller.entries.get("balls");
+    assert.equal(controller.valid(placed, placed.position), true, "all obstacles participate in drop adjustment");
+    assert.ok(controller.entries.get("candle").position.equals(otherPosition));
+    assert.equal(getTransformedToppingBox(moving.object, parent).intersectsBox(getTransformedToppingBox(other.object, parent)), false);
+    const safe = placed.position.clone();
+    controller.begin("balls");
+    controller.move("balls", new Vector3(0, safe.y, 0));
+    controller.update(0.2);
+    controller.cancel();
+    assert.ok(controller.entries.get("balls").position.equals(safe), "cancel returns to the last placed position");
+});
+
+test("overlapping message drops move to the nearest topping edge without changing height", () => {
+    const { controller, register } = setup();
+    register("balls", 0, 0, 0.2, 0.2);
+    controller.reconcile();
+    const message = new Box3(new Vector3(-0.25, -0.01, -0.08), new Vector3(0.25, 0.01, 0.08));
+    const pearl = controller.messageObstacles()[0];
+    const surface = { minX: -2, maxX: 2, minZ: -2, maxZ: 2, topY: 1, round: false };
+    for (const axis of ["x", "z"]) for (const sign of [-1, 1]) {
+        const dropped = new Vector3(0, 1.02, 0);
+        dropped[axis] = sign < 0 ? pearl.min[axis] - message.max[axis] + 0.02 : pearl.max[axis] - message.min[axis] - 0.02;
+        const position = controller.placeMessage(message, dropped, surface);
+        const bounds = message.clone().translate(position);
+        const gap = sign < 0 ? pearl.min[axis] - bounds.max[axis] : bounds.min[axis] - pearl.max[axis];
+        assert.ok(Math.abs(gap - TOPPING_PLACEMENT_GAP) < 1e-7);
+        assert.equal(position.y, dropped.y);
+        assert.equal(position[axis === "x" ? "z" : "x"], 0, "separation follows the shortest collision vector");
+        assert.ok(controller.placeMessage(message, position, surface).equals(position), "a clear drop does not move");
+    }
+    const position = controller.placeMessage(message, new Vector3(0, 1.02, 0), surface);
+    assert.equal(position.y, 1.02);
+    assert.ok(Math.abs(position.x) < 1e-8, "a centered overlap escapes along the smaller Z penetration");
+    const placed = message.clone().translate(position);
+    placed.min.y = -Infinity; placed.max.y = Infinity;
+    assert.equal(placed.intersectsBox(pearl), false, "new text starts beside an existing pearl");
+});
+
+test("drop adjustment avoids other toppings and respects the message boundary or its safe fallback", () => {
+    const { controller, register } = setup();
+    register("balls", 0, 0, 0.2, 0.2);
+    register("cherry-0", 0, 0.4, 0.2, 0.2);
+    controller.reconcile();
+    const message = new Box3(new Vector3(-0.2, -0.01, -0.1), new Vector3(0.2, 0.01, 0.1));
+    const surface = { minX: -2, maxX: 2, minZ: -2, maxZ: 2, topY: 1, round: false };
+    const dropped = new Vector3(0, 1.02, 0.02);
+    const adjusted = controller.placeMessage(message, dropped, surface, { isPositionAllowed: (candidate) => candidate.z >= -0.05 });
+    assert.equal(adjusted.y, dropped.y);
+    assert.ok(adjusted.z >= -0.05, "a nearer edge outside the cake's allowed area is rejected");
+    const placed = message.clone().translate(adjusted);
+    placed.min.y = -Infinity; placed.max.y = Infinity;
+    assert.ok(controller.messageObstacles().every((obstacle) => !placed.intersectsBox(obstacle)));
+    const fallback = new Vector3(-1, 1.02, 0);
+    const unavailable = controller.placeMessage(message, dropped, surface, { isPositionAllowed: () => false, fallback });
+    assert.ok(unavailable.equals(fallback), "an impossible drop returns to its original safe position");
+});
+
+test("moving or clearing text updates topping obstacles and additions avoid the live message", () => {
+    const { controller, register } = setup();
+    const message = new Box3(new Vector3(-0.4, 0, -0.3), new Vector3(0.4, 0.02, 0.3));
+    controller.setMessageFootprint(message, new Vector3(0, 1, 0));
+    register("balls", 0);
+    controller.reconcile();
+    const entry = controller.entries.get("balls");
+    assert.equal(controller.valid(entry, entry.position), true, "new pearls are placed clear of the message");
+    const center = new Vector3(0, entry.position.y, 0);
+    assert.equal(controller.valid(entry, center), false);
+    controller.setMessageFootprint(message, new Vector3(0.9, 1, 0));
+    assert.equal(controller.valid(entry, center), true, "text's old footprint is released immediately");
+    assert.equal(controller.valid(entry, new Vector3(0.9, entry.position.y, 0)), false);
+    controller.setMessageFootprint(null);
+    assert.equal(controller.valid(entry, new Vector3(0.9, entry.position.y, 0)), true);
 });

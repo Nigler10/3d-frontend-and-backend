@@ -1,5 +1,7 @@
 // src/components/CakeInscription.jsx
-import { useMemo, useCallback, useRef, useEffect, useState } from "react";
+import { createElement, useMemo, useCallback, useRef, useEffect, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { HandGrab } from "lucide-react";
 import { DragControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -9,6 +11,10 @@ import { normalizeCakeMessage, normalizeCakeMessageLayout, wrapCakeMessage } fro
 import { clampCakeMessagePosition, curveCakeMessageGeometry, fitCakeMessageGeometry, getCakeMessageDragPosition, getCakeMessageSurface } from "../utils/cakeMessagePlacement";
 
 ThreeText.setHarfBuzzPath("/hb/hb.wasm");
+
+const MESSAGE_DRAG_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(renderToStaticMarkup(
+    createElement(HandGrab, { color: "#DDD8C6", size: 40, strokeWidth: 2.25 })
+))}") 20 20, auto`;
 
 const TEXT_LAYOUT_BY_TIER = [
     { y: 2.35, radius: 1, size: 0.22, z: 0.22 },
@@ -21,7 +27,7 @@ const FONT_PATHS = Object.fromEntries(
     TEXT_FONT_OPTIONS.map((fontOption) => [fontOption.value, fontOption.path])
 );
 
-export function CakeInscription({ selectedTierIndex, text = "", font = "classic", color = "#EF4444", topY, messageLayout, textSize, onLayoutChange, surfaceBounds, surfaceScene, controlsRef, draggingRef, round = true, readOnly = false }) {
+export function CakeInscription({ selectedTierIndex, text = "", font = "classic", color = "#EF4444", topY, messageLayout, textSize, onLayoutChange, surfaceBounds, surfaceScene, controlsRef, draggingRef, toppingDrag, round = true, readOnly = false }) {
     const safeText = normalizeCakeMessage(text);
     const layout = TEXT_LAYOUT_BY_TIER[selectedTierIndex] ?? TEXT_LAYOUT_BY_TIER[0];
     const settings = normalizeCakeMessageLayout({ ...messageLayout, textSize: textSize ?? messageLayout?.textSize });
@@ -74,25 +80,28 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
         }
         curveCakeMessageGeometry(geometry, settings.curve);
         const box = fitCakeMessageGeometry(geometry, maxWidth, surface);
-        const requested = pendingReclampRef.current ?? new THREE.Vector3(
+        const requested = interactionRef.current ? new THREE.Vector3().setFromMatrixPosition(matrix) : pendingReclampRef.current ?? new THREE.Vector3(
             THREE.MathUtils.lerp(surface.minX, surface.maxX, settings.x / 100),
             0,
             THREE.MathUtils.lerp(surface.minZ, surface.maxZ, settings.y / 100)
         );
-        const position = clampCakeMessagePosition(requested, box, surface);
+        const clamped = clampCakeMessagePosition(requested, box, surface);
+        const position = !interactionRef.current && !readOnly && toppingDrag?.enabled ? toppingDrag.placeMessage(box, clamped, surface) : clamped;
+        if (!position.equals(clamped)) pendingReclampRef.current = position.clone();
+        toppingDrag?.setMessageFootprint(box, position);
         placementRef.current = { box, surface, boundaryKey };
         matrix.makeTranslation(position.x, position.y, position.z);
         if (dragRef.current) dragRef.current.matrix.copy(matrix);
         // Keep the current X/Z position across a boundary change. Commit its
         // clamped coordinates only after the new size and wrapping have loaded.
-        if (pendingReclampRef.current && geometryLayoutRef.current === geometryLayoutKey && renderWidth !== undefined) {
+        if (!interactionRef.current && pendingReclampRef.current && geometryLayoutRef.current === geometryLayoutKey && renderWidth !== undefined) {
             pendingReclampRef.current = null;
             const x = 100 * (position.x - surface.minX) / (surface.maxX - surface.minX);
             const y = 100 * (position.z - surface.minZ) / (surface.maxZ - surface.minZ);
             if (!readOnly && (Math.abs(x - settings.x) > 1e-5 || Math.abs(y - settings.y) > 1e-5)) saveLayout?.({ x, y });
         }
         invalidate();
-    }, [surfaceBounds, surfaceScene, round, selectedTierIndex, layout.radius, layout.y, topY, settings.curve, settings.x, settings.y, maxWidth, matrix, invalidate, geometryLayoutKey, renderWidth, readOnly]);
+    }, [surfaceBounds, surfaceScene, round, selectedTierIndex, layout.radius, layout.y, topY, settings.curve, settings.x, settings.y, maxWidth, matrix, invalidate, geometryLayoutKey, renderWidth, readOnly, toppingDrag]);
 
     const onLoad = useCallback((geometry, textInfo) => {
         if (textInfo) {
@@ -116,8 +125,8 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
 
     const beginInteraction = () => {
         if (readOnly || interactionRef.current) return;
-        interactionRef.current = { controls: controlsRef?.current, enabled: controlsRef?.current?.enabled, canvas, cursor: canvas.style.cursor };
-        canvas.style.cursor = "grabbing";
+        interactionRef.current = { controls: controlsRef?.current, enabled: controlsRef?.current?.enabled, canvas, cursor: canvas.style.cursor, position: new THREE.Vector3().setFromMatrixPosition(matrix) };
+        canvas.style.cursor = MESSAGE_DRAG_CURSOR;
         if (controlsRef?.current) controlsRef.current.enabled = false;
         if (draggingRef) draggingRef.current = true;
     };
@@ -129,20 +138,34 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
         if (draggingRef) draggingRef.current = false;
         return interaction;
     }, [draggingRef]);
-    const endInteraction = () => {
-        if (!restoreInteraction()) return;
-        const surface = placementRef.current?.surface;
-        if (surface) {
-            const position = new THREE.Vector3().setFromMatrixPosition(matrix);
+    const endInteraction = (resolveCollision = true) => {
+        const interaction = restoreInteraction();
+        if (!interaction) return;
+        const placement = placementRef.current;
+        if (placement) {
+            const { box, surface } = placement;
+            const dropped = resolveCollision ? new THREE.Vector3().setFromMatrixPosition(matrix) : interaction.position;
+            const position = resolveCollision && toppingDrag?.enabled ? toppingDrag.placeMessage(box, dropped, surface, {
+                isPositionAllowed: (candidate) => clampCakeMessagePosition(candidate, box, surface).distanceToSquared(candidate) < 1e-12,
+                fallback: interaction.position,
+            }) : dropped;
+            pendingReclampRef.current = null;
+            matrix.setPosition(position);
+            if (dragRef.current) dragRef.current.matrix.copy(matrix);
+            toppingDrag?.setMessageFootprint(box, position);
+            invalidate();
             onLayoutChange?.({ x: 100 * (position.x - surface.minX) / (surface.maxX - surface.minX), y: 100 * (position.z - surface.minZ) / (surface.maxZ - surface.minZ) });
         }
     };
     useEffect(() => () => { restoreInteraction(); }, [restoreInteraction]);
     useEffect(() => { if (!safeText) restoreInteraction(); }, [safeText, restoreInteraction]);
+    useEffect(() => () => { toppingDrag?.setMessageFootprint(null); }, [toppingDrag]);
+    useEffect(() => { if (!safeText) toppingDrag?.setMessageFootprint(null); }, [safeText, toppingDrag]);
     useEffect(() => {
         if (typeof window === "undefined") return;
-        window.addEventListener("blur", endInteraction);
-        return () => window.removeEventListener("blur", endInteraction);
+        const cancel = () => endInteraction(false);
+        window.addEventListener("blur", cancel);
+        return () => window.removeEventListener("blur", cancel);
     });
 
     if (!safeText) return null;
@@ -175,7 +198,7 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
             if (event.button !== 0 || event.isPrimary === false) return;
             event.stopPropagation();
             beginInteraction();
-        }} onPointerUp={readOnly ? undefined : endInteraction} onPointerCancel={readOnly ? undefined : endInteraction}>
+        }} onPointerUp={readOnly ? undefined : () => endInteraction()} onPointerCancel={readOnly ? undefined : () => endInteraction(false)}>
             {readOnly ? <group ref={dragRef} matrix={matrix} matrixAutoUpdate={false}>{message}</group> : (
                 <DragControls ref={dragRef} matrix={matrix} autoTransform={false} axisLock="y"
                     onDragStart={() => {
@@ -191,8 +214,10 @@ export function CakeInscription({ selectedTierIndex, text = "", font = "classic"
                         const position = clampCakeMessagePosition(local, placement.box, placement.surface);
                         matrix.setPosition(position);
                         dragRef.current.matrix.copy(matrix);
+                        toppingDrag?.setMessageFootprint(placement.box, position);
+                        invalidate();
                     }}
-                    onDragEnd={endInteraction}
+                    onDragEnd={() => endInteraction()}
                 >{message}</DragControls>
             )}
         </group>
