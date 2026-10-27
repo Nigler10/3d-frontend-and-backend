@@ -19,9 +19,13 @@ function AdminProductList() {
     const [savingKey, setSavingKey] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
 
-    // Products Search & Sort State
+    // Products Search, Category, Sort & Pagination State
     const [searchQuery, setSearchQuery] = useState("");
     const [productSortBy, setProductSortBy] = useState("default");
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState("all");
+    const [productPage, setProductPage] = useState(1);
+    const PRODUCTS_PER_PAGE = 9;
 
     // Pricing Rules Filter State
     const [selectedShapeFilter, setSelectedShapeFilter] = useState("all");
@@ -70,25 +74,149 @@ function AdminProductList() {
             .catch((err) => { setError(err.message); setLoading(false); });
     }, [BASEURL, authHeaders]);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchCategories = async () => {
+            try {
+                const res = await fetch(`${BASEURL}/api/categories/`, {
+                    headers: authHeaders(),
+                });
+
+                if (!res.ok) {
+                    throw new Error("Failed to fetch categories");
+                }
+
+                const data = await res.json();
+
+                if (!cancelled) {
+                    setCategories(Array.isArray(data) ? data : data.results || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch product categories:", err);
+            }
+        };
+
+        fetchCategories();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [BASEURL, authHeaders]);
+
     useEffect(() => { fetchPricing(); }, [fetchPricing]);
     useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); }, []);
 
-    // Filter Products for Shop Products Tab
+    // Filter and Sort Products for Shop Products Tab
     const filteredProducts = useMemo(() => {
         let list = [...products];
+
+        // Search by name, category, SKU, or product ID
         if (searchQuery.trim()) {
             const q = searchQuery.trim().toLowerCase();
-            list = list.filter(
-                (p) => [p.name, p.category_name, p.sku, p.id].some(
-                    (value) => String(value ?? "").toLowerCase().includes(q)
+
+            list = list.filter((p) =>
+                [p.name, p.category_name, p.sku, p.id].some((value) =>
+                    String(value ?? "").toLowerCase().includes(q)
                 )
             );
         }
-        if (productSortBy === "price_asc") list.sort((a, b) => (a.price || 0) - (b.price || 0));
-        if (productSortBy === "price_desc") list.sort((a, b) => (b.price || 0) - (a.price || 0));
-        if (productSortBy === "name_asc") list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        // Filter by category
+        if (selectedCategory !== "all") {
+            list = list.filter(
+                (p) => String(p.category) === String(selectedCategory)
+            );
+        }
+
+        // Sorting
+        switch (productSortBy) {
+            case "name_asc":
+                list.sort((a, b) =>
+                    (a.name || "").localeCompare(b.name || "")
+                );
+                break;
+
+            case "name_desc":
+                list.sort((a, b) =>
+                    (b.name || "").localeCompare(a.name || "")
+                );
+                break;
+
+            case "price_asc":
+                list.sort(
+                    (a, b) => Number(a.price || 0) - Number(b.price || 0)
+                );
+                break;
+
+            case "price_desc":
+                list.sort(
+                    (a, b) => Number(b.price || 0) - Number(a.price || 0)
+                );
+                break;
+
+            case "rating_desc":
+                list.sort(
+                    (a, b) =>
+                        Number(b.average_rating || 0) -
+                        Number(a.average_rating || 0)
+                );
+                break;
+
+            case "reviews_desc":
+                list.sort(
+                    (a, b) =>
+                        Number(b.review_count || 0) -
+                        Number(a.review_count || 0)
+                );
+                break;
+
+            case "newest":
+                list.sort(
+                    (a, b) =>
+                        new Date(b.created_at || 0).getTime() -
+                        new Date(a.created_at || 0).getTime()
+                );
+                break;
+
+            case "default":
+            default:
+                // Default sorting: alphabetical, A–Z
+                list.sort((a, b) =>
+                    (a.name || "").localeCompare(b.name || "")
+                );
+                break;
+        }
+
         return list;
-    }, [products, searchQuery, productSortBy]);
+    }, [products, searchQuery, selectedCategory, productSortBy]);
+
+    // Product pagination
+    const totalProductPages = Math.max(
+        1,
+        Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE)
+    );
+
+    const paginatedProducts = useMemo(() => {
+        const start = (productPage - 1) * PRODUCTS_PER_PAGE;
+
+        return filteredProducts.slice(
+            start,
+            start + PRODUCTS_PER_PAGE
+        );
+    }, [filteredProducts, productPage]);
+
+    // Reset pagination when product filters change
+    useEffect(() => {
+        setProductPage(1);
+    }, [searchQuery, selectedCategory, productSortBy]);
+
+    // Keep the current page valid if the product list changes
+    useEffect(() => {
+        setProductPage((currentPage) =>
+            Math.min(currentPage, totalProductPages)
+        );
+    }, [totalProductPages]);
 
     // Tier String parser helper
     const getTierNumber = (tierStr = "") => {
@@ -405,27 +533,52 @@ function AdminProductList() {
                         ))}
                     </div>
 
-                    {/* Search Bar for Products Tab */}
+                    {/* Search and Category Filter for Products Tab */}
                     {activeTab === "products" && (
-                        <div className="relative min-w-[200px] sm:min-w-[260px] w-full sm:w-auto">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search products..."
-                                className="w-full pl-8 pr-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
-                            />
-                            <Search aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A48B78]" />
-                            {searchQuery && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearchQuery("")}
-                                    aria-label="Clear product search"
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
-                                >
-                                    <X aria-hidden="true" className="w-3.5 h-3.5" />
-                                </button>
-                            )}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                            {/* Category Filter */}
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                aria-label="Filter products by category"
+                                className="w-full sm:w-auto min-w-[160px] px-3 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-bold text-[#3D251E] cursor-pointer focus:outline-none focus:border-[#AD4313]"
+                            >
+                                <option value="all">All Categories</option>
+
+                                {categories.map((category) => (
+                                    <option key={category.id} value={String(category.id)}>
+                                        {category.name}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {/* Product Search */}
+                            <div className="relative min-w-[200px] sm:min-w-[260px] w-full sm:w-auto">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search products..."
+                                    aria-label="Search products"
+                                    className="w-full pl-8 pr-8 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313]"
+                                />
+
+                                <Search
+                                    aria-hidden="true"
+                                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A48B78]"
+                                />
+
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery("")}
+                                        aria-label="Clear product search"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A48B78] hover:text-[#3D251E]"
+                                    >
+                                        <X aria-hidden="true" className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -438,7 +591,7 @@ function AdminProductList() {
                             <div className="flex items-center gap-2">
                                 <h2 className="text-base font-black text-[#3D251E]">All Shop Pastries &amp; Cakes</h2>
                                 <span className="px-2.5 py-0.5 bg-[#F9F4EC] text-[#8C6D58] rounded-full text-xs font-semibold">
-                                    {filteredProducts.length} Items Available
+                                    {filteredProducts.length} Matching Products
                                 </span>
                             </div>
 
@@ -447,12 +600,17 @@ function AdminProductList() {
                                 <select
                                     value={productSortBy}
                                     onChange={(e) => setProductSortBy(e.target.value)}
+                                    aria-label="Sort products"
                                     className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl px-3 py-1.5 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none"
                                 >
-                                    <option value="default">Default Sorting</option>
+                                    <option value="default">Default (A–Z)</option>
+                                    <option value="name_asc">Name: A to Z</option>
+                                    <option value="name_desc">Name: Z to A</option>
                                     <option value="price_asc">Price: Low to High</option>
                                     <option value="price_desc">Price: High to Low</option>
-                                    <option value="name_asc">Name: A to Z</option>
+                                    <option value="rating_desc">Highest Rated</option>
+                                    <option value="reviews_desc">Most Reviewed</option>
+                                    <option value="newest">Newest</option>
                                 </select>
                             </div>
                         </div>
@@ -460,7 +618,7 @@ function AdminProductList() {
                         {/* Product Cards Grid */}
                         {filteredProducts.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredProducts.map((product) => (
+                                {paginatedProducts.map((product) => (
                                     <AdminProductCard
                                         key={product.id}
                                         product={product}
@@ -472,6 +630,67 @@ function AdminProductList() {
                                 <span className="text-4xl block mb-3">🎂</span>
                                 <h3 className="font-black text-[#3D251E] text-lg">No products found</h3>
                                 <p className="text-xs mt-1">Start by adding your first product to the gallery.</p>
+                            </div>
+                        )}
+
+                        {/* Product Pagination */}
+                        {filteredProducts.length > 0 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E6DBCB]/40 text-xs font-medium text-[#8C6D58]">
+                                <span>
+                                    Showing{" "}
+                                    {(productPage - 1) * PRODUCTS_PER_PAGE + 1}
+                                    {"–"}
+                                    {Math.min(
+                                        productPage * PRODUCTS_PER_PAGE,
+                                        filteredProducts.length
+                                    )}
+                                    {" "}of {filteredProducts.length} products
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        disabled={productPage <= 1}
+                                        onClick={() =>
+                                            setProductPage((page) => Math.max(1, page - 1))
+                                        }
+                                        aria-label="Previous product page"
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                                    >
+                                        ‹
+                                    </button>
+
+                                    {Array.from({ length: totalProductPages }, (_, i) => i + 1).map(
+                                        (page) => (
+                                            <button
+                                                key={page}
+                                                type="button"
+                                                onClick={() => setProductPage(page)}
+                                                aria-current={productPage === page ? "page" : undefined}
+                                                className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${productPage === page
+                                                        ? "bg-[#AD4313] text-white shadow-2xs"
+                                                        : "bg-white border border-[#E6DBCB] text-[#3D251E] hover:bg-[#FCF8EE]"
+                                                    }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        )
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        disabled={productPage >= totalProductPages}
+                                        onClick={() =>
+                                            setProductPage((page) =>
+                                                Math.min(totalProductPages, page + 1)
+                                            )
+                                        }
+                                        aria-label="Next product page"
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -489,7 +708,7 @@ function AdminProductList() {
                                         <h2 className="text-lg font-black text-[#3D251E] tracking-tight">
                                             Custom Cake Tier Pricing Engine
                                         </h2>
-                                        
+
                                     </div>
                                     <p className="text-xs text-[#8C6D58] font-medium">
                                         Dynamic calculation matrix for customer cake-builder and lead-time dispatching.
@@ -956,7 +1175,7 @@ function AdminProductList() {
                             </div>
                         </div>
 
-                      
+
                     </div>
                 )}
             </div>
