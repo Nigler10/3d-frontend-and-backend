@@ -206,16 +206,15 @@ function CheckoutPage() {
     const handleDateChange = (e) => {
         const newDate = e.target.value;
 
-        // Prevent past dates
-        if (newDate < getLocalDateISO()) {
-            setMessage("Please select today or a future date.");
-            return;
-        }
-
-        setMessage("");
+        // Let the browser finish editing the date before validating it.
         setDeliveryDate(newDate);
-        setDeliveryTime(""); // reset time when date changes
+        setDeliveryTime("");
         setIsDropdownOpen(false);
+        setMessage("");
+
+        if (newDate && newDate < getLocalDateISO()) {
+            setMessage("Please select today or a future date.");
+        }
     };
 
     const handleTimeSelect = (slot) => {
@@ -484,7 +483,6 @@ function CheckoutPage() {
                                 <input
                                     type="date"
                                     value={deliveryDate}
-                                    min={todayISO}
                                     onChange={handleDateChange}
                                     required
                                     className="w-full bg-white border border-stone-200 focus:border-[#d67b27] focus:ring-1 focus:ring-[#d67b27] rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
