@@ -1174,8 +1174,6 @@ function AdminProductList() {
                                 </div>
                             </div>
                         </div>
-
-
                     </div>
                 )}
             </div>

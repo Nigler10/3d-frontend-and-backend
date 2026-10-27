@@ -9,14 +9,12 @@ from django.db import transaction
 from decimal import Decimal, InvalidOperation
 from .serializers import OrderSerializer, QuotationSerializer
 from chat.serializers import MessageSerializer
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, Q, F, CharField
+from django.db.models.functions import Cast, Lower
 from datetime import date, timedelta
 from .utils_sms_notifications import send_order_status_sms
-from payments.services import (
-    PaymentAlreadyCompletedError,
-    PaymentGatewayError,
-    expire_pending_checkout_sessions,
-)
+from payments.services import ( PaymentAlreadyCompletedError, PaymentGatewayError, expire_pending_checkout_sessions )
+import math
 
 # ADMIN: LIST ALL ORDERS
 @api_view(['GET'])
@@ -300,10 +298,6 @@ def admin_update_order_status(request, order_id):
             status=400
         )
 
-    # --------------------------------------------------
-    # PROCESSING REQUIRES A VERIFIED PAYMENT
-    # --------------------------------------------------
-
     if new_status == "processing":
         if order.payment_status not in [
             "partial",
@@ -317,10 +311,6 @@ def admin_update_order_status(request, order_id):
                 },
                 status=400
             )
-
-    # --------------------------------------------------
-    # CANCELLATION SAFETY
-    # --------------------------------------------------
 
     if new_status == "cancelled":
 
@@ -338,10 +328,6 @@ def admin_update_order_status(request, order_id):
             or Decimal("0.00")
         )
 
-        # We do not currently have an automated refund flow.
-        #
-        # Once real money has been received, admins must not
-        # simply cancel the order and lose payment accounting.
         if (
             total_paid > 0
             or order.payment_status in [
@@ -461,38 +447,104 @@ def admin_dashboard(request):
     upcoming_orders_qs = Order.objects.filter(
         delivery_date__range=[today, upcoming_limit]
     ).exclude(status__in=["delivered", "cancelled", "rejected"]).order_by("delivery_date")
-
+    
     status_filter = request.GET.get("status", "all")
-    all_upcoming_qs = orders.order_by("delivery_date", "delivery_time", "id")
+
+    # Filter orders by status first.
+    all_upcoming_qs = Order.objects.all()
+
     if status_filter == "completed":
-        all_upcoming_qs = all_upcoming_qs.filter(status__in=["delivered", "completed"])
+        all_upcoming_qs = all_upcoming_qs.filter(
+            status__in=["delivered", "completed"]
+        )
     else:
         all_upcoming_qs = all_upcoming_qs.exclude(
             status__in=["delivered", "completed", "cancelled", "rejected"]
         )
-        if status_filter == "overdue":
-            all_upcoming_qs = all_upcoming_qs.filter(delivery_date__lt=today)
-        elif status_filter != "all":
-            all_upcoming_qs = all_upcoming_qs.filter(status=status_filter)
 
-    # pagination
+        if status_filter == "overdue":
+            all_upcoming_qs = all_upcoming_qs.filter(
+                delivery_date__lt=today
+            )
+        elif status_filter != "all":
+            all_upcoming_qs = all_upcoming_qs.filter(
+                status=status_filter
+            )
+
+    # Search all matching orders BEFORE pagination.
+    search_query = request.GET.get("search", "").strip()
+
+    if search_query:
+        all_upcoming_qs = all_upcoming_qs.annotate(
+            _order_id_text=Cast("id", output_field=CharField()),
+            _customization_text=Cast(
+                "items__customization",
+                output_field=CharField(),
+            ),
+        ).filter(
+            Q(full_name__icontains=search_query)
+            | Q(_order_id_text__icontains=search_query)
+            | Q(status__icontains=search_query)
+            | Q(items__product__name__icontains=search_query)
+            | Q(_customization_text__icontains=search_query)
+        ).distinct()
+
+    # Sort all matching orders BEFORE pagination.
+    sort_by = request.GET.get("sort", "date_asc")
+
+    if sort_by == "date_desc":
+        all_upcoming_qs = all_upcoming_qs.order_by(
+            F("delivery_date").desc(nulls_last=True),
+            F("delivery_time").desc(nulls_last=True),
+            "-id",
+        )
+    elif sort_by == "name_asc":
+        all_upcoming_qs = all_upcoming_qs.order_by(
+            Lower("full_name"),
+            "id",
+        )
+    elif sort_by == "id_desc":
+        all_upcoming_qs = all_upcoming_qs.order_by("-id")
+    else:
+        # Default: earliest delivery first.
+        all_upcoming_qs = all_upcoming_qs.order_by(
+            F("delivery_date").asc(nulls_last=True),
+            F("delivery_time").asc(nulls_last=True),
+            "id",
+        )
+
+    # Paginate after filtering, searching, and sorting.
     try:
         page = max(1, int(request.GET.get("page", 1)))
-        page_size = max(1, min(100, int(request.GET.get("per_page", 5))))
+        page_size = max(
+            1,
+            min(100, int(request.GET.get("per_page", 9))),
+        )
     except (TypeError, ValueError):
-        return Response({"detail": "Invalid pagination parameters."}, status=400)
+        return Response(
+            {"detail": "Invalid pagination parameters."},
+            status=400,
+        )
 
     total_count = all_upcoming_qs.count()
-    import math
-    total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+    total_pages = max(1, math.ceil(total_count / page_size))
+
     page = min(page, total_pages)
+
     start = (page - 1) * page_size
     end = start + page_size
 
-    all_upcoming_orders = OrderSerializer(all_upcoming_qs[start:end], many=True).data
-    upcoming_orders = OrderSerializer(upcoming_orders_qs, many=True).data
+    all_upcoming_orders = OrderSerializer(
+        all_upcoming_qs[start:end],
+        many=True,
+    ).data
 
-    # ── Trend calculations ──
+    # Keep the separate Upcoming Deliveries list unchanged.
+    upcoming_orders = OrderSerializer(
+        upcoming_orders_qs,
+        many=True,
+    ).data
+
     def calc_trend(current, previous):
         """Return (percentage_string, raw_change)."""
         raw_change = current - previous
@@ -504,22 +556,18 @@ def admin_dashboard(request):
             pct = f"{sign}{change:.0f}%"
         return pct, raw_change
 
-    # Month-over-month boundaries
     first_of_this_month = today.replace(day=1)
     first_of_last_month = (first_of_this_month - timedelta(days=1)).replace(day=1)
 
-    # Week-over-week boundaries (Monday-based)
     start_of_this_week = today - timedelta(days=today.weekday())
     start_of_last_week = start_of_this_week - timedelta(days=7)
 
-    # Total orders: this month vs last month
     total_this_month = orders.filter(created_at__date__gte=first_of_this_month).count()
     total_last_month = orders.filter(
         created_at__date__gte=first_of_last_month,
         created_at__date__lt=first_of_this_month,
     ).count()
 
-    # Pending review: this week vs last week
     pending_this_week = orders.filter(
         status="pending_review",
         created_at__date__gte=start_of_this_week,
@@ -530,7 +578,6 @@ def admin_dashboard(request):
         created_at__date__lt=start_of_this_week,
     ).count()
 
-    # Awaiting downpayment: this week vs last week
     awaiting_this_week = orders.filter(
         status="awaiting_downpayment",
         created_at__date__gte=start_of_this_week,
@@ -541,7 +588,6 @@ def admin_dashboard(request):
         created_at__date__lt=start_of_this_week,
     ).count()
 
-    # Completed (delivered): this month vs last month
     completed_this_month = orders.filter(
         status="delivered",
         created_at__date__gte=first_of_this_month,
@@ -552,7 +598,6 @@ def admin_dashboard(request):
         created_at__date__lt=first_of_this_month,
     ).count()
 
-    # Revenue: this month vs last month
     revenue_this_month = orders.filter(
         payment_status="paid",
         created_at__date__gte=first_of_this_month,
@@ -563,14 +608,12 @@ def admin_dashboard(request):
         created_at__date__lt=first_of_this_month,
     ).aggregate(total=Sum("total_amount"))["total"] or 0
 
-    # Compute all trends
     total_pct, total_change = calc_trend(total_this_month, total_last_month)
     pending_pct, pending_change = calc_trend(pending_this_week, pending_last_week)
     awaiting_pct, awaiting_change = calc_trend(awaiting_this_week, awaiting_last_week)
     completed_pct, completed_change = calc_trend(completed_this_month, completed_last_month)
     revenue_pct, revenue_change = calc_trend(float(revenue_this_month), float(revenue_last_month))
 
-    # Overdue orders: delivery_date is in the past, not yet delivered/cancelled/rejected
     overdue_count = Order.objects.filter(
         delivery_date__lt=today
     ).exclude(
@@ -587,7 +630,6 @@ def admin_dashboard(request):
             total=Sum("total_amount")
         )["total"] or 0,
 
-        # Trend data with raw changes
         "total_orders_trend": total_pct,
         "total_orders_change": total_change,
         "total_orders_previous": total_last_month,
@@ -634,5 +676,3 @@ def admin_dashboard(request):
     }
 
     return Response(data)
-
-

@@ -90,89 +90,118 @@ const getStatusConfig = (status) => {
     }
 };
 
+const getPaginationItems = (currentPage, totalPages) => {
+    if (totalPages <= 5) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    let middlePages;
+
+    if (currentPage <= 3) {
+        middlePages = [2, 3, 4];
+    } else if (currentPage >= totalPages - 2) {
+        middlePages = [
+            totalPages - 3,
+            totalPages - 2,
+            totalPages - 1,
+        ];
+    } else {
+        middlePages = [
+            currentPage - 1,
+            currentPage,
+            currentPage + 1,
+        ];
+    }
+
+    const pages = [1, ...middlePages, totalPages];
+    const items = [];
+
+    pages.forEach((page, index) => {
+        if (index > 0 && page - pages[index - 1] > 1) {
+            items.push(`ellipsis-${page}`);
+        }
+
+        items.push(page);
+    });
+
+    return items;
+};
+
 export default function AdminDashboard() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [queuePage, setQueuePage] = useState(1);
-    const [showStats, setShowStats] = useState(true);
+    const [showStats, setShowStats] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [sortBy, setSortBy] = useState("date_asc");
-    const [perPage, setPerPage] = useState(10);
+    const perPage = 9;
     const [jumpPageInput, setJumpPageInput] = useState("");
     const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSortOpen, setIsSortOpen] = useState(false);
+    const [isQueueLoading, setIsQueueLoading] = useState(false);
+    const [upcomingPage, setUpcomingPage] = useState(1);
 
     useEffect(() => {
         const controller = new AbortController();
 
         const fetchDashboard = async () => {
+            setIsQueueLoading(true);
+
             try {
                 const params = new URLSearchParams({
                     page: String(queuePage),
                     status: statusFilter,
                     per_page: String(perPage),
+                    search: searchQuery.trim(),
+                    sort: sortBy,
                 });
-                const res = await authFetch(`${BASEURL}/api/orders/admin/dashboard/?${params}`, {
-                    signal: controller.signal,
-                });
+
+                const res = await authFetch(
+                    `${BASEURL}/api/orders/admin/dashboard/?${params}`,
+                    { signal: controller.signal }
+                );
+
+                if (!res.ok) {
+                    throw new Error(
+                        `Dashboard request failed: ${res.status}`
+                    );
+                }
+
                 const json = await res.json();
-                if (!controller.signal.aborted) setData(json);
+
+                if (!controller.signal.aborted) {
+                    setData(json);
+                }
             } catch (err) {
-                if (err.name !== "AbortError") console.error(err);
+                if (
+                    err.name !== "AbortError" &&
+                    !controller.signal.aborted
+                ) {
+                    console.error("Failed to fetch admin dashboard:", err);
+                }
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsQueueLoading(false);
+                }
             }
         };
 
         fetchDashboard();
+
         return () => controller.abort();
-    }, [BASEURL, queuePage, statusFilter, perPage]);
+    }, [BASEURL, queuePage, statusFilter, perPage, searchQuery, sortBy]);
 
-    // Filter & Sort All Upcoming Orders
+    useEffect(() => {
+        setUpcomingPage(1);
+    }, [data?.upcoming_orders?.length]);
+
+    // Django already filters, searches, sorts, and paginates the queue.
     const processedQueueOrders = useMemo(() => {
-        if (!data?.all_upcoming_orders) return [];
-
-        let list = [...data.all_upcoming_orders];
-
-        // Search filter
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(
-                (o) =>
-                    (o.full_name && o.full_name.toLowerCase().includes(q)) ||
-                    String(o.id).includes(q) ||
-                    (o.status && o.status.toLowerCase().includes(q))
-            );
-        }
-
-        // Status filter
-        if (statusFilter === "overdue") {
-            list = list.filter((o) => checkIsOverdue(o.delivery_date, o.status));
-        } else if (statusFilter !== "all") {
-            list = list.filter((o) => o.status === statusFilter ||
-                (statusFilter === "completed" && o.status === "delivered"));
-        }
-
-        // Sorting
-        list.sort((a, b) => {
-            if (sortBy === "date_asc") {
-                return new Date(a.delivery_date || 0) - new Date(b.delivery_date || 0);
-            }
-            if (sortBy === "date_desc") {
-                return new Date(b.delivery_date || 0) - new Date(a.delivery_date || 0);
-            }
-            if (sortBy === "name_asc") {
-                return (a.full_name || "").localeCompare(b.full_name || "");
-            }
-            if (sortBy === "id_desc") {
-                return b.id - a.id;
-            }
-            return 0;
-        });
-
-        return list;
-    }, [data, searchQuery, statusFilter, sortBy]);
+        return data?.all_upcoming_orders || [];
+    }, [data]);
 
     // CSV Export Handler
     const handleExportCSV = () => {
@@ -208,9 +237,11 @@ export default function AdminDashboard() {
 
     const handleJumpPage = (e) => {
         e.preventDefault();
-        const p = parseInt(jumpPageInput, 10);
-        if (p > 0) {
-            setQueuePage(p);
+
+        const page = parseInt(jumpPageInput, 10);
+
+        if (Number.isInteger(page) && page >= 1) {
+            setQueuePage(Math.min(page, totalPages));
             setJumpPageInput("");
         }
     };
@@ -266,6 +297,20 @@ export default function AdminDashboard() {
 
     const totalPages = Math.max(1, data.all_upcoming_total_pages || 1);
     const overdueCount = data.overdue_count || 0;
+
+    const upcomingPerPage = 6;
+
+    const upcomingOrders = data.upcoming_orders || [];
+
+    const upcomingTotalPages = Math.max(
+        1,
+        Math.ceil(upcomingOrders.length / upcomingPerPage)
+    );
+
+    const paginatedUpcomingOrders = upcomingOrders.slice(
+        (upcomingPage - 1) * upcomingPerPage,
+        upcomingPage * upcomingPerPage
+    );
 
     // Custom Chart Tooltip
     const CustomChartTooltip = ({ active, payload }) => {
@@ -430,7 +475,11 @@ export default function AdminDashboard() {
                                             key={opt.id}
                                             type="button"
                                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${sortBy === opt.id ? "bg-[#FDF6E2] text-[#AD4313] font-bold" : "hover:bg-[#FCF8EE] text-[#5C3D2E]"}`}
-                                            onClick={() => { setSortBy(opt.id); setIsSortOpen(false); }}
+                                            onClick={() => {
+                                                setSortBy(opt.id);
+                                                setQueuePage(1);
+                                                setIsSortOpen(false);
+                                            }}
                                         >
                                             {opt.label}
                                         </button>
@@ -444,7 +493,10 @@ export default function AdminDashboard() {
                             <input
                                 type="text"
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setQueuePage(1);
+                                }}
                                 placeholder="Search customer, ID, or dish..."
                                 className="w-full pl-9 pr-8 py-2 bg-[#FFFDF9] border border-[#E6DBCB] rounded-xl text-xs font-medium text-[#3D251E] placeholder-[#A48B78] focus:outline-none focus:border-[#AD4313] focus:ring-1 focus:ring-[#AD4313]/20 transition-all"
                             />
@@ -460,19 +512,28 @@ export default function AdminDashboard() {
                             )}
                         </div>
 
-                        {/* Show Charts Toggle (Clear Label) */}
-                        <label className="flex items-center gap-2 px-3 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl cursor-pointer select-none text-xs text-[#5C3D2E]">
-                            <BarChart3 className="w-3.5 h-3.5 text-[#AD4313]" />
-                            <span className="font-semibold">Show charts</span>
-                            <div className="relative inline-block w-8 h-4.5 ml-1">
-                                <input
-                                    type="checkbox"
-                                    checked={showStats}
-                                    onChange={() => setShowStats(!showStats)}
-                                    className="sr-only peer"
+                        {/* Show Charts Toggle */}
+                        <label className="flex items-center gap-2.5 px-3 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl cursor-pointer select-none text-xs text-[#5C3D2E]">
+                            <BarChart3 className="w-4 h-4 shrink-0 text-[#AD4313]" />
+
+                            <span className="font-semibold whitespace-nowrap">
+                                Show charts
+                            </span>
+
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={showStats}
+                                aria-label="Show charts"
+                                onClick={() => setShowStats((prev) => !prev)}
+                                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#AD4313]/30 ${showStats ? "bg-[#AD4313]" : "bg-[#C8B8A7]"
+                                    }`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${showStats ? "translate-x-4" : "translate-x-0"
+                                        }`}
                                 />
-                                <div className="w-8 h-4.5 bg-[#E6CCA2] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#E6DBCB] after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#AD4313]" />
-                            </div>
+                            </button>
                         </label>
                     </div>
 
@@ -646,7 +707,7 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                         <span className="px-3 py-1 bg-[#FDF0EB] text-[#AD4313] border border-[#F5D5C8] text-xs font-black rounded-full">
-                            {data.upcoming_orders?.length || 0} scheduled
+                            {upcomingOrders.length} scheduled
                         </span>
                     </div>
 
@@ -658,7 +719,7 @@ export default function AdminDashboard() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {data.upcoming_orders.map((order) => {
+                            {paginatedUpcomingOrders.map((order) => {
                                 const isOverdue = checkIsOverdue(order.delivery_date, order.status);
                                 const statusCfg = getStatusConfig(order.status);
                                 const StatusIcon = statusCfg.Icon;
@@ -710,6 +771,98 @@ export default function AdminDashboard() {
                                     </div>
                                 );
                             })}
+
+                        </div>
+                    )}
+
+                    {/* ── Upcoming Deliveries Pagination ── */}
+                    {upcomingTotalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#E6DBCB]/40">
+                            <p className="text-xs font-medium text-[#8C6D58]">
+                                Showing{" "}
+                                <span className="font-bold text-[#3D251E]">
+                                    {(upcomingPage - 1) * upcomingPerPage + 1}
+                                </span>
+                                {" – "}
+                                <span className="font-bold text-[#3D251E]">
+                                    {Math.min(
+                                        upcomingPage * upcomingPerPage,
+                                        upcomingOrders.length
+                                    )}
+                                </span>
+                                {" of "}
+                                <span className="font-bold text-[#3D251E]">
+                                    {upcomingOrders.length}
+                                </span>
+                                {" scheduled deliveries"}
+                            </p>
+
+                            <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                    type="button"
+                                    disabled={upcomingPage <= 1}
+                                    onClick={() =>
+                                        setUpcomingPage((prev) =>
+                                            Math.max(1, prev - 1)
+                                        )
+                                    }
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                                    aria-label="Previous upcoming deliveries page"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+
+                                {getPaginationItems(
+                                    upcomingPage,
+                                    upcomingTotalPages
+                                ).map((page) => {
+                                    if (typeof page !== "number") {
+                                        return (
+                                            <span
+                                                key={page}
+                                                className="w-6 text-center text-[#A48B78]"
+                                                aria-hidden="true"
+                                            >
+                                                …
+                                            </span>
+                                        );
+                                    }
+
+                                    const isActive = upcomingPage === page;
+
+                                    return (
+                                        <button
+                                            key={page}
+                                            type="button"
+                                            onClick={() => setUpcomingPage(page)}
+                                            aria-current={
+                                                isActive ? "page" : undefined
+                                            }
+                                            aria-label={`Upcoming deliveries page ${page}`}
+                                            className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${isActive
+                                                ? "bg-[#AD4313] text-white border border-[#AD4313] shadow-2xs"
+                                                : "bg-white border border-[#E6DBCB] text-[#3D251E] hover:bg-[#FCF8EE]"
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                })}
+
+                                <button
+                                    type="button"
+                                    disabled={upcomingPage >= upcomingTotalPages}
+                                    onClick={() =>
+                                        setUpcomingPage((prev) =>
+                                            Math.min(upcomingTotalPages, prev + 1)
+                                        )
+                                    }
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
+                                    aria-label="Next upcoming deliveries page"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -753,10 +906,10 @@ export default function AdminDashboard() {
                                 {/* Table Header */}
                                 <thead className="bg-[#FFFDF9] text-[#8C6D58] text-[11px] font-bold uppercase tracking-wider border-b border-[#E6DBCB]">
                                     <tr>
-                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => setSortBy(sortBy === "id_desc" ? "date_asc" : "id_desc")}>
+                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => { setSortBy(sortBy === "id_desc" ? "date_asc" : "id_desc"); setQueuePage(1); }}>
                                             <span className="flex items-center gap-1.5">ORDER & CUSTOMER <ArrowUpDown className="w-3 h-3 opacity-50" /></span>
                                         </th>
-                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => setSortBy(sortBy === "date_asc" ? "date_desc" : "date_asc")}>
+                                        <th className="p-3.5 cursor-pointer hover:text-[#3D251E] transition-colors" onClick={() => { setSortBy(sortBy === "date_asc" ? "date_desc" : "date_asc"); setQueuePage(1); }}>
                                             <span className="flex items-center gap-1.5">DELIVERY DATE <ArrowUpDown className="w-3 h-3 opacity-50" /></span>
                                         </th>
                                         <th className="p-3.5">
@@ -896,51 +1049,52 @@ export default function AdminDashboard() {
                         </div>
                     )}
 
-                    {/* ── Bottom Pagination Bar ── */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E6DBCB]/40 text-xs font-medium text-[#8C6D58]">
-                        {/* Per Page Selector */}
-                        <div className="flex items-center gap-2">
-                            <span>Showing per page:</span>
-                            <select
-                                value={perPage}
-                                onChange={(e) => { setPerPage(Number(e.target.value)); setQueuePage(1); }}
-                                className="bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg px-2.5 py-1.5 font-bold text-xs text-[#3D251E] cursor-pointer focus:outline-none focus:border-[#AD4313]"
-                            >
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
-                        </div>
 
-                        {/* Page Numbers */}
-                        <div className="flex items-center gap-1.5">
+                    {/* ── Bottom Pagination Bar ── */}
+                    <div className="flex flex-col items-center gap-3 pt-4 border-t border-[#E6DBCB]/40 text-xs font-medium text-[#8C6D58]">
+
+                        {/* Pagination Controls */}
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
                             <button
                                 type="button"
                                 disabled={!data.all_upcoming_has_prev || queuePage <= 1}
-                                onClick={() => setQueuePage((prev) => Math.max(1, prev - 1))}
+                                onClick={() =>
+                                    setQueuePage((prev) => Math.max(1, prev - 1))
+                                }
                                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
                                 aria-label="Previous Page"
                             >
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
 
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => {
-                                if (totalPages > 5 && Math.abs(num - queuePage) > 2 && num !== 1 && num !== totalPages) {
-                                    return null;
+                            {getPaginationItems(queuePage, totalPages).map((page) => {
+                                if (typeof page !== "number") {
+                                    return (
+                                        <span
+                                            key={page}
+                                            className="w-6 text-center text-[#A48B78]"
+                                            aria-hidden="true"
+                                        >
+                                            …
+                                        </span>
+                                    );
                                 }
-                                const isActive = queuePage === num;
+
+                                const isActive = queuePage === page;
+
                                 return (
                                     <button
-                                        key={num}
+                                        key={page}
                                         type="button"
-                                        onClick={() => setQueuePage(num)}
-                                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${isActive
-                                            ? "bg-[#AD4313] text-white shadow-2xs"
+                                        onClick={() => setQueuePage(page)}
+                                        aria-current={isActive ? "page" : undefined}
+                                        aria-label={`Page ${page}`}
+                                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer disabled:cursor-wait ${isActive
+                                            ? "bg-[#AD4313] text-white border border-[#AD4313] shadow-2xs"
                                             : "bg-white border border-[#E6DBCB] text-[#3D251E] hover:bg-[#FCF8EE]"
                                             }`}
                                     >
-                                        {num}
+                                        {page}
                                     </button>
                                 );
                             })}
@@ -948,7 +1102,9 @@ export default function AdminDashboard() {
                             <button
                                 type="button"
                                 disabled={!data.all_upcoming_has_next || queuePage >= totalPages}
-                                onClick={() => setQueuePage((prev) => prev + 1)}
+                                onClick={() =>
+                                    setQueuePage((prev) => Math.min(totalPages, prev + 1))
+                                }
                                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#E6DBCB] text-[#3D251E] transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#FCF8EE]"
                                 aria-label="Next Page"
                             >
@@ -956,26 +1112,44 @@ export default function AdminDashboard() {
                             </button>
                         </div>
 
-                        {/* Jump to Page Input */}
-                        <form onSubmit={handleJumpPage} className="flex items-center gap-2">
-                            <span>Go to page:</span>
+                        {/* Loading Indicator */}
+                        {isQueueLoading && (
+                            <div
+                                className="flex items-center gap-1.5 text-[#AD4313]"
+                                role="status"
+                                aria-live="polite"
+                            >
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Updating orders...</span>
+                            </div>
+                        )}
+
+                        {/* Jump to Page */}
+                        <form
+                            onSubmit={handleJumpPage}
+                            className="flex items-center justify-center gap-2"
+                        >
+                            <label htmlFor="queue-jump-page">Go to page:</label>
                             <input
+                                id="queue-jump-page"
                                 type="number"
                                 min="1"
                                 max={totalPages}
                                 value={jumpPageInput}
                                 onChange={(e) => setJumpPageInput(e.target.value)}
                                 placeholder="#"
-                                className="w-12 px-2 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
+                                className="w-14 px-2 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
                             />
                             <button
                                 type="submit"
-                                className="px-3 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer flex items-center gap-1"
+                                disabled={isQueueLoading}
+                                className="px-3 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                             >
                                 Go <ChevronRight className="w-3 h-3" />
                             </button>
                         </form>
                     </div>
+
                 </div>
 
             </div>
