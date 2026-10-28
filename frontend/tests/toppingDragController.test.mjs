@@ -1,37 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Box3, BoxGeometry, Group, Mesh, PerspectiveCamera, Vector3 } from "three";
+import { Box3, BoxGeometry, CylinderGeometry, Group, Mesh, PerspectiveCamera, Vector3 } from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createToppingDragController } from "../src/utils/toppingDragController.js";
 import { getTransformedToppingBox, TOPPING_PLACEMENT_GAP } from "../src/utils/toppingDragPlacement.js";
 
-function setup() {
+function setup({ tierCount = 1, round = false, combined = false, candleMode = "gold" } = {}) {
     const parent = new Group();
     parent.position.set(2, -0.8, -1);
     parent.rotation.y = 0.8;
     const scene = new Group();
-    const cake = new Mesh(new BoxGeometry(4, 1, 4));
-    cake.name = "cake_rectangle";
-    cake.position.y = 0.5;
-    scene.add(cake);
+    const geometries = Array.from({ length: tierCount }, (_, index) => {
+        const radius = 2 - index * 0.5;
+        const geometry = round ? new CylinderGeometry(radius, radius, 1, 64) : new BoxGeometry(radius * 2, 1, radius * 2);
+        return geometry.translate(0, index + 0.5, 0);
+    });
+    for (const geometry of combined ? [mergeGeometries(geometries)] : geometries) {
+        const cake = new Mesh(geometry);
+        cake.name = round ? "cake_round" : "cake_rectangle";
+        scene.add(cake);
+    }
     parent.add(scene);
     let frames = 0;
     const dragEvents = [];
     const rejectedAdditions = [];
+    const ledgeRestrictions = [];
     const store = { publish() {}, clear() {}, controller: null, setDragging: (isDragging, point) => dragEvents.push({ isDragging, ...point }) };
     const current = {
         scene, cakeGroupRef: { current: parent }, controlsRef: { current: { enabled: true } },
         state: {
-            form: 2, selectedTierIndex: 0, toppingLayout: {}, cherryLayouts: [],
+            form: round ? 1 : 2, selectedTierIndex: tierCount - 1, candleMode, toppingLayout: {}, cherryLayouts: [], chocolateLayouts: [],
             setToppingPosition(id, x, y, position) {
+                const key = id.startsWith("chocolate-") ? "chocolateLayouts" : id.startsWith("cherry-") ? "cherryLayouts" : null;
+                if (key) {
+                    const index = Number(id.split("-")[1]);
+                    current.state[key][index] = { ...current.state[key][index], x, y, position: [...position] };
+                    return;
+                }
                 current.state = { ...current.state, toppingLayout: { ...current.state.toppingLayout, [id]: { ...current.state.toppingLayout[id], x, y, position: [...position] } } };
             },
         },
     };
-    const controller = createToppingDragController({ getCurrent: () => current, store, invalidate: () => frames++, onPlacementRejected: (ids) => rejectedAdditions.push(ids), eventTarget: new EventTarget(), scheduleFrame: queueMicrotask });
+    const controller = createToppingDragController({ getCurrent: () => current, store, invalidate: () => frames++, onPlacementRejected: (ids) => rejectedAdditions.push(ids), onLowerLedgeRestricted: (id) => ledgeRestrictions.push(id), eventTarget: new EventTarget(), scheduleFrame: queueMicrotask });
     store.controller = controller;
     controller.reconcile();
     const register = (id, x, z = 0, width = 0.4, depth = 0.4) => {
-        const anchor = new Vector3(x, 1, z);
+        const anchor = new Vector3(x, tierCount, z);
         const object = new Group();
         object.matrixAutoUpdate = false;
         const mesh = new Mesh(new BoxGeometry(width, 0.4, depth));
@@ -41,6 +55,8 @@ function setup() {
         const box = getTransformedToppingBox(object, parent).translate(anchor.clone().negate());
         const layout = { x: (x + 2) * 25, y: (z + 2) * 25, size: "medium" };
         current.state = { ...current.state, toppingLayout: { ...current.state.toppingLayout, [id]: layout } };
+        if (id.startsWith("chocolate-")) current.state.chocolateLayouts[Number(id.slice(10))] = layout;
+        if (id.startsWith("cherry-")) current.state.cherryLayouts[Number(id.slice(7))] = layout;
         controller.register(id, { id, object, anchor, box, layout, insertionDepth: 0, position: null });
         return { object, mesh, anchor, box, layout };
     };
@@ -60,8 +76,387 @@ function setup() {
         assert.equal(controller.startPointer(id, dataAt(position), camera, canvas), true);
     };
     const drag = (id, target) => controller.drag(id, dataAt(target), camera, canvas);
-    return { controller, current, store, parent, register, start, drag, dragEvents, rejectedAdditions, frames: () => frames };
+    const pointerMove = (target) => {
+        const data = dataAt(target);
+        controller.pointerMove({ clientX: data.x, clientY: data.y }, camera, canvas);
+    };
+    return { controller, current, store, parent, register, start, drag, pointerMove, dragEvents, rejectedAdditions, ledgeRestrictions, frames: () => frames };
 }
+
+test("number candles and cherries reach every exposed lower ledge and preserve their saved height", () => {
+    for (const round of [false, true]) for (const combined of [false, true]) for (const tierCount of [2, 3, 4]) {
+        for (const id of ["candle", "cherry-0"]) {
+            const { controller, current, register, parent } = setup({ tierCount, round, combined, candleMode: "number" });
+            const topping = register(id, 0, 0, 0.14, 0.10);
+            controller.reconcile();
+            for (let tier = tierCount - 2; tier >= 0; tier--) for (const axis of ["x", "z"]) for (const sign of [-1, 1]) {
+                const target = new Vector3(0, tier + 1, 0);
+                target[axis] = sign * (2 - tier * 0.5 - 0.25);
+                controller.begin(id);
+                controller.move(id, target);
+                for (let frame = 0; frame < 20; frame++) controller.update(1 / 60);
+                controller.end();
+                const position = controller.entries.get(id).position;
+                const bounds = getTransformedToppingBox(topping.object, parent);
+                assert.ok(Math.abs(position[axis] - target[axis]) < 0.003, `${id}, ${tierCount} tiers, round=${round}, combined=${combined}: ${position.toArray()} versus ${target.toArray()}`);
+                assert.ok(Math.abs(bounds.min.y - (tier + 1.001)) < 1e-6, `topping must sit on ledge ${tier + 1}: ${bounds.min.y}`);
+                controller.reconcile();
+                assert.ok(controller.entries.get(id).position.distanceTo(position) < 1e-7, "reconciliation must preserve the lower ledge");
+                const saved = id === "candle" ? current.state.toppingLayout.candle : current.state.cherryLayouts[0];
+                assert.deepEqual(saved.position, position.toArray());
+            }
+        }
+    }
+});
+
+test("pointer movement immediately clamps restricted toppings to the top and warns once per drag", () => {
+    for (const round of [false, true]) for (const id of ["chocolate-0", "balls", "candle"]) {
+        const { controller, register, start, pointerMove, drag, parent, ledgeRestrictions } = setup({ tierCount: 3, round });
+        const topping = register(id, 0, 0, 0.2, 0.16);
+        const entry = controller.entries.get(id);
+        const collisionBox = entry.box.clone();
+        for (const axis of ["x", "z"]) { collisionBox.min[axis] += 0.03; collisionBox.max[axis] -= 0.03; }
+        controller.register(id, { ...entry, box: collisionBox, messageBox: entry.box });
+        controller.reconcile();
+        const distance = round ? 1.3 / Math.SQRT2 : 1.3;
+        const lower = new Vector3(-distance, 2, distance);
+        pointerMove(lower);
+        assert.deepEqual(ledgeRestrictions, [], "hovering must not trigger a drag warning");
+        start(id);
+        pointerMove(lower);
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(Math.abs(bounds.min.y - 3.001) < 1e-6, "clamp during pointermove, before a smoothing frame or release");
+        for (const x of [bounds.min.x, bounds.max.x]) for (const z of [bounds.min.z, bounds.max.z]) {
+            assert.ok(Math.abs(x) <= 1 - TOPPING_PLACEMENT_GAP + 1e-7);
+            assert.ok(Math.abs(z) <= 1 - TOPPING_PLACEMENT_GAP + 1e-7);
+            if (round) assert.ok(Math.hypot(x, z) <= 1 - TOPPING_PLACEMENT_GAP + 1e-7);
+        }
+        assert.deepEqual(ledgeRestrictions, [id]);
+        for (let event = 0; event < 12; event++) pointerMove(lower);
+        drag(id, lower);
+        assert.deepEqual(ledgeRestrictions, [id], "native and package drag events must share the warning guard");
+        controller.end();
+        controller.reconcile();
+        assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 3.001) < 1e-6);
+    }
+});
+
+test("cherry and number-candle pointer movement follows every hit ledge without restriction warnings", () => {
+    for (const round of [false, true]) for (const id of ["cherry-0", "candle"]) {
+        const { controller, register, start, pointerMove, parent, ledgeRestrictions } = setup({ tierCount: 3, round, candleMode: "number" });
+        const topping = register(id, 0, 0, 0.14, 0.10);
+        controller.reconcile();
+        start(id);
+        for (const [radius, height] of [[1.3, 2], [1.8, 1]]) {
+            const distance = round ? radius / Math.SQRT2 : radius;
+            pointerMove(new Vector3(-distance, height, distance));
+            for (let frame = 0; frame < (id === "candle" ? 20 : 1); frame++) controller.update(1 / 30);
+            const bounds = getTransformedToppingBox(topping.object, parent);
+            assert.ok(Math.abs(bounds.min.y - height - 0.001) < 1e-6, `${id} should sit flush on the hit ledge`);
+        }
+        assert.deepEqual(ledgeRestrictions, []);
+        controller.end();
+    }
+});
+
+test("top-tier drags and cakes without lower tiers do not show ledge restriction warnings", () => {
+    for (const tierCount of [1, 3]) {
+        const { controller, register, start, pointerMove, ledgeRestrictions } = setup({ tierCount });
+        register("chocolate-0", 0, 0, 0.2, 0.2);
+        controller.reconcile();
+        start("chocolate-0");
+        pointerMove(new Vector3(0.4, tierCount, 0.4));
+        pointerMove(new Vector3(8, tierCount, 8));
+        assert.deepEqual(ledgeRestrictions, []);
+        controller.end();
+    }
+});
+
+test("changing a number candle to a single candle returns its saved lower placement to the top", () => {
+    const { controller, current, register, start, pointerMove, parent, ledgeRestrictions } = setup({ tierCount: 3, candleMode: "number" });
+    const topping = register("candle", 0, 0, 0.14, 0.10);
+    controller.reconcile();
+    start("candle");
+    pointerMove(new Vector3(-1.3, 2, 1.3));
+    controller.update(1 / 30);
+    controller.end();
+    assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 2.001) < 1e-6);
+    current.state.candleMode = "gold";
+    controller.reconcile();
+    assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 3.001) < 1e-6);
+    assert.deepEqual(ledgeRestrictions, []);
+});
+
+test("editing a saved chocolate on a lower ledge restores it to the top tier", () => {
+    const { controller, register, parent, ledgeRestrictions } = setup({ tierCount: 3 });
+    const topping = register("chocolate-0", 0, 0, 0.2, 0.2);
+    const entry = controller.entries.get("chocolate-0");
+    controller.register("chocolate-0", { ...entry, layout: { ...entry.layout, position: [1.7, 1.001, 0] } });
+    controller.reconcile();
+    const bounds = getTransformedToppingBox(topping.object, parent);
+    assert.ok(Math.abs(bounds.min.y - 3.001) < 1e-6);
+    assert.ok(bounds.max.x <= 1 - TOPPING_PLACEMENT_GAP + 1e-7);
+    assert.deepEqual(ledgeRestrictions, []);
+});
+
+test("ledge clamps use the full physical topping extents on X/Z edges and round diagonals", () => {
+    for (const round of [false, true]) for (const id of ["candle", "cherry-0"]) {
+        for (const [x, z] of [[8, 0], [-8, 0], [0, 8], [0, -8], [8, 8], [-8, -8]]) {
+            const { controller, register, parent } = setup({ tierCount: 3, round, combined: true, candleMode: "number" });
+            const topping = register(id, 0, 0, 0.28, 0.18);
+            const entry = controller.entries.get(id);
+            const collisionBox = entry.box.clone();
+            for (const axis of ["x", "z"]) { collisionBox.min[axis] += 0.04; collisionBox.max[axis] -= 0.04; }
+            controller.register(id, { ...entry, box: collisionBox, messageBox: entry.box });
+            controller.reconcile();
+            controller.begin(id);
+            controller.move(id, new Vector3(x, 1, z));
+            controller.end();
+            const bounds = getTransformedToppingBox(topping.object, parent);
+            assert.ok(Math.abs(bounds.min.y - 1.001) < 1e-6, "an outside drag should clamp to the lowest ledge");
+            for (const cornerX of [bounds.min.x, bounds.max.x]) for (const cornerZ of [bounds.min.z, bounds.max.z]) {
+                assert.ok(Math.abs(cornerX) <= 2 - TOPPING_PLACEMENT_GAP + 1e-7);
+                assert.ok(Math.abs(cornerZ) <= 2 - TOPPING_PLACEMENT_GAP + 1e-7);
+                if (round) assert.ok(Math.hypot(cornerX, cornerZ) <= 2 - TOPPING_PLACEMENT_GAP + 1e-7);
+            }
+        }
+    }
+});
+
+test("pointer projection moves a topping from the top onto a visible lower ledge", () => {
+    for (const round of [false, true]) {
+        const { controller, register, start, drag, parent } = setup({ tierCount: 3, round, candleMode: "number" });
+        const topping = register("candle", 0, 0, 0.14, 0.10);
+        controller.reconcile();
+        const distance = round ? 1.75 / Math.SQRT2 : 1.75;
+        const target = new Vector3(-distance, 1, distance);
+        start("candle");
+        drag("candle", target);
+        controller.update(1 / 30);
+        controller.end();
+        const position = controller.entries.get("candle").position;
+        assert.ok(Math.abs(position.x - target.x) < 0.003);
+        assert.ok(Math.abs(position.z - target.z) < 0.003);
+        assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 1.001) < 1e-6);
+    }
+});
+
+test("cherry pointer drags clamp to the intersected middle tier instead of remaining on the top tier", () => {
+    for (const round of [false, true]) for (const combined of [false, true]) {
+        const { controller, register, start, drag, parent, current } = setup({ tierCount: 3, round, combined });
+        const topping = register("cherry-0", 0, 0, 0.2, 0.16);
+        const entry = controller.entries.get("cherry-0");
+        const collisionBox = entry.box.clone();
+        for (const axis of ["x", "z"]) { collisionBox.min[axis] += 0.02; collisionBox.max[axis] -= 0.02; }
+        controller.register("cherry-0", { ...entry, box: collisionBox, messageBox: entry.box });
+        controller.reconcile();
+        const distance = round ? 1.48 / Math.SQRT2 : 1.48;
+        start("cherry-0");
+        drag("cherry-0", new Vector3(-distance, 2, distance));
+        controller.update(1 / 30);
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(Math.abs(bounds.min.y - 2.001) < 1e-6, `cherry must drop during the drag: ${bounds.min.y}`);
+        const center = bounds.getCenter(new Vector3());
+        assert.ok((round ? Math.hypot(center.x, center.z) : Math.max(Math.abs(center.x), Math.abs(center.z))) > 1, "the rendered cherry must reach the exposed ledge before dropping");
+        for (const x of [bounds.min.x, bounds.max.x]) for (const z of [bounds.min.z, bounds.max.z]) {
+            assert.ok(Math.abs(x) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+            assert.ok(Math.abs(z) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+            if (round) assert.ok(Math.hypot(x, z) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+        }
+        controller.end();
+        controller.reconcile();
+        assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 2.001) < 1e-6);
+        assert.deepEqual(current.state.cherryLayouts[0].position, controller.entries.get("cherry-0").position.toArray());
+    }
+});
+
+test("a cherry dragged beyond the cake stays clamped to the last intersected tier", () => {
+    for (const round of [false, true]) {
+        const { controller, register, start, drag, parent } = setup({ tierCount: 3, round, combined: true });
+        const topping = register("cherry-0", 0, 0, 0.2, 0.16);
+        controller.reconcile();
+        const distance = round ? 1.3 / Math.SQRT2 : 1.3;
+        start("cherry-0");
+        drag("cherry-0", new Vector3(-distance, 2, distance));
+        controller.update(1 / 30);
+        drag("cherry-0", new Vector3(-8, 2, 8));
+        controller.update(1 / 30);
+        controller.end();
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(Math.abs(bounds.min.y - 2.001) < 1e-6);
+        for (const x of [bounds.min.x, bounds.max.x]) for (const z of [bounds.min.z, bounds.max.z]) {
+            assert.ok(Math.abs(x) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+            assert.ok(Math.abs(z) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+            if (round) assert.ok(Math.hypot(x, z) <= 1.5 - TOPPING_PLACEMENT_GAP + 1e-7);
+        }
+    }
+});
+
+test("a cherry on a narrow ledge follows the hit tier height and can move back to the top", () => {
+    const { controller, register, start, drag, parent } = setup({ tierCount: 3 });
+    const topping = register("cherry-0", 0, 0, 0.4, 0.2);
+    controller.reconcile();
+    start("cherry-0");
+    drag("cherry-0", new Vector3(-1.25, 2, 0));
+    controller.update(1 / 30);
+    controller.end();
+    controller.reconcile();
+    const lower = getTransformedToppingBox(topping.object, parent);
+    assert.ok(Math.abs(lower.min.y - 2.001) < 1e-6, "the upper tier must not pull the cherry back up");
+    assert.ok(lower.min.x >= -1.5 + TOPPING_PLACEMENT_GAP - 1e-7);
+    assert.ok(lower.max.x <= -1 - TOPPING_PLACEMENT_GAP + 1e-7);
+    start("cherry-0");
+    drag("cherry-0", new Vector3(0, 3, 0));
+    controller.update(1 / 30);
+    controller.end();
+    assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 3.001) < 1e-6);
+});
+
+test("cherry ledge drags stop the full footprint against the upper tier wall", () => {
+    for (const round of [false, true]) for (const axis of ["x", "z"]) for (const sign of [-1, 1]) {
+        const { controller, register, start, parent } = setup({ tierCount: 3, round, combined: true });
+        const topping = register("cherry-0", 0, 0, 0.2, 0.2);
+        const entry = controller.entries.get("cherry-0");
+        const collisionBox = entry.box.clone();
+        for (const direction of ["x", "z"]) { collisionBox.min[direction] += 0.03; collisionBox.max[direction] -= 0.03; }
+        controller.register("cherry-0", { ...entry, box: collisionBox, messageBox: entry.box });
+        controller.reconcile();
+        start("cherry-0");
+        const ledge = new Vector3(0, 2, 0);
+        ledge[axis] = sign * 1.3;
+        controller.move("cherry-0", ledge);
+        controller.update(1 / 30);
+        const inward = ledge.clone();
+        inward[axis] = sign * 1.04;
+        controller.move("cherry-0", inward);
+        for (let frame = 0; frame < 30; frame++) {
+            controller.update(1 / 60);
+            const bounds = getTransformedToppingBox(topping.object, parent);
+            const nearWall = sign > 0 ? bounds.min[axis] : -bounds.max[axis];
+            assert.ok(nearWall >= 1 + TOPPING_PLACEMENT_GAP - 1e-7, `cherry clips the upper wall: ${nearWall}`);
+            assert.ok(Math.abs(bounds.min.y - 2.001) < 1e-6);
+        }
+        controller.end();
+        controller.reconcile();
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok((sign > 0 ? bounds.min[axis] : -bounds.max[axis]) >= 1 + TOPPING_PLACEMENT_GAP - 1e-7);
+    }
+});
+
+test("a fast cherry drag cannot cross the upper tier through a clear ledge on the other side", () => {
+    for (const round of [false, true]) {
+        const { controller, register, start, parent } = setup({ tierCount: 3, round });
+        const topping = register("cherry-0", 0, 0, 0.2, 0.2);
+        controller.reconcile();
+        start("cherry-0");
+        controller.move("cherry-0", new Vector3(1.3, 2, 0));
+        controller.update(1 / 30);
+        controller.move("cherry-0", new Vector3(-1.3, 2, 0));
+        controller.update(1 / 30);
+        controller.end();
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(bounds.min.x >= 1 + TOPPING_PLACEMENT_GAP - 1e-7, "the upper tier must block inward motion across its full width");
+        assert.ok(Math.abs(bounds.min.y - 2.001) < 1e-6);
+    }
+});
+
+test("a cherry can slide around an upper wall while staying on its lower ledge", () => {
+    const { controller, register, start, parent } = setup({ tierCount: 3, round: true });
+    const topping = register("cherry-0", 0, 0, 0.2, 0.2);
+    controller.reconcile();
+    start("cherry-0");
+    controller.move("cherry-0", new Vector3(1.3, 2, 0));
+    controller.update(1 / 30);
+    for (const target of [new Vector3(1.04, 2, 0), new Vector3(1.04, 2, 0.5)]) {
+        controller.move("cherry-0", target);
+        for (let frame = 0; frame < 40; frame++) {
+            controller.update(1 / 60);
+            const bounds = getTransformedToppingBox(topping.object, parent);
+            const nearX = Math.max(bounds.min.x, Math.min(bounds.max.x, 0));
+            const nearZ = Math.max(bounds.min.z, Math.min(bounds.max.z, 0));
+            assert.ok(Math.hypot(nearX, nearZ) >= Math.cos(Math.PI / 64) + TOPPING_PLACEMENT_GAP - 1e-4, "sliding must keep the full cherry clear of the rendered upper wall");
+            assert.ok(Math.abs(bounds.min.y - 2.001) < 1e-6);
+        }
+    }
+    assert.ok(controller.entries.get("cherry-0").position.z > 0.45);
+    controller.end();
+});
+
+test("a cherry too wide for a ledge keeps its previous safe placement without shrinking", () => {
+    const { controller, register, start, parent } = setup({ tierCount: 3 });
+    const topping = register("cherry-0", 0, 0, 0.6, 0.6);
+    controller.reconcile();
+    const before = controller.entries.get("cherry-0").position.clone();
+    const size = getTransformedToppingBox(topping.object, parent).getSize(new Vector3());
+    start("cherry-0");
+    controller.move("cherry-0", new Vector3(-1.25, 2, 0));
+    controller.update(1 / 30);
+    controller.end();
+    assert.ok(controller.entries.get("cherry-0").position.equals(before));
+    assert.ok(getTransformedToppingBox(topping.object, parent).getSize(new Vector3()).distanceTo(size) < 1e-8);
+});
+
+test("tier-wall contact never leaves a topping hanging from an upper edge", () => {
+    for (const round of [false, true]) {
+        const { controller, register, parent } = setup({ tierCount: 3, round });
+        const topping = register("candle", 0, 0, 0.2, 0.2);
+        controller.reconcile();
+        controller.begin("candle");
+        controller.move("candle", new Vector3(0.98, 3, 0));
+        for (let frame = 0; frame < 30; frame++) {
+            controller.update(1 / 60);
+            const bounds = getTransformedToppingBox(topping.object, parent);
+            assert.ok(bounds.max.x <= 1 - TOPPING_PLACEMENT_GAP + 1e-7);
+            assert.ok(Math.abs(bounds.min.y - 3.001) < 1e-6);
+        }
+        controller.end();
+    }
+});
+
+test("a cherry with an offset pivot seats its physical footprint on the lower ledge", () => {
+    for (const axis of ["x", "z"]) {
+        const { controller, register, parent } = setup({ tierCount: 3 });
+        const topping = register("cherry-0", 0, 0, 0.14, 0.14);
+        topping.mesh.geometry.translate(axis === "x" ? 0.3 : 0, 0, axis === "z" ? 0.3 : 0);
+        topping.object.visible = true;
+        const box = getTransformedToppingBox(topping.object, parent).translate(topping.anchor.clone().negate());
+        controller.register("cherry-0", { ...controller.entries.get("cherry-0"), box, messageBox: box });
+        controller.reconcile();
+        const target = new Vector3(0, 1, 0);
+        target[axis] = 1.45;
+        controller.begin("cherry-0");
+        controller.move("cherry-0", target);
+        controller.end();
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(Math.abs(bounds.min.y - 1.001) < 1e-6);
+        assert.ok(bounds.min[axis] > 1.5 && bounds.max[axis] < 2);
+    }
+});
+
+test("lower ledge marker movement stays scoped to number candles and cherries", () => {
+    for (const [id, candleMode, ledge] of [["candle", "number", true], ["candle", "gold", false], ["cherry-0", "gold", true], ["chocolate-0", "gold", false], ["balls", "gold", false], ["nuts", "gold", false]]) {
+        const { controller, register, parent } = setup({ tierCount: 3, candleMode });
+        const topping = register(id, 0, 0, 0.14, 0.14);
+        controller.reconcile();
+        controller.moveMarker(id, 93.75, 50);
+        controller.end();
+        const bounds = getTransformedToppingBox(topping.object, parent);
+        assert.ok(Math.abs(bounds.min.y - (ledge ? 1.001 : 3.001)) < 1e-6);
+    }
+});
+
+test("an outside drag on a tiered cake still stops at intervening topping collisions", () => {
+    const { controller, register, parent } = setup({ tierCount: 2 });
+    const moving = register("chocolate-0", -1.2, 0, 0.14, 0.14);
+    const obstacle = register("nuts", 0, 0, 0.8, 0.8);
+    controller.reconcile();
+    controller.begin("chocolate-0");
+    controller.move("chocolate-0", new Vector3(8, 1, 0));
+    controller.end();
+    const bounds = getTransformedToppingBox(moving.object, parent);
+    const blocker = getTransformedToppingBox(obstacle.object, parent);
+    assert.ok(bounds.max.x <= blocker.min.x - TOPPING_PLACEMENT_GAP + 1e-7);
+});
 
 test("a topping registered after the parent placement effect appears without another state update", async () => {
     const fixture = setup();

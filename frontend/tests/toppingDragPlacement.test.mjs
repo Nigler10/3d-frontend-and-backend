@@ -66,6 +66,9 @@ test("package coordinates project correctly through a scrolled offset parent and
     const plane = new Plane(new Vector3(0, 1, 0), -local.y).applyMatrix4(parent.matrixWorld);
     const actual = projectToppingDrag({ data, canvas: { getBoundingClientRect: () => rect }, camera, parent, plane });
     assert.ok(actual.distanceTo(local) < 1e-6);
+    const clientPoint = { x: rect.left + (screen.x + 1) * rect.width / 2, y: rect.top + (1 - screen.y) * rect.height / 2 };
+    const native = projectToppingDrag({ clientPoint, canvas: { getBoundingClientRect: () => rect }, camera, parent, plane });
+    assert.ok(native.distanceTo(local) < 1e-6, "native pointer coordinates must remain correct with a scrolled offset parent");
 });
 
 test("pointer projection snaps to cake geometry before falling back to its drag plane", () => {
@@ -84,6 +87,34 @@ test("pointer projection snaps to cake geometry before falling back to its drag 
     const options = { data: { node: canvas, x: 200, y: 200 }, canvas, camera, parent, plane };
     assert.ok(Math.abs(projectToppingDrag({ ...options, meshes: [cake] }).y - 1) < 1e-6);
     assert.ok(Math.abs(projectToppingDrag(options).y - 2) < 1e-6);
+});
+
+test("cherry projection raycasts all nested tier surfaces in cake-local coordinates", () => {
+    const parent = new Group();
+    parent.position.set(2, -0.8, -1);
+    parent.rotation.y = 0.8;
+    const tiers = new Group();
+    const lower = new Mesh(new BoxGeometry(4, 1, 4));
+    lower.position.y = 0.5;
+    const upper = new Mesh(new BoxGeometry(2, 1, 2));
+    upper.position.y = 1.5;
+    tiers.add(lower, upper);
+    parent.add(tiers);
+    parent.updateWorldMatrix(true, true);
+    const camera = new PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(2, 6, 5);
+    camera.lookAt(2, 0.2, -1);
+    camera.updateWorldMatrix(true, false);
+    const body = { scrollLeft: 0, scrollTop: 0 };
+    const node = { ownerDocument: { body } };
+    const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }) };
+    const plane = new Plane(new Vector3(0, 1, 0), -2).applyMatrix4(parent.matrixWorld);
+    for (const point of [new Vector3(0, 2, 0), new Vector3(-1.7, 1, 1.7)]) {
+        const screen = parent.localToWorld(point.clone()).project(camera);
+        const data = { node, x: (screen.x + 1) * 200, y: (1 - screen.y) * 200 };
+        const actual = projectToppingDrag({ data, canvas, camera, parent, plane, meshes: [tiers], topSurfacesOnly: true });
+        assert.ok(actual.distanceTo(point) < 1e-6, `${actual.toArray()} versus ${point.toArray()}`);
+    }
 });
 
 test("transformed geometry includes rotation, negative scale, and parent-relative coordinates", () => {

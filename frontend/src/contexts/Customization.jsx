@@ -76,11 +76,11 @@ export const TOPPING_SIZES = {
 
 const DEFAULT_TOPPING_LAYOUT = {
     inscription: DEFAULT_CAKE_MESSAGE_LAYOUT,
-    candle: { x: 50, y: 50, size: "medium", mode: "gold", color: "gold" },
+    candle: { x: 50, y: 50, size: "small", mode: "gold", color: "gold" },
     chocolate: DEFAULT_CHOCOLATE_LAYOUT,
     balls: { x: 50, y: 50, size: "small" },
     nuts: { x: 50, y: 50, size: "medium" },
-    cherry: { x: 60, y: 40, size: "medium" },
+    cherry: { x: 60, y: 40, size: "small" },
     sprinkles: { x: 50, y: 50, size: "medium" },
 };
 

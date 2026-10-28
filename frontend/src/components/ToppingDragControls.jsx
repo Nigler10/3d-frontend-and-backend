@@ -70,17 +70,28 @@ export function useToppingDragPlacement({ scene, cakeGroupRef, controlsRef, stat
     const enabled = Boolean(store && cakeGroupRef && controlsRef);
     const latest = useRef(null);
     latest.current = { scene, cakeGroupRef, controlsRef, state };
-    const invalidate = useThree((canvas) => canvas.invalidate);
+    const { camera, gl, invalidate } = useThree();
     const [controller] = useState(() => createToppingDragController({
         getCurrent: () => latest.current, store, invalidate,
         onPlacementRejected: (ids) => {
             latest.current.state.rejectToppingAdditions(ids);
             toast.warning("No more space for this topping. Try arranging the other toppings");
         },
+        onLowerLedgeRestricted: () => toast.warn(
+            "Only cherries and number candles can be placed on lower ledges. Chocolates, balls, and single candles must stay on the top tier.",
+            { toastId: "topping-lower-ledge-restriction" }
+        ),
     }));
     controller.enabled = enabled;
     controller.interactive = !readOnly;
     useFrame((_, delta) => { if (enabled) controller.update(delta); });
+    useEffect(() => {
+        if (!enabled || readOnly) return;
+        const canvas = gl.domElement;
+        const onPointerMove = (event) => controller.pointerMove(event, camera, canvas);
+        canvas.addEventListener("pointermove", onPointerMove);
+        return () => canvas.removeEventListener("pointermove", onPointerMove);
+    }, [controller, enabled, readOnly, gl, camera]);
     useLayoutEffect(() => { if (enabled) controller.reconcile(false); });
     useEffect(() => {
         if (!enabled) return;

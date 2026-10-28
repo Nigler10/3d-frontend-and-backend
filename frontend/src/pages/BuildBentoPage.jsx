@@ -995,6 +995,9 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                 isOpen={openSection === "placement"}
                 onToggle={() => toggleSection("placement")}
             >
+                <p className="mb-3 text-xs leading-relaxed text-[#6E473B]">
+                    Only cherries and number candles can be placed on lower ledges. Chocolates, balls, and single candles stay on the top tier.
+                </p>
                 {placementToppings.length > 0 ? (
                     <div className="flex flex-col gap-5">
                         <div className="flex justify-center p-2 bg-[#FFFDF9] rounded-2xl border border-[#E6CCA2]">

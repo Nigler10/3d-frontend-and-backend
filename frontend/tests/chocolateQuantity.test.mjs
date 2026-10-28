@@ -22,6 +22,16 @@ test("chocolate hydration supports old singleton layouts and restores up to thre
     assert.equal(hydrateChocolateLayouts([...saved, legacy]).length, 3);
 });
 
+test("new chocolate pieces default to small while saved sizes are preserved", () => {
+    assert.equal(hydrateChocolateLayouts()[0].size, "small");
+    assert.equal(hydrateChocolateLayouts([])[0].size, "small");
+    assert.equal(hydrateChocolateLayouts({ x: 20, y: 70 })[0].size, "small");
+    assert.deepEqual(resizeChocolateLayouts([], 3).map((layout) => layout.size), ["small", "small", "small"]);
+    const saved = { x: 50, y: 50, size: "large" };
+    assert.equal(resizeChocolateLayouts([saved], 2)[0], saved);
+    assert.equal(hydrateChocolateLayouts(saved)[0].size, "large");
+});
+
 test("changing quantity keeps existing poses and gives added pieces independent layouts", () => {
     const first = { x: 20, y: 70, size: "small", position: [-0.6, 1, 0.4] };
     const three = resizeChocolateLayouts([first], 3);

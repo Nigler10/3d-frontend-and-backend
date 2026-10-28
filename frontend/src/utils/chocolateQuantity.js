@@ -1,5 +1,5 @@
 export const MAX_CHOCOLATE_COUNT = 3;
-export const DEFAULT_CHOCOLATE_LAYOUT = { x: 50, y: 50, size: "medium" };
+export const DEFAULT_CHOCOLATE_LAYOUT = { x: 50, y: 50, size: "small" };
 
 export function normalizeChocolateCount(value) {
     const count = Number(value);
