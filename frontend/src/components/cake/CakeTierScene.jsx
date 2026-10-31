@@ -762,7 +762,10 @@ export function CakeTierScene({ selectedTierIndex, autoSpin, cakeGroupRef, contr
         activeTierBounds?.getSize(topSize);
         const topWidth = Math.min(topSize.x, topSize.z);
         const requestedCandleWidth = candleWidth * digitScaleMultiplier;
-        const candleSizeMultiplier = requestedCandleWidth > 0 && topWidth > 0
+        const ledgeIndex = Math.min(toppingLayout.candle.relativePlacement?.ledgeIndex ?? 0, selectedTierIndex);
+        const resizeOnLowerLedge = selectedCandleMode === "number" && ledgeIndex <= selectedTierIndex &&
+            (selectedTierIndex === 1 && ledgeIndex === 1 || selectedTierIndex >= 2 && ledgeIndex >= 2);
+        const candleSizeMultiplier = !resizeOnLowerLedge && requestedCandleWidth > 0 && topWidth > 0
             ? Math.min(1, (topWidth * 0.72) / requestedCandleWidth)
             : 1;
         const effectiveCandleScale = digitScaleMultiplier * candleSizeMultiplier;

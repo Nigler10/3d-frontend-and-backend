@@ -349,6 +349,77 @@ test("cart snapshots restore the complete design and exact per-layer materials",
     }
 });
 
+test("number-candle relative placement survives tier navigation and cart serialization without sharing mutable state", () => {
+    const builder = createBuilder();
+    builder.select(3);
+    builder.render().setCandle(true);
+    builder.render().setCandleMode("number");
+    const relativePlacement = { angle: 0.7, normalizedRadius: 0.86, ledgeIndex: 3, tierCount: 4, form: 1 };
+    const expected = { ...relativePlacement };
+    builder.render().setToppingPosition("candle", 61, 79, [0.6, 1.2, 0.8], relativePlacement);
+    relativePlacement.angle = -2;
+    for (const index of [1, 0, 2, 3]) {
+        const state = builder.select(index);
+        assert.deepEqual(plain(state.toppingLayout.candle.relativePlacement), expected);
+    }
+    const payload = saveDesign(builder);
+    const restored = createBuilder(JSON.parse(JSON.stringify(payload)));
+    assert.deepEqual(plain(restored.render().toppingLayout.candle.relativePlacement), expected);
+    assert.deepEqual(saveDesign(restored), payload);
+    builder.render().setToppingPosition("candle", 25, 35, [-0.4, 2.8, 0.2]);
+    assert.equal(builder.render().toppingLayout.candle.relativePlacement, undefined, "an explicit legacy XYZ edit must invalidate stale relative coordinates");
+    assert.deepEqual(payload.topping_layout.candle.relativePlacement, expected);
+    restored.render().setCandleMode("gold");
+    assert.equal(Object.hasOwn(restored.render().toppingLayout.candle, "relativePlacement"), false, "single candles must not retain number-candle ledge metadata");
+});
+
+test("clearing a rejected number-candle placement keeps its style and lets the OFF toggle turn ON again", () => {
+    const builder = createBuilder();
+    builder.render().setCandle(true);
+    builder.render().setCandleMode("number");
+    builder.render().setCandleColor("white");
+    builder.render().setToppingPosition("candle", 70, 80, [1, 1.2, 1.4], {
+        angle: 0.7, normalizedRadius: 0.9, ledgeIndex: 2, tierCount: 3, form: 1,
+    });
+    builder.render().setCandle(false);
+    builder.render().setToppingPosition("candle", 50, 50, null);
+    const state = builder.render();
+    assert.equal(state.candle, false);
+    assert.equal(state.toppingLayout.candle.position, undefined);
+    assert.equal(state.toppingLayout.candle.relativePlacement, undefined);
+    assert.equal(state.toppingLayout.candle.x, 50);
+    assert.equal(state.toppingLayout.candle.y, 50);
+    assert.equal(state.candleMode, "number");
+    assert.equal(state.candleColor, "white");
+    state.setCandle(true);
+    assert.equal(builder.render().candle, true);
+});
+
+test("an oversized number-candle size can reset to Small while preserving its ledge, position and ON toggle", () => {
+    const builder = createBuilder();
+    builder.select(3);
+    builder.render().setCandle(true);
+    builder.render().setCandleMode("number");
+    builder.render().setCandleColor("white");
+    const position = [0, 3.001, 0.75];
+    const relative = { angle: Math.PI / 2, normalizedRadius: 0.94, ledgeIndex: 1, tierCount: 4, form: 1 };
+    builder.render().setToppingPosition("candle", 50, 81, position, relative);
+    builder.render().setToppingSize("candle", "large");
+    builder.render().setToppingSize("candle", "small");
+    builder.render().setToppingPosition("candle", 50, 81, position, relative);
+    const state = builder.render();
+    assert.equal(state.candle, true);
+    assert.equal(state.toppingLayout.candle.size, "small");
+    assert.deepEqual(plain(state.toppingLayout.candle.position), position);
+    assert.deepEqual(plain(state.toppingLayout.candle.relativePlacement), relative);
+    assert.equal(state.candleColor, "white");
+    assert.equal(state.candleMode, "number");
+    const restored = createBuilder(saveDesign(builder));
+    assert.equal(restored.render().candle, true);
+    assert.equal(restored.render().toppingLayout.candle.size, "small");
+    assert.deepEqual(plain(restored.render().toppingLayout.candle.position), position);
+});
+
 test("different saved cakes keep their own flavors, material tints, shape and toppings", () => {
     const first = createBuilder();
     first.select(2);

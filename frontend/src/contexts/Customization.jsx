@@ -307,7 +307,7 @@ export const CustomizationProvider = (props) => {
     const selectedTierFlavorOverrides = tierFlavorOverrides[tier.tierKey];
     const pricingFlavor = selectedTierFlavors[0] ?? flavor;
 
-    const setToppingPosition = (key, x, y, position) => {
+    const setToppingPosition = (key, x, y, position, relativePlacement) => {
         const coordinates = position ? { position: [...position] } : {};
         if (key.startsWith("chocolate-")) {
             const index = Number(key.slice("chocolate-".length));
@@ -326,10 +326,15 @@ export const CustomizationProvider = (props) => {
             return;
         }
 
-        setToppingLayout((prev) => ({
-            ...prev,
-            [key]: { ...prev[key], x, y, ...coordinates },
-        }));
+        setToppingLayout((prev) => {
+            const layout = { ...prev[key], x, y, ...coordinates };
+            if (key === "candle") {
+                if (position === null) delete layout.position;
+                if (relativePlacement) layout.relativePlacement = { ...relativePlacement };
+                else delete layout.relativePlacement;
+            }
+            return { ...prev, [key]: layout };
+        });
     };
 
     const rejectToppingAdditions = (keys) => {
@@ -421,14 +426,13 @@ export const CustomizationProvider = (props) => {
     };
 
     const setCandleMode = (value) => {
-        setCandleModeState(normalizeCandleMode(value));
-        setToppingLayout((prev) => ({
-            ...prev,
-            candle: {
-                ...prev.candle,
-                mode: normalizeCandleMode(value),
-            },
-        }));
+        const mode = normalizeCandleMode(value);
+        setCandleModeState(mode);
+        setToppingLayout((prev) => {
+            const candle = { ...prev.candle, mode };
+            if (mode === "gold") delete candle.relativePlacement;
+            return { ...prev, candle };
+        });
     };
 
     const setCandleColor = (value) => {

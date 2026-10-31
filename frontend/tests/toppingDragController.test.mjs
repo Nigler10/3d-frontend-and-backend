@@ -28,23 +28,47 @@ function setup({ tierCount = 1, round = false, combined = false, candleMode = "g
     const rejectedAdditions = [];
     const ledgeRestrictions = [];
     const cherryFitWarnings = [];
+    const numberResizeRejections = [];
+    const numberSizeRejections = [];
     const store = { publish() {}, clear() {}, controller: null, setDragging: (isDragging, point) => dragEvents.push({ isDragging, ...point }) };
     const current = {
         scene, cakeGroupRef: { current: parent }, controlsRef: { current: { enabled: true } },
         state: {
-            form: round ? 1 : 2, selectedTierIndex: tierCount - 1, candleMode, toppingLayout: {}, cherryLayouts: [], chocolateLayouts: [],
-            setToppingPosition(id, x, y, position) {
+            form: round ? 1 : 2, selectedTierIndex: tierCount - 1, candleMode, candle: true, toppingLayout: {}, cherryLayouts: [], chocolateLayouts: [],
+            setCandle: (value) => { current.state = { ...current.state, candle: value }; },
+            setToppingSize: (id, size) => {
+                current.state = { ...current.state, toppingLayout: { ...current.state.toppingLayout,
+                    [id]: { ...current.state.toppingLayout[id], size } } };
+            },
+            setToppingPosition(id, x, y, position, relativePlacement) {
                 const key = id.startsWith("chocolate-") ? "chocolateLayouts" : id.startsWith("cherry-") ? "cherryLayouts" : null;
                 if (key) {
                     const index = Number(id.split("-")[1]);
                     current.state[key][index] = { ...current.state[key][index], x, y, position: [...position] };
                     return;
                 }
-                current.state = { ...current.state, toppingLayout: { ...current.state.toppingLayout, [id]: { ...current.state.toppingLayout[id], x, y, position: [...position] } } };
+                const layout = { ...current.state.toppingLayout[id], x, y };
+                if (position) layout.position = [...position];
+                else if (position === null) delete layout.position;
+                if (id === "candle") {
+                    if (relativePlacement) layout.relativePlacement = { ...relativePlacement };
+                    else delete layout.relativePlacement;
+                }
+                current.state = { ...current.state, toppingLayout: { ...current.state.toppingLayout, [id]: layout } };
             },
         },
     };
-    const controller = createToppingDragController({ getCurrent: () => current, store, invalidate: () => frames++, onPlacementRejected: (ids) => rejectedAdditions.push(ids), onLowerLedgeRestricted: (id) => ledgeRestrictions.push(id), onCherryFitRejected: (id) => cherryFitWarnings.push(id), eventTarget: new EventTarget(), scheduleFrame: queueMicrotask });
+    const controller = createToppingDragController({ getCurrent: () => current, store, invalidate: () => frames++, onPlacementRejected: (ids) => rejectedAdditions.push(ids), onLowerLedgeRestricted: (id) => ledgeRestrictions.push(id), onCherryFitRejected: (id) => cherryFitWarnings.push(id),
+        onNumberCandleResizeRejected: () => {
+            numberResizeRejections.push("candle");
+            current.state.setCandle(false);
+            current.state.setToppingPosition("candle", 50, 50, null);
+        },
+        onNumberCandleSizeRejected: (layout) => {
+            numberSizeRejections.push(layout);
+            current.state.setToppingSize("candle", "small");
+            current.state.setToppingPosition("candle", layout.x, layout.y, layout.position, layout.relativePlacement);
+        }, eventTarget: new EventTarget(), scheduleFrame: queueMicrotask });
     store.controller = controller;
     controller.reconcile();
     const register = (id, x, z = 0, width = 0.4, depth = 0.4) => {
@@ -90,7 +114,7 @@ function setup({ tierCount = 1, round = false, combined = false, candleMode = "g
         const data = dataAt(target);
         controller.pointerUp({ clientX: data.x, clientY: data.y, pointerId }, camera, canvas);
     };
-    return { controller, current, store, parent, camera, register, start, drag, pointerMove, pointerUp, dragEvents, rejectedAdditions, ledgeRestrictions, cherryFitWarnings, frames: () => frames };
+    return { controller, current, store, parent, camera, register, start, drag, pointerMove, pointerUp, dragEvents, rejectedAdditions, ledgeRestrictions, cherryFitWarnings, numberResizeRejections, numberSizeRejections, frames: () => frames };
 }
 
 test("pointer moves update mesh refs immediately and save coordinates only once on pointerup", async () => {
@@ -197,6 +221,379 @@ test("number candles and cherries reach every exposed lower ledge and preserve t
                 const saved = id === "candle" ? current.state.toppingLayout.candle : current.state.cherryLayouts[0];
                 assert.deepEqual(saved.position, position.toArray());
             }
+        }
+    }
+});
+
+test("number candles preserve relative angle, radius and ledge across tier configurations and clamp removed ledges to the bottom", () => {
+    const configurations = {
+        1: { radii: [1.9], heights: [2.7] },
+        2: { radii: [2.8, 1.4], heights: [1.2, 3.6] },
+        3: { radii: [2.6, 1.6, 0.8], heights: [0.9, 2.2, 4.1] },
+        4: { radii: [3.1, 2.5, 1.7, 1.1], heights: [0.7, 1.8, 3.0, 4.9] },
+    };
+    for (const round of [false, true]) for (const initialLedge of [0, 1, 2, 3]) for (const angle of [0, Math.PI / 2, Math.PI]) {
+        const first = configurations[4];
+        const { controller, current, register, parent } = setup({ tierCount: 4, round, candleMode: "number", tierRadii: first.radii, tierHeights: first.heights });
+        const topping = register("candle", 0, 0, 0.08, 0.06);
+        const insertionDepth = 0.1;
+        controller.register("candle", { ...controller.entries.get("candle"), insertionDepth });
+        controller.reconcile();
+        const bottomIndex = 3 - initialLedge;
+        const radius = first.radii[bottomIndex] * (initialLedge ? 0.9 : 0.45);
+        const initial = new Vector3(Math.cos(angle) * radius, first.heights[bottomIndex] - insertionDepth + TOPPING_SURFACE_OFFSET, Math.sin(angle) * radius);
+        controller.commit(controller.apply(controller.entries.get("candle"), initial, false));
+        let expected = { ...current.state.toppingLayout.candle.relativePlacement };
+        assert.equal(expected.ledgeIndex, initialLedge, "ledge indices count down from the top");
+        for (const count of [2, 3, 1, 4]) {
+            const configuration = configurations[count];
+            const scene = new Group();
+            configuration.radii.forEach((radius, index) => {
+                const bottom = index ? configuration.heights[index - 1] : 0;
+                const top = configuration.heights[index];
+                const geometry = round ? new CylinderGeometry(radius, radius, top - bottom, 64) : new BoxGeometry(2 * radius, top - bottom, 2 * radius);
+                const mesh = new Mesh(geometry.translate(0, (top + bottom) / 2, 0));
+                mesh.name = round ? "cake_round" : "cake_rectangle";
+                scene.add(mesh);
+            });
+            parent.remove(current.scene);
+            parent.add(scene);
+            current.scene = scene;
+            current.state = { ...current.state, selectedTierIndex: count - 1 };
+            controller.reconcile();
+            expected.ledgeIndex = Math.min(expected.ledgeIndex, count - 1);
+            const selectedIndex = count - 1 - expected.ledgeIndex;
+            const selectedRadius = configuration.radii[selectedIndex];
+            const position = controller.entries.get("candle").position;
+            assert.ok(Math.abs(position.x - Math.cos(expected.angle) * expected.normalizedRadius * selectedRadius) < 1e-6);
+            assert.ok(Math.abs(position.z - Math.sin(expected.angle) * expected.normalizedRadius * selectedRadius) < 1e-6);
+            assert.ok(Math.abs(position.y - (configuration.heights[selectedIndex] - insertionDepth + TOPPING_SURFACE_OFFSET)) < 1e-6, "Y must use the new ledge height and candle embed depth");
+            const saved = current.state.toppingLayout.candle.relativePlacement;
+            assert.equal(saved.ledgeIndex, expected.ledgeIndex);
+            assert.equal(saved.tierCount, count);
+            assert.ok(Math.abs(saved.angle - expected.angle) < 1e-6);
+            assert.ok(Math.abs(saved.normalizedRadius - expected.normalizedRadius) < 1e-6);
+            const placed = position.clone();
+            controller.reconcile();
+            assert.ok(controller.entries.get("candle").position.distanceTo(placed) < 1e-8, "repeated reconciliation must not remap an already converted placement");
+            assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y + insertionDepth - configuration.heights[selectedIndex] - TOPPING_SURFACE_OFFSET) < 1e-6);
+        }
+    }
+});
+
+test("number-candle relative placement survives a controller remount and keeps exact XYZ for a matching saved preview", () => {
+    const source = setup({ tierCount: 4, candleMode: "number" });
+    source.register("candle", 0, 0, 0.08, 0.06);
+    source.controller.reconcile();
+    const original = new Vector3(0, 1.001, 1.8);
+    source.controller.commit(source.controller.apply(source.controller.entries.get("candle"), original, false));
+    const saved = JSON.parse(JSON.stringify(source.current.state.toppingLayout.candle));
+    assert.equal(saved.relativePlacement.ledgeIndex, 3);
+    for (const readOnly of [false, true]) {
+        const target = setup({ tierCount: 2, candleMode: "number", tierRadii: [3, 1.5], tierHeights: [1.4, 3.2] });
+        target.register("candle", 0, 0, 0.08, 0.06);
+        target.current.state.toppingLayout.candle = saved;
+        target.controller.register("candle", { ...target.controller.entries.get("candle"), layout: saved });
+        if (readOnly) target.controller.interactive = false;
+        target.controller.reconcile();
+        const position = target.controller.entries.get("candle").position;
+        assert.ok(position.distanceTo(new Vector3(0, 1.401, 2.7)) < 1e-6);
+        assert.equal(target.current.state.toppingLayout.candle.relativePlacement.ledgeIndex, 1);
+        const preview = setup({ tierCount: 2, candleMode: "number", tierRadii: [3, 1.5], tierHeights: [1.4, 3.2] });
+        preview.register("candle", 0, 0, 0.08, 0.06);
+        preview.controller.interactive = false;
+        const layout = JSON.parse(JSON.stringify(target.current.state.toppingLayout.candle));
+        preview.controller.register("candle", { ...preview.controller.entries.get("candle"), layout });
+        preview.controller.reconcile();
+        assert.deepEqual(preview.controller.entries.get("candle").position.toArray(), layout.position);
+    }
+});
+
+test("switching a lower-ledge number candle from tier 3 or 4 to tier 2 retries Small without removal and can be toggled on again", async () => {
+    for (const round of [false, true]) for (const fromCount of [3, 4]) for (let ledgeIndex = 1; ledgeIndex < fromCount; ledgeIndex++) {
+        for (const size of ["medium", "large"]) for (const outcome of ["fits", "small", "top"]) {
+            const { controller, current, parent, register, numberResizeRejections, numberSizeRejections, rejectedAdditions } = setup({
+                tierCount: fromCount, round, candleMode: "number",
+            });
+            const topping = register("candle", 0, 0, 0.24, 0.18);
+            current.state.setToppingSize("candle", size);
+            controller.register("candle", { ...controller.entries.get("candle"), insertionDepth: 0.05, layout: current.state.toppingLayout.candle });
+            controller.reconcile();
+            const original = new Vector3(0, fromCount - ledgeIndex - 0.05 + TOPPING_SURFACE_OFFSET,
+                2 - (fromCount - ledgeIndex - 1) * 0.5 - 0.25);
+            controller.commit(controller.apply(controller.entries.get("candle"), original, false));
+            assert.equal(current.state.toppingLayout.candle.relativePlacement.ledgeIndex, ledgeIndex);
+            const scene = new Group();
+            for (const [radius, bottom, top] of [[2, 0, 1], [outcome === "fits" ? 1.6 : outcome === "small" ? 1.84 : 1.97, 1, 2]]) {
+                const geometry = round ? new CylinderGeometry(radius, radius, top - bottom, 64) : new BoxGeometry(2 * radius, top - bottom, 2 * radius);
+                const mesh = new Mesh(geometry.translate(0, (top + bottom) / 2, 0));
+                mesh.name = round ? "cake_round" : "cake_rectangle";
+                scene.add(mesh);
+            }
+            parent.remove(current.scene);
+            parent.add(scene);
+            current.scene = scene;
+            current.state = { ...current.state, selectedTierIndex: 1 };
+            const sizes = [];
+            const setSize = current.state.setToppingSize;
+            current.state.setToppingSize = (...args) => { sizes.push(args); setSize(...args); };
+            controller.reconcile();
+            controller.reconcile();
+            await Promise.resolve();
+            assert.equal(controller.entries.has("candle"), true, "the candle stays registered while Small is remeasured");
+            assert.equal(current.state.candle, true);
+            assert.equal(topping.object.visible, true);
+            assert.deepEqual(sizes, outcome === "fits" ? [] : [["candle", "small"]]);
+            if (outcome !== "fits") {
+                const ratio = size === "large" ? 2 / 3 : 0.8;
+                topping.anchor.set(0, 2, 0);
+                topping.mesh.geometry = new BoxGeometry(0.24 * ratio, 0.4 * ratio, 0.18 * ratio);
+                topping.mesh.position.copy(topping.anchor).add(new Vector3(0, 0.2 * ratio, 0));
+                topping.object.matrix.identity();
+                const box = getTransformedToppingBox(topping.object, parent).translate(topping.anchor.clone().negate());
+                controller.register("candle", { ...controller.entries.get("candle"), anchor: topping.anchor, box, messageBox: box,
+                    insertionDepth: 0.05 * ratio, layout: current.state.toppingLayout.candle });
+                controller.reconcile();
+            }
+            await Promise.resolve();
+            const accepted = controller.entries.get("candle");
+            const saved = current.state.toppingLayout.candle;
+            assert.equal(saved.size, outcome === "fits" ? size : "small");
+            assert.equal(saved.relativePlacement.tierCount, 2);
+            assert.equal(saved.relativePlacement.ledgeIndex, outcome === "top" ? 0 : 1);
+            assert.equal(controller.valid(accepted, accepted.position), true);
+            const placed = accepted.position.clone();
+            controller.reconcile();
+            assert.ok(controller.entries.get("candle").position.distanceTo(placed) < 1e-8);
+            current.state.setCandle(false);
+            controller.unregister("candle");
+            current.state.setCandle(true);
+            controller.register("candle", { ...accepted, layout: saved });
+            controller.reconcile();
+            await Promise.resolve();
+            assert.equal(topping.object.visible, true, "turning the candle back ON must display it");
+            assert.ok(controller.entries.get("candle").position.distanceTo(placed) < 1e-8);
+            assert.deepEqual(numberResizeRejections, []);
+            assert.deepEqual(numberSizeRejections, []);
+            assert.deepEqual(rejectedAdditions, []);
+        }
+    }
+});
+
+test("changing cake shape reprojects number-candle radius using the new outline even when tier count is unchanged", () => {
+    const { controller, current, register, parent } = setup({ tierCount: 3, round: true, candleMode: "number" });
+    register("candle", 0, 0, 0.08, 0.06);
+    controller.reconcile();
+    const coordinate = 1.35 / Math.sqrt(2);
+    controller.commit(controller.apply(controller.entries.get("candle"), new Vector3(coordinate, 2.001, coordinate), false));
+    const relative = { ...current.state.toppingLayout.candle.relativePlacement };
+    const scene = new Group();
+    for (let index = 0; index < 3; index++) {
+        const radius = 2 - index * 0.5;
+        const mesh = new Mesh(new BoxGeometry(2 * radius, 1, 2 * radius).translate(0, index + 0.5, 0));
+        mesh.name = "cake_rectangle";
+        scene.add(mesh);
+    }
+    parent.remove(current.scene);
+    parent.add(scene);
+    current.scene = scene;
+    current.state = { ...current.state, form: 2 };
+    controller.reconcile();
+    const position = controller.entries.get("candle").position;
+    assert.ok(position.distanceTo(new Vector3(1.35, 2.001, 1.35)) < 1e-6);
+    const saved = current.state.toppingLayout.candle.relativePlacement;
+    assert.equal(saved.form, 2);
+    assert.equal(saved.ledgeIndex, relative.ledgeIndex);
+    assert.ok(Math.abs(saved.angle - relative.angle) < 1e-8);
+    assert.ok(Math.abs(saved.normalizedRadius - relative.normalizedRadius) < 1e-8);
+});
+
+test("legacy number-candle XYZ gains relative state once without moving or modifying a matching preview", () => {
+    const source = setup({ tierCount: 3, candleMode: "number" });
+    source.register("candle", 0, 0, 0.08, 0.06);
+    const legacy = { ...source.current.state.toppingLayout.candle, x: 56.25, y: 82.5, position: [0.25, 2.001, 1.3] };
+    source.current.state.toppingLayout.candle = legacy;
+    source.controller.register("candle", { ...source.controller.entries.get("candle"), layout: legacy });
+    source.controller.reconcile();
+    assert.ok(source.controller.entries.get("candle").position.distanceTo(new Vector3(...legacy.position)) < 1e-8);
+    assert.equal(source.current.state.toppingLayout.candle.relativePlacement.ledgeIndex, 1);
+    const upgraded = source.current.state.toppingLayout.candle;
+    source.controller.reconcile();
+    assert.equal(source.current.state.toppingLayout.candle, upgraded, "relative state must not cause repeated state commits");
+    const preview = setup({ tierCount: 3, candleMode: "number" });
+    preview.register("candle", 0, 0, 0.08, 0.06);
+    preview.current.state.toppingLayout.candle = legacy;
+    preview.controller.register("candle", { ...preview.controller.entries.get("candle"), layout: legacy });
+    preview.controller.interactive = false;
+    let commits = 0;
+    preview.current.state.setToppingPosition = () => commits++;
+    preview.controller.reconcile();
+    assert.deepEqual(preview.controller.entries.get("candle").position.toArray(), legacy.position);
+    assert.equal(commits, 0, "loading a read-only legacy snapshot must not save new coordinates");
+});
+
+test("resizing a number candle shifts it radially out of a new tier wall or removes it if the shift hits a topping or rim", async () => {
+    for (const round of [false, true]) for (const outcome of ["clear", "topping", "rim"]) {
+        const { controller, current, register, parent, numberResizeRejections, rejectedAdditions } = setup({
+            tierCount: 2, round, candleMode: "number", tierRadii: [2, 1], tierHeights: [1, 2],
+        });
+        const candle = register("candle", 0, 0, 0.14, 0.10);
+        controller.reconcile();
+        controller.commit(controller.apply(controller.entries.get("candle"), new Vector3(0, 1.001, 1.2), false));
+        let cherry, cherryPosition;
+        if (outcome === "topping") {
+            cherry = register("cherry-0", 0, 0, 0.14, 0.10);
+            controller.reconcile();
+            controller.commit(controller.apply(controller.entries.get("cherry-0"), new Vector3(0, 1.001, 1.9), false));
+            cherryPosition = controller.entries.get("cherry-0").position.clone();
+        }
+        const scene = new Group();
+        for (const [radius, bottom, top] of [[2, 0, 1], [outcome === "rim" ? 1.97 : 1.8, 1, 2]]) {
+            const geometry = round ? new CylinderGeometry(radius, radius, top - bottom, 64) : new BoxGeometry(2 * radius, top - bottom, 2 * radius);
+            const mesh = new Mesh(geometry.translate(0, (top + bottom) / 2, 0));
+            mesh.name = round ? "cake_round" : "cake_rectangle";
+            scene.add(mesh);
+        }
+        if (outcome === "clear") {
+            // A size change can update the existing model without a new UUID.
+            current.scene.children.at(-1).scale.set(1.8, 1, 1.8);
+        } else {
+            parent.remove(current.scene);
+            parent.add(scene);
+            current.scene = scene;
+        }
+        current.state = { ...current.state, selectedSize: "Resized cake" };
+        controller.reconcile();
+        await Promise.resolve();
+        if (outcome === "clear") {
+            const entry = controller.entries.get("candle");
+            assert.ok(entry.position.z > 1.8, "the number candle must shift outward to clear the enlarged upper tier");
+            assert.ok(Math.abs(entry.position.x) < 1e-8, "the saved radial angle must stay fixed");
+            assert.ok(Math.abs(entry.position.y - 1.001) < 1e-6);
+            assert.equal(controller.valid(entry, entry.position), true);
+            assert.equal(candle.object.visible, true);
+            assert.equal(current.state.candle, true);
+            assert.deepEqual(numberResizeRejections, []);
+        } else {
+            assert.equal(controller.entries.has("candle"), false, "a blocked radial shift must remove the candle instead of relocating it elsewhere");
+            assert.equal(candle.object.visible, false);
+            assert.equal(current.state.candle, false, "the candle toggle must be OFF");
+            assert.equal(current.state.toppingLayout.candle.position, undefined);
+            assert.equal(current.state.toppingLayout.candle.relativePlacement, undefined);
+            assert.deepEqual(numberResizeRejections, ["candle"]);
+            controller.reconcile();
+            await Promise.resolve();
+            assert.deepEqual(numberResizeRejections, ["candle"], "removal must notify only once");
+            if (cherry) {
+                assert.ok(controller.entries.get("cherry-0").position.distanceTo(cherryPosition) < 1e-8, "other toppings must not move to accommodate the number candle");
+                assert.equal(cherry.object.visible, true);
+            }
+            current.state.setCandle(true);
+            const replacement = register("candle", 0, 0, 0.14, 0.10);
+            controller.reconcile();
+            assert.equal(current.state.candle, true);
+            assert.equal(replacement.object.visible, true, "turning the candle back on must allow a fresh placement");
+            assert.equal(current.state.toppingLayout.candle.relativePlacement.ledgeIndex, 0);
+            assert.deepEqual(numberResizeRejections, ["candle"]);
+        }
+        assert.deepEqual(rejectedAdditions, [], "a resize rejection must not also show the generic topping rejection");
+    }
+});
+
+test("a number candle that cannot fit a selected size on the fourth-tier ledge stays in place and resets to Small", async () => {
+    for (const round of [false, true]) for (const size of ["medium", "large"]) for (const narrow of [false, true]) {
+        const { controller, current, register, parent, numberResizeRejections, numberSizeRejections, rejectedAdditions } = setup({
+            tierCount: 4, round, candleMode: "number", tierRadii: narrow ? [1.2, 1, 0.8, 0.7] : [2, 1.5, 1, 0.5],
+        });
+        const topping = register("candle", 0, 0, 0.06, 0.08);
+        current.state.setToppingSize("candle", "small");
+        controller.register("candle", { ...controller.entries.get("candle"), layout: current.state.toppingLayout.candle });
+        controller.reconcile();
+        const original = new Vector3(0, 3.001, 0.75);
+        const entry = controller.entries.get("candle");
+        controller.commit(controller.apply({ ...entry, layout: { ...entry.layout, position: original.toArray() } }, original, false));
+        const relative = { ...current.state.toppingLayout.candle.relativePlacement };
+        assert.equal(relative.ledgeIndex, 1, "the candle starts on the narrow ledge below the top tier");
+        const renderSize = (selectedSize) => {
+            topping.mesh.scale.setScalar({ small: 1, medium: 1.25, large: 1.5 }[selectedSize]);
+            topping.object.matrix.identity();
+            topping.object.updateWorldMatrix(false, true);
+            const box = getTransformedToppingBox(topping.object, parent).translate(topping.anchor.clone().negate());
+            current.state.setToppingSize("candle", selectedSize);
+            controller.register("candle", { ...controller.entries.get("candle"), box, messageBox: box,
+                layout: current.state.toppingLayout.candle });
+            controller.reconcile();
+        };
+        renderSize(size);
+        assert.equal(controller.entries.has("candle"), true, "changing the candle's size must not remove it");
+        assert.equal(topping.object.visible, true);
+        assert.equal(current.state.candle, true, "the candle toggle stays ON");
+        if (narrow) {
+            assert.equal(current.state.toppingLayout.candle.size, "small");
+            assert.ok(controller.entries.get("candle").position.distanceTo(original) < 1e-8, "a failed size must restore the original location");
+            assert.deepEqual(current.state.toppingLayout.candle.relativePlacement, relative);
+            assert.equal(numberSizeRejections.length, 1);
+            renderSize("small");
+        } else {
+            assert.equal(current.state.toppingLayout.candle.size, size, "larger candles remain selected when there is enough room");
+            assert.deepEqual(numberSizeRejections, []);
+        }
+        controller.reconcile();
+        await Promise.resolve();
+        const accepted = controller.entries.get("candle");
+        assert.equal(accepted.layout.size, narrow ? "small" : size);
+        assert.ok(Math.abs(accepted.position.x - original.x) < 1e-8);
+        assert.ok(Math.abs(accepted.position.z - original.z) < 1e-8);
+        assert.equal(current.state.toppingLayout.candle.relativePlacement.ledgeIndex, 1);
+        assert.equal(controller.valid(accepted, accepted.position), true);
+        assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - 3.001) < 1e-6);
+        assert.equal(numberSizeRejections.length, narrow ? 1 : 0, "restoring Small must not repeat the toast");
+        assert.deepEqual(numberResizeRejections, [], "candle-size selection must not use the cake-resize removal path");
+        assert.deepEqual(rejectedAdditions, [], "a failed candle size must not use generic topping removal");
+    }
+});
+
+test("number candles resize along the marked lower ledges of round and rectangular tier 2–4 cakes", async () => {
+    for (const round of [false, true]) for (const tierCount of [2, 3, 4]) {
+        const ledges = tierCount === 2 ? [1] : tierCount === 3 ? [2] : [2, 3];
+        for (const ledgeIndex of ledges) for (const edge of ["wall", "rim"]) for (const size of ["medium", "large"]) {
+            const { controller, current, register, parent, numberResizeRejections, numberSizeRejections, rejectedAdditions } = setup({
+                tierCount, round, candleMode: "number",
+            });
+            const topping = register("candle", 0, 0, 0.24, 0.18);
+            current.state.setToppingSize("candle", "small");
+            controller.register("candle", { ...controller.entries.get("candle"), layout: current.state.toppingLayout.candle });
+            controller.reconcile();
+            const outerRadius = 2 - (tierCount - ledgeIndex - 1) * 0.5;
+            const original = new Vector3(0, tierCount - ledgeIndex + TOPPING_SURFACE_OFFSET,
+                edge === "wall" ? outerRadius - 0.5 + 0.094 : outerRadius - 0.102);
+            const entry = controller.entries.get("candle");
+            controller.commit(controller.apply({ ...entry, layout: { ...entry.layout, position: original.toArray() } }, original, false));
+            assert.equal(controller.valid(controller.entries.get("candle"), original), true, `${tierCount} tiers, ledge ${ledgeIndex}, ${edge}, round=${round}`);
+            topping.mesh.scale.setScalar(size === "large" ? 1.5 : 1.25);
+            topping.object.matrix.identity();
+            const box = getTransformedToppingBox(topping.object, parent).translate(topping.anchor.clone().negate());
+            current.state.setToppingSize("candle", size);
+            controller.register("candle", { ...controller.entries.get("candle"), box, messageBox: box,
+                layout: current.state.toppingLayout.candle });
+            controller.reconcile();
+            await Promise.resolve();
+            const accepted = controller.entries.get("candle");
+            assert.equal(current.state.toppingLayout.candle.size, size, `${tierCount} tiers, ledge ${ledgeIndex}, ${edge}, ${size}, round=${round}`);
+            assert.equal(accepted.layout.size, size);
+            assert.equal(current.state.toppingLayout.candle.relativePlacement.ledgeIndex, ledgeIndex);
+            assert.ok(Math.abs(current.state.toppingLayout.candle.relativePlacement.angle - Math.PI / 2) < 1e-8);
+            assert.equal(controller.valid(accepted, accepted.position), true, "the full resized footprint must clear both the upper wall and outer rim");
+            assert.ok(Math.abs(getTransformedToppingBox(topping.object, parent).min.y - original.y) < 1e-6);
+            assert.ok(edge === "wall" ? accepted.position.z > original.z : accepted.position.z < original.z);
+            assert.equal(current.state.candle, true);
+            assert.equal(topping.object.visible, true);
+            assert.deepEqual(numberSizeRejections, []);
+            assert.deepEqual(numberResizeRejections, []);
+            assert.deepEqual(rejectedAdditions, []);
+            const placed = accepted.position.clone();
+            controller.reconcile();
+            assert.ok(controller.entries.get("candle").position.distanceTo(placed) < 1e-8, "the resized location must persist");
         }
     }
 });

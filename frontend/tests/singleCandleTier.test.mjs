@@ -229,3 +229,37 @@ test("changing the single-candle size updates both its mesh and its uncapped phy
         }
     }
 });
+
+test("number-candle sizes on the marked lower ledges are independent of the smaller top-tier width", () => {
+    for (const round of [false, true]) for (const count of [2, 3, 4]) {
+        const view = createScene({ count, round, mode: "number", onTop: false });
+        view.state.candleNumber = 38;
+        view.model.nodes.candle_3 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 0.08));
+        view.model.nodes.candle_8 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.08));
+        for (const ledgeIndex of count === 2 ? [1] : count === 3 ? [2] : [2, 3]) {
+            for (const size of ["small", "medium", "large"]) {
+                view.state.toppingLayout.candle = { ...view.state.toppingLayout.candle, size,
+                    relativePlacement: { angle: Math.PI / 2, normalizedRadius: 0.9, ledgeIndex, tierCount: count, form: round ? 1 : 2 } };
+                const digits = meshes(view.render()).filter(mesh =>
+                    [view.model.nodes.candle_3.geometry, view.model.nodes.candle_8.geometry].includes(mesh.props.geometry));
+                assert.equal(digits.length, 2);
+                for (const digit of digits) assert.deepEqual(Array.from(digit.props.scale), Array(3).fill(sizes[size]));
+            }
+        }
+        if (count === 2) {
+            for (const fromCount of [3, 4]) for (let ledgeIndex = 1; ledgeIndex < fromCount; ledgeIndex++) {
+                view.state.toppingLayout.candle = { ...view.state.toppingLayout.candle, size: "large",
+                    relativePlacement: { angle: Math.PI / 2, normalizedRadius: 0.9, ledgeIndex, tierCount: fromCount, form: round ? 1 : 2 } };
+                const digit = meshes(view.render()).find(mesh => mesh.props.geometry === view.model.nodes.candle_3.geometry);
+                assert.deepEqual(Array.from(digit.props.scale), Array(3).fill(sizes.large),
+                    "tier 2 must measure the actual size on its remaining ledge before saving the new ledge index");
+            }
+        }
+        if (count > 2) {
+            view.state.toppingLayout.candle = { ...view.state.toppingLayout.candle, size: "large",
+                relativePlacement: { ...view.state.toppingLayout.candle.relativePlacement, ledgeIndex: 1 } };
+            const digit = meshes(view.render()).find(mesh => mesh.props.geometry === view.model.nodes.candle_3.geometry);
+            assert.ok(digit.props.scale[0] < sizes.large, "the unmarked narrow ledge keeps its existing sizing behavior");
+        }
+    }
+});

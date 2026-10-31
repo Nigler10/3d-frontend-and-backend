@@ -94,6 +94,16 @@ export function useToppingDragPlacement({ scene, cakeGroupRef, controlsRef, stat
             latest.current.state.rejectToppingAdditions(ids);
             toast.warning("No more space for this topping. Try arranging the other toppings");
         },
+        onNumberCandleResizeRejected: () => {
+            latest.current.state.setCandle(false);
+            latest.current.state.setToppingPosition("candle", 50, 50, null);
+            toast.error("No more space in these ledge.", { toastId: "number-candle-ledge-space" });
+        },
+        onNumberCandleSizeRejected: (layout) => {
+            latest.current.state.setToppingSize("candle", "small");
+            latest.current.state.setToppingPosition("candle", layout.x, layout.y, layout.position, layout.relativePlacement);
+            toast.error("Choose Small to fit the candle on this ledge.", { toastId: "number-candle-size-fit" });
+        },
         onLowerLedgeRestricted: (id) => toast.warn(
             id === "candle"
                 ? "Single candle must stay on the top tier. Number candles can only use lower ledges facing the camera"

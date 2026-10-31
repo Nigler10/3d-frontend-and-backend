@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { canCherryFitOnLedge, constrainToppingPosition, findToppingPosition, getToppingDragClientPoint, getToppingSurfaceHeight, getTransformedToppingBox, isToppingPositionValid, projectToppingDrag, TOPPING_PLACEMENT_GAP, TOPPING_SURFACE_OFFSET } from "./toppingDragPlacement.js";
+import { getNumberCandleAbsolutePosition, getNumberCandleRelativePlacement, getNumberCandleResizePlacement, isNumberCandleRelativePlacement } from "./numberCandlePlacement.js";
 
 function setCherryRefPosition(entry, position) {
     entry.object.position.set(
@@ -96,7 +97,7 @@ function readSurface(scene, parent, round, tierCount) {
     return surface;
 }
 
-export function createToppingDragController({ getCurrent, store, invalidate = () => {}, onPlacementRejected = () => {}, onLowerLedgeRestricted = () => {}, onCherryFitRejected = () => {}, eventTarget = globalThis.window, scheduleFrame = globalThis.requestAnimationFrame }) {
+export function createToppingDragController({ getCurrent, store, invalidate = () => {}, onPlacementRejected = () => {}, onLowerLedgeRestricted = () => {}, onCherryFitRejected = () => {}, onNumberCandleResizeRejected = () => {}, onNumberCandleSizeRejected = () => {}, eventTarget = globalThis.window, scheduleFrame = globalThis.requestAnimationFrame }) {
     let entries = new Map();
     const deferred = new Map();
     const raycaster = new THREE.Raycaster();
@@ -227,6 +228,10 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
                 position: old?.position?.clone() || null,
                 changed: !old || !old.box.equals(entry.box) || old.layout.size !== entry.layout.size || old.layout.x !== entry.layout.x || old.layout.y !== entry.layout.y,
             };
+            if (id === "candle" && !isSingleCandle(registered) && old?.position && entry.layout.size !== "small" &&
+                old.layout.size !== entry.layout.size && old.position.y + old.messageBox.min.y + (old.insertionDepth || 0) < surface.topY - 0.08) {
+                registered.numberCandleSizeRestore = old.numberCandleSizeRestore || old;
+            }
             if (registered.position) {
                 const delta = registered.position.clone().sub(registered.anchor);
                 if (/^cherry(?:-\d+)?$/.test(id)) setCherryRefPosition(registered, registered.position);
@@ -271,6 +276,12 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             return { surface: tierFromHeight ? { ...bounds, tierFromHeight: true } : bounds, surfaceBox: physicalBounds ? entry.messageBox : entry.box };
         },
         fromLayout(layout, y = 0, entry) {
+            const current = getCurrent().state;
+            if (entry?.id === "candle" && !isSingleCandle(entry) && isNumberCandleRelativePlacement(layout.relativePlacement) &&
+                (layout.relativePlacement.tierCount !== current.selectedTierIndex + 1 || layout.relativePlacement.form !== current.form || !layout.position)) {
+                return getNumberCandleAbsolutePosition({ relativePlacement: layout.relativePlacement,
+                    footprint: entry.messageBox, box: entry.box, surface, insertionDepth: entry.insertionDepth });
+            }
             if (Array.isArray(layout.position) && layout.position.length === 3 && layout.position.every(Number.isFinite)) return new THREE.Vector3(...layout.position);
             const bounds = entry ? controller.placementBounds(entry).surface : surface;
             return new THREE.Vector3(
@@ -284,6 +295,10 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
                 x: 100 * (position.x - bounds.minX) / (bounds.maxX - bounds.minX),
                 y: 100 * (position.z - bounds.minZ) / (bounds.maxZ - bounds.minZ),
                 position: position.toArray(),
+                ...(entry?.id === "candle" && !isSingleCandle(entry) ? {
+                    relativePlacement: getNumberCandleRelativePlacement({ position, footprint: entry.messageBox, surface,
+                        insertionDepth: entry.insertionDepth, tierCount: getCurrent().state.selectedTierIndex + 1, form: getCurrent().state.form }),
+                } : {}),
             };
         },
         height(entry, position) {
@@ -404,10 +419,14 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             const saved = entry.id.startsWith("chocolate-")
                 ? current.chocolateLayouts[Number(entry.id.slice(10))]
                 : entry.id.startsWith("cherry-") ? current.cherryLayouts[Number(entry.id.slice(7))] : current.toppingLayout[entry.id];
+            const relativeChanged = controller.interactive !== false && layout.relativePlacement && (!isNumberCandleRelativePlacement(saved?.relativePlacement) ||
+                ["angle", "normalizedRadius", "ledgeIndex", "tierCount", "form"].some((key) =>
+                    Math.abs(layout.relativePlacement[key] - saved.relativePlacement[key]) > 1e-8));
             entries = new Map(entries).set(entry.id, { ...entry, layout: { ...entry.layout, ...layout } });
             if (saved && (Math.abs(saved.x - layout.x) > 0.0001 || Math.abs(saved.y - layout.y) > 0.0001 ||
-                !saved.position || saved.position.some((value, index) => Math.abs(value - layout.position[index]) > 0.00001))) {
-                current.setToppingPosition(entry.id, layout.x, layout.y, layout.position);
+                !saved.position || saved.position.some((value, index) => Math.abs(value - layout.position[index]) > 0.00001) || relativeChanged)) {
+                if (layout.relativePlacement) current.setToppingPosition(entry.id, layout.x, layout.y, layout.position, layout.relativePlacement);
+                else current.setToppingPosition(entry.id, layout.x, layout.y, layout.position);
                 return true;
             }
             return false;
@@ -415,8 +434,9 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
         reconcile(surfaceReady = true) {
             if (controller.isDragging.current) return;
             const current = getCurrent();
-            const key = `${current.scene.uuid}:${current.state.form}:${current.state.selectedTierIndex}`;
-            if (surfaceKey !== key) {
+            const key = `${current.scene.uuid}:${current.state.form}:${current.state.selectedTierIndex}:${current.state.selectedSize || ""}`;
+            const surfaceChanged = surfaceKey !== key;
+            if (surfaceChanged) {
                 if (!surfaceReady) return;
                 surface = readSurface(current.scene, current.cakeGroupRef.current, current.state.form === 1, current.state.selectedTierIndex + 1);
                 surfaceKey = key;
@@ -425,21 +445,105 @@ export function createToppingDragController({ getCurrent, store, invalidate = ()
             const obstacles = [];
             // Keep existing placements first when adding or resizing a topping.
             // Read-only previews use the exact finalized XYZ from the main canvas.
-            const ordered = [...entries.values()].sort((a, b) => Number(!a.position) - Number(!b.position) || Number(a.changed) - Number(b.changed));
-            for (const entry of ordered) {
-                const desired = controller.fromLayout(entry.layout, entry.anchor.y, entry);
+            const needsNumberResize = (entry) => entry?.id === "candle" && !isSingleCandle(entry) && isNumberCandleRelativePlacement(entry.layout.relativePlacement) &&
+                (entry.layout.relativePlacement.tierCount !== current.state.selectedTierIndex + 1 || entry.layout.relativePlacement.form !== current.state.form ||
+                    !entry.layout.position || surfaceChanged && Boolean(entry.position));
+            const resizingNumber = controller.interactive !== false &&
+                (needsNumberResize(entries.get("candle")) || entries.get("candle")?.numberCandleSizeRestore);
+            const ordered = [...entries.values()].sort((a, b) => (resizingNumber ? Number(a.id === "candle") - Number(b.id === "candle") : 0) ||
+                Number(!a.position) - Number(!b.position) || Number(a.changed) - Number(b.changed));
+            for (let entry of ordered) {
+                if (controller.interactive !== false && entry.numberCandleSizeRestore && !needsNumberResize(entry)) {
+                    const previous = entry.numberCandleSizeRestore;
+                    const relative = previous.layout.relativePlacement || controller.toLayout(previous.position, previous).relativePlacement;
+                    const tiers = surface.ledges.tiers || [surface];
+                    const tier = tiers[Math.min(relative.ledgeIndex, tiers.length - 1)];
+                    const position = previous.position.clone().setY(tier.topY - entry.messageBox.min.y + TOPPING_SURFACE_OFFSET);
+                    const message = controller.messageObstacle(entry);
+                    const placement = { box: entry.box, surfaceBox: entry.messageBox,
+                        surface: { ...surface.ledges, tiers, tierFromHeight: true },
+                        obstacles: message ? [...obstacles, message] : obstacles };
+                    let fits = isToppingPositionValid({ ...placement, position });
+                    // The exposed lower ledges have room to move radially as the
+                    // footprint grows, without changing the selected ledge.
+                    if (!fits && (tiers.length === 2 || relative.ledgeIndex >= 2)) {
+                        const resized = getNumberCandleResizePlacement({ relativePlacement: relative,
+                            footprint: entry.messageBox, box: entry.box, surface });
+                        if (resized?.position && isToppingPositionValid({ ...placement, position: resized.position })) {
+                            position.copy(resized.position);
+                            fits = true;
+                        }
+                    }
+                    if (!fits) {
+                        const layout = { ...previous.layout, ...controller.toLayout(previous.position, previous), size: "small" };
+                        const restored = controller.apply({ ...previous, object: entry.object, anchor: entry.anchor.clone(),
+                            layout, changed: false, numberCandleSizeRestore: undefined }, previous.position, false);
+                        rejected.delete(entry.id);
+                        store.clear(entry.id);
+                        obstacles.push(restored.box.clone().translate(restored.position));
+                        onNumberCandleSizeRejected(layout);
+                        continue;
+                    }
+                    position.y -= entry.insertionDepth || 0;
+                    entry = { ...entry, numberCandleSizeRestore: undefined, layout: { ...entry.layout, position: position.toArray() } };
+                }
+                const relativeNumber = entry.id === "candle" && !isSingleCandle(entry) && isNumberCandleRelativePlacement(entry.layout.relativePlacement);
+                const remapped = needsNumberResize(entry);
+                const twoTierLedgeTransfer = controller.interactive !== false && remapped && current.state.selectedTierIndex === 1 &&
+                    entry.layout.relativePlacement.tierCount > 2 && entry.layout.relativePlacement.ledgeIndex > 0;
+                if (remapped && entry.numberCandleSizeRestore) entry = { ...entry, numberCandleSizeRestore: undefined };
+                const resize = remapped ? getNumberCandleResizePlacement({ relativePlacement: entry.layout.relativePlacement,
+                    footprint: entry.messageBox, box: entry.box, surface, insertionDepth: entry.insertionDepth }) : null;
+                const strictOutward = controller.interactive !== false && resize?.shiftedOutward;
+                let desired = resize ? resize.position : controller.fromLayout(entry.layout, entry.anchor.y, entry);
+                if (remapped && desired) entry = { ...entry, layout: { ...entry.layout, position: desired.toArray() } };
                 const message = controller.messageObstacle(entry);
-                const position = controller.interactive === false && entry.layout.position
-                    ? desired : findToppingPosition({ box: entry.box, position: desired, ...controller.placementBounds(entry), obstacles: message ? [...obstacles, message] : obstacles });
+                const exactPreview = controller.interactive === false && entry.layout.position && !remapped;
+                const support = desired?.clone();
+                if (relativeNumber && support) support.y += entry.insertionDepth || 0;
+                const placement = { box: entry.box, position: support, ...controller.placementBounds(entry),
+                    obstacles: message ? [...obstacles, message] : obstacles };
+                let position = exactPreview ? desired
+                    : strictOutward ? (support && isToppingPositionValid(placement) ? support : null)
+                    : support ? findToppingPosition(placement) : null;
+                if (!position && twoTierLedgeTransfer) {
+                    rejected.delete(entry.id);
+                    store.clear(entry.id);
+                    if (entry.layout.size !== "small") {
+                        // Keep the candle registered while React renders and
+                        // remeasures Small before retrying the tier transfer.
+                        if (current.state.toppingLayout.candle.size !== "small") current.state.setToppingSize("candle", "small");
+                        continue;
+                    }
+                    const tiers = surface.ledges.tiers || [surface];
+                    for (const tier of [tiers.at(-1), tiers[0]]) {
+                        const preferred = (support || entry.position || entry.anchor).clone();
+                        preferred.y = tier.topY - entry.messageBox.min.y + TOPPING_SURFACE_OFFSET;
+                        position = findToppingPosition({ ...placement, position: preferred,
+                            surface: { ...surface.ledges, tiers, tierFromHeight: true } });
+                        if (position) {
+                            desired = position.clone();
+                            desired.y -= entry.insertionDepth || 0;
+                            entry = { ...entry, layout: { ...entry.layout, position: desired.toArray() } };
+                            break;
+                        }
+                    }
+                }
                 if (!position) {
                     entry.object.visible = false;
-                    entries = new Map(entries).set(entry.id, { ...entry, position: null });
+                    entries = new Map(entries);
+                    if (strictOutward) {
+                        entries.delete(entry.id);
+                        deferred.delete(entry.id);
+                        rejected.delete(entry.id);
+                    } else entries.set(entry.id, { ...entry, position: null });
                     store.clear(entry.id);
                     invalidate();
-                    controller.rejectAddition(entry.id);
+                    if (strictOutward) onNumberCandleResizeRejected();
+                    else controller.rejectAddition(entry.id);
                     continue;
                 }
-                if (controller.interactive !== false || !entry.layout.position) position.y = controller.height(entry, position);
+                if (!exactPreview) position.y = remapped ? desired.y : controller.height(entry, position);
                 const placed = controller.apply({ ...entry, changed: false }, position, false);
                 obstacles.push(entry.box.clone().translate(position));
                 if (controller.commit(placed)) store.publish(entry.id, controller.toLayout(placed.position, placed));

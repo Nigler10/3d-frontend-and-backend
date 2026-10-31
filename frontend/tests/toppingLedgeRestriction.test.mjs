@@ -8,7 +8,7 @@ const source = readFileSync(new URL("../src/components/ToppingDragControls.jsx",
     .replace(/^import .+;\r?$/gm, "").replace(/^export /gm, "");
 const { code } = await transformWithOxc(source, "ToppingDragControls.jsx", { jsx: { runtime: "classic" } });
 
-function mount(readOnly = false, useDocument = false) {
+function mount(readOnly = false, useDocument = false, state = {}) {
     const canvas = new EventTarget();
     if (useDocument) canvas.ownerDocument = new EventTarget();
     const camera = {};
@@ -28,7 +28,7 @@ function mount(readOnly = false, useDocument = false) {
         createToppingDragController: (args) => { options = args; return controller; },
         toast: { warn: (message, settings) => warnings.push({ message, ...settings }), error: (message, settings) => errors.push({ message, ...settings }) },
     });
-    useToppingDragPlacement({ scene: {}, cakeGroupRef: {}, controlsRef: {}, state: {}, readOnly });
+    useToppingDragPlacement({ scene: {}, cakeGroupRef: {}, controlsRef: {}, state, readOnly });
     return { canvas, camera, options, moves, releases, warnings, errors, unmount: () => cleanup.forEach((dispose) => dispose()) };
 }
 
@@ -81,6 +81,38 @@ test("a cherry that cannot fit uses toast.error with the requested message and s
         toastId: "cherry-fit-warning",
     }]);
     assert.equal(view.warnings.length, 0);
+    view.unmount();
+});
+
+test("a rejected number-candle resize sets the toggle OFF and emits the exact ledge-space toast", () => {
+    const toggles = [], placements = [];
+    const view = mount(false, false, {
+        setCandle: (value) => toggles.push(value),
+        setToppingPosition: (...args) => placements.push(args),
+    });
+    view.options.onNumberCandleResizeRejected();
+    assert.deepEqual(toggles, [false]);
+    assert.deepEqual(placements, [["candle", 50, 50, null]], "failed coordinates must be cleared so the candle can be enabled again");
+    assert.deepEqual(view.errors, [{ message: "No more space in these ledge.", toastId: "number-candle-ledge-space" }]);
+    assert.deepEqual(view.warnings, []);
+    view.unmount();
+});
+
+test("a rejected number-candle size restores Small at the saved position without turning its toggle OFF", () => {
+    const toggles = [], sizes = [], placements = [];
+    const view = mount(false, false, {
+        setCandle: (value) => toggles.push(value),
+        setToppingSize: (...args) => sizes.push(args),
+        setToppingPosition: (...args) => placements.push(args),
+    });
+    const layout = { x: 50, y: 81, size: "medium", position: [0, 3.001, 0.75],
+        relativePlacement: { angle: Math.PI / 2, normalizedRadius: 0.94, ledgeIndex: 1, tierCount: 4, form: 1 } };
+    view.options.onNumberCandleSizeRejected(layout);
+    assert.deepEqual(sizes, [["candle", "small"]]);
+    assert.deepEqual(placements, [["candle", layout.x, layout.y, layout.position, layout.relativePlacement]]);
+    assert.deepEqual(toggles, [], "a candle-size warning must leave the toggle ON");
+    assert.deepEqual(view.errors, [{ message: "Choose Small to fit the candle on this ledge.", toastId: "number-candle-size-fit" }]);
+    assert.deepEqual(view.warnings, []);
     view.unmount();
 });
 
