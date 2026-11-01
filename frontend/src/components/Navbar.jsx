@@ -19,7 +19,7 @@ function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
     const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-    const { unreadMessages } = useUnread();
+    const { unreadMessages, supportUnreadMessages } = useUnread();
     const { showConfirm } = useCustomerDialog();
     const isLoggedIn = !!getAccessToken();
     const [userName, setUserName] = useState("");
@@ -129,6 +129,21 @@ function Navbar() {
                                 >
                                     Builder
                                 </button>
+                                {isLoggedIn && (
+                                    <Link
+                                        to="/support"
+                                        className={`${navLinkClass(isCurrentNav("/support"))} relative`}
+                                        aria-current={isCurrentNav("/support") ? "page" : undefined}
+                                        onClick={() => setIsMenuOpen(false)}
+                                    >
+                                        Support
+                                        {supportUnreadMessages > 0 && (
+                                            <span className="absolute -top-2 -right-5 min-w-5 h-5 px-1 rounded-full bg-[#d67b27] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                                                {supportUnreadMessages > 99 ? "99+" : supportUnreadMessages}
+                                            </span>
+                                        )}
+                                    </Link>
+                                )}
                             </>
                         ) : (
                             <>
@@ -144,6 +159,19 @@ function Navbar() {
                                     {unreadMessages > 0 && (
                                         <span className="absolute -top-2 -right-5 min-w-5 h-5 px-1 rounded-full bg-[#d67b27] text-white text-[10px] font-black flex items-center justify-center leading-none">
                                             {unreadMessages > 99 ? "99+" : unreadMessages}
+                                        </span>
+                                    )}
+                                </Link>
+                                <Link
+                                    to="/admin/support"
+                                    className={`${navLinkClass(isCurrentNav("/admin/support"))} relative`}
+                                    aria-current={isCurrentNav("/admin/support") ? "page" : undefined}
+                                    onClick={() => setIsMenuOpen(false)}
+                                >
+                                    Support
+                                    {supportUnreadMessages > 0 && (
+                                        <span className="absolute -top-2 -right-5 min-w-5 h-5 px-1 rounded-full bg-[#d67b27] text-white text-[10px] font-black flex items-center justify-center leading-none">
+                                            {supportUnreadMessages > 99 ? "99+" : supportUnreadMessages}
                                         </span>
                                     )}
                                 </Link>
