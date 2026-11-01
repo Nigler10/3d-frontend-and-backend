@@ -5,7 +5,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from store.models import Order
-from .models import Conversation
+from .models import Conversation, SupportConversation
 from .services import ChatService
 
 MAX_CHAT_MESSAGE_LENGTH = 2000
@@ -146,3 +146,117 @@ class OrderStatusConsumer(AsyncWebsocketConsumer):
             "status": event["status"],
             "rejection_reason": event.get("rejection_reason", ""),
         }))
+        
+class SupportChatConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+
+        self.conversation_id = self.scope["url_route"]["kwargs"][
+            "conversation_id"
+        ]
+
+        user = self.scope["user"]
+
+        if user.is_anonymous:
+            await self.close(code=4001)
+            return
+
+        allowed = await self.can_access_conversation(
+            user,
+            self.conversation_id,
+        )
+
+        if not allowed:
+            await self.close(code=4003)
+            return
+
+        self.room_group_name = f"support_{self.conversation_id}"
+
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name,
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+
+        if hasattr(self, "room_group_name"):
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name,
+            )
+
+    @database_sync_to_async
+    def can_access_conversation(self, user, conversation_id):
+
+        try:
+            conversation = SupportConversation.objects.get(
+                id=conversation_id,
+            )
+        except SupportConversation.DoesNotExist:
+            return False
+
+        if user.is_staff or user.is_superuser:
+            return True
+
+        return conversation.customer_id == user.id
+
+    async def support_message(self, event):
+
+        await self.send(
+            text_data=json.dumps({
+                "type": "support_message",
+                "message": event["message"],
+            })
+        )
+
+    async def support_conversation_update(self, event):
+
+        await self.send(
+            text_data=json.dumps({
+                "type": "conversation_update",
+                "conversation_id": event["conversation_id"],
+                "status": event["status"],
+            })
+        )
+class SupportInboxConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+
+        user = self.scope["user"]
+
+        if user.is_anonymous:
+            await self.close(code=4001)
+            return
+
+        if not (user.is_staff or user.is_superuser):
+            await self.close(code=4003)
+            return
+
+        self.room_group_name = "support_admins"
+
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name,
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+
+        if hasattr(self, "room_group_name"):
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name,
+            )
+
+    async def support_inbox_update(self, event):
+
+        await self.send(
+            text_data=json.dumps({
+                "type": "support_inbox_update",
+                "conversation_id": event["conversation_id"],
+                "status": event["status"],
+            })
+        )

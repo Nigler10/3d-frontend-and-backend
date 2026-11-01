@@ -7,7 +7,6 @@ from store.models import Order
 from .models import Conversation
 from .services import ChatService
 
-
 @receiver(pre_save, sender=Order)
 def remember_order_status(sender, instance, **kwargs):
     if not instance.pk:

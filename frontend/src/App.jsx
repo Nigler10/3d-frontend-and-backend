@@ -28,12 +28,14 @@ import AdminProductList from "./pages/admin/AdminProductList";
 import AdminProductCreate from "./pages/admin/AdminProductCreate";
 import AdminProductDetailPage from "./pages/admin/AdminProductDetailPage";
 import AdminProductEdit from "./pages/admin/AdminProductEdit";
+import AdminSupportPage from "./pages/admin/AdminSupportPage";
 
 // Customer Page
 import CustomerProfile from "./pages/customer/CustomerProfile";
 import CustomerProfileUpdate from "./pages/customer/CustomerProfileUpdate";
 import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
 import CustomerOrderDetailPage from "./pages/customer/CustomerOrderDetailPage";
+import CustomerSupportPage from "./pages/customer/CustomerSupportPage";
 
 // Chat
 import { UnreadProvider } from "./context/UnreadContext";
@@ -64,6 +66,7 @@ function App() {
                   <Route path="/profile/edit" element={<CustomerProfileUpdate />} />
                   <Route path="/orders" element={<CustomerOrdersPage />} />
                   <Route path="/orders/:id" element={<CustomerOrderDetailPage />} />
+                  <Route path="/support" element={<CustomerSupportPage />} />
                 </Route>
 
                 <Route element={<PrivateRouter adminOnly={true} />}>
@@ -74,6 +77,7 @@ function App() {
                   <Route path="/admin/products/create" element={<AdminProductCreate />} />
                   <Route path="/admin/products/:id" element={<AdminProductDetailPage />} />
                   <Route path="/admin/products/:id/edit" element={<AdminProductEdit />} />
+                  <Route path="/admin/support" element={<AdminSupportPage />} />
                 </Route>
 
                 <Route path="/login" element={<Login />} />

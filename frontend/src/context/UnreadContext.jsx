@@ -1,4 +1,3 @@
-// src/context/UnreadContext.jsx
 import {
     createContext,
     useCallback,
@@ -8,10 +7,12 @@ import {
 } from "react";
 import { authFetch, getAccessToken } from "../utils/auth";
 
-const UnreadContext = createContext();
+const UnreadContext = createContext(null);
+const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
 export function UnreadProvider({ children }) {
     const [unreadMessages, setUnreadMessages] = useState(0);
+    const [supportUnreadMessages, setSupportUnreadMessages] = useState(0);
 
     const fetchUnread = useCallback(async () => {
         if (!getAccessToken()) {
@@ -20,39 +21,54 @@ export function UnreadProvider({ children }) {
         }
 
         try {
-            const res = await authFetch(
-                `${import.meta.env.VITE_DJANGO_BASE_URL}/api/chat/unread/`
-            );
+            const response = await authFetch(`${BASEURL}/api/chat/unread/`);
+            if (!response.ok) return;
+            const data = await response.json();
+            setUnreadMessages(Number(data.total_unread) || 0);
+        } catch (error) {
+            console.error("Failed to fetch order-chat unread count:", error);
+        }
+    }, []);
 
-            if (!res.ok) {
-                return;
-            }
+    const fetchSupportUnread = useCallback(async () => {
+        if (!getAccessToken()) {
+            setSupportUnreadMessages(0);
+            return;
+        }
 
-            const data = await res.json();
-
-            setUnreadMessages(
-                Number(data.total_unread) || 0
-            );
-        } catch (err) {
-            console.error(
-                "Failed to fetch unread messages:",
-                err
-            );
+        try {
+            const response = await authFetch(`${BASEURL}/api/chat/support/unread/`);
+            if (!response.ok) return;
+            const data = await response.json();
+            setSupportUnreadMessages(Number(data.total_unread) || 0);
+        } catch (error) {
+            console.error("Failed to fetch support unread count:", error);
         }
     }, []);
 
     useEffect(() => {
-        fetchUnread();
+        void fetchUnread();
+        void fetchSupportUnread();
 
-        const interval = setInterval(
-            fetchUnread,
-            10000
-        );
+        const interval = setInterval(() => {
+            void fetchUnread();
+            void fetchSupportUnread();
+        }, 10000);
+
+        const handleAuthChange = () => {
+            void fetchUnread();
+            void fetchSupportUnread();
+        };
+
+        window.addEventListener("auth:changed", handleAuthChange);
+        window.addEventListener("auth:logout", handleAuthChange);
 
         return () => {
             clearInterval(interval);
+            window.removeEventListener("auth:changed", handleAuthChange);
+            window.removeEventListener("auth:logout", handleAuthChange);
         };
-    }, [fetchUnread]);
+    }, [fetchUnread, fetchSupportUnread]);
 
     return (
         <UnreadContext.Provider
@@ -60,6 +76,9 @@ export function UnreadProvider({ children }) {
                 unreadMessages,
                 setUnreadMessages,
                 fetchUnread,
+                supportUnreadMessages,
+                setSupportUnreadMessages,
+                fetchSupportUnread,
             }}
         >
             {children}
@@ -68,5 +87,9 @@ export function UnreadProvider({ children }) {
 }
 
 export function useUnread() {
-    return useContext(UnreadContext);
+    const context = useContext(UnreadContext);
+    if (!context) {
+        throw new Error("useUnread must be used within an UnreadProvider.");
+    }
+    return context;
 }
