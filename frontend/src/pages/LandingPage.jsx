@@ -98,8 +98,9 @@ const LandingPage = () => {
 
                 <div className="relative max-w-7xl w-full mx-auto px-4 md:px-6 lg:px-8 z-20 text-center text-white">
                     <div data-aos="fade-up" className="max-w-2xl mx-auto flex flex-col items-center">
-                        <span className="inline-block px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur text-xs font-bold tracking-wider uppercase mb-4 shadow-sm border border-white/10 flex items-center gap-1.5">
-                            <Cake className="w-4 h-4 text-[#FFA45B]" /> Handmade in Cavite
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur text-xs font-bold tracking-wider uppercase mb-4 shadow-sm border border-white/10">
+                            <Cake className="w-4 h-4 text-[#FFA45B]" />
+                            Handmade in Cavite
                         </span>
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-tight mb-4 filter drop-shadow">
                             Sweetest <span className="text-[#FFA45B]">Smiles</span> In Every Box
@@ -164,10 +165,10 @@ const LandingPage = () => {
                                                 role="status"
                                                 aria-live="polite"
                                                 className="absolute right-0 top-1/2 z-50 flex -translate-y-1/2 items-center gap-2 rounded-xl bg-[#2E7D32] px-5 py-3.5 text-sm font-semibold text-white shadow-xl">
-                                                
+
                                                 <span aria-hidden="true" className="text-2xl">✓</span>
                                                 <span className="text-center">Added to<br />cart!</span>
-                                            </div>  
+                                            </div>
                                         )}
                                     </div>
                                 </div>
