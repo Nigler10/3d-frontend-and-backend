@@ -1,15 +1,17 @@
+// src/pages/customer/CustomerOrderDetailPage.jsx | DO NOT REMOVE THIS!!!
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
+import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
+import { getOrderStatusLabel } from "../../utils/orderStatus";
+import { AlertTriangle, Cake } from "lucide-react";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import Logistics from "../../components/Logistics";
 import ProductReviewForm from "../../components/customer/ProductReviewForm";
 import ChatBox from "../../components/chat/ChatBox";
-import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
-import { getOrderStatusLabel } from "../../utils/orderStatus";
-import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
 import PrintablePaymentReceipt from "../../components/customer/PrintablePaymentReceipt";
-import { AlertTriangle, Cake } from "lucide-react";
-import { useCustomerDialog } from "../../context/CustomerDialogContext";
+import ExistingCheckoutModal from "../../components/customer/ExistingCheckoutModal";
+import DeliveryChangeRequestModal from "../../components/customer/DeliveryChangeRequestModal";
 
 export default function CustomerOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -31,6 +33,7 @@ export default function CustomerOrderDetailPage() {
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [selectedReceiptPayment, setSelectedReceiptPayment] = useState(null);
+    const [showDeliveryChangeModal, setShowDeliveryChangeModal] = useState(false);
     const roundMoney = (value) =>
         Math.round(
             (Number(value) + Number.EPSILON) * 100
@@ -369,6 +372,20 @@ export default function CustomerOrderDetailPage() {
             Number(order.total_paid) === 0
         );
 
+    const deliveryChangeRequests = order.delivery_change_requests || [];
+
+    const pendingDeliveryChangeRequest = deliveryChangeRequests.find(
+        (request) => request.status === "pending"
+    );
+
+    const canRequestDeliveryChanges = [
+        "pending_review",
+        "awaiting_customer_response",
+        "awaiting_downpayment",
+        "processing",
+        "ready_for_delivery",
+    ].includes(order.status);
+
     const showPaymentCard =
         isPayable &&
         ["awaiting_downpayment", "partial"].includes(order.status === "awaiting_downpayment" ? order.status : order.payment_status) &&
@@ -671,6 +688,134 @@ export default function CustomerOrderDetailPage() {
                                 </div>
                             </div>
 
+                            <div className="border-t border-stone-100 pt-4 space-y-4">
+
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-black text-[#844414]">
+                                            Need to change your delivery details?
+                                        </h4>
+
+                                        <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                                            Request a different delivery date, time, address, or recipient.
+                                            Changes require bakery approval.
+                                        </p>
+                                    </div>
+
+                                    {canRequestDeliveryChanges && !pendingDeliveryChangeRequest && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDeliveryChangeModal(true)}
+                                            className="shrink-0 rounded-xl bg-[#d67b27] px-4 py-3 text-xs font-black text-white transition hover:bg-[#b56219]"
+                                        >
+                                            Request Delivery Changes
+                                        </button>
+                                    )}
+                                </div>
+
+                                {pendingDeliveryChangeRequest && (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+
+                                            <p className="text-sm font-black text-amber-800">
+                                                Delivery Change Request Pending
+                                            </p>
+                                        </div>
+
+                                        <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                                            Your request is waiting for bakery approval.
+                                            Your original delivery information is still active.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {!canRequestDeliveryChanges && !pendingDeliveryChangeRequest && (
+                                    <p className="text-xs text-stone-400">
+                                        Delivery changes are no longer available for this order.
+                                    </p>
+                                )}
+
+                                {deliveryChangeRequests.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-stone-500">
+                                            Delivery Change History
+                                        </h4>
+
+                                        {deliveryChangeRequests.map((changeRequest) => {
+                                            const requested = changeRequest.requested_details;
+
+                                            const statusStyles = {
+                                                pending: "bg-amber-50 text-amber-700 border-amber-200",
+                                                approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                                rejected: "bg-rose-50 text-rose-700 border-rose-200",
+                                            };
+
+                                            return (
+                                                <div
+                                                    key={changeRequest.id}
+                                                    className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-2"
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <p className="text-xs font-black text-stone-700">
+                                                            Request #{changeRequest.id}
+                                                        </p>
+
+                                                        <span
+                                                            className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${statusStyles[changeRequest.status] ||
+                                                                "bg-stone-100 text-stone-600 border-stone-200"
+                                                                }`}
+                                                        >
+                                                            {changeRequest.status}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="text-xs text-stone-600 space-y-1">
+                                                        <p>
+                                                            <strong>Requested date:</strong>{" "}
+                                                            {requested.delivery_date
+                                                                ? new Date(
+                                                                    `${requested.delivery_date}T00:00:00`
+                                                                ).toLocaleDateString()
+                                                                : "N/A"}
+                                                        </p>
+
+                                                        <p>
+                                                            <strong>Requested time:</strong>{" "}
+                                                            {requested.delivery_time || "N/A"}
+                                                        </p>
+
+                                                        <p>
+                                                            <strong>Requested address:</strong>{" "}
+                                                            {[
+                                                                requested.street,
+                                                                requested.barangay,
+                                                                requested.city,
+                                                                requested.province,
+                                                                requested.region,
+                                                                requested.postal_code,
+                                                            ].filter(Boolean).join(", ")}
+                                                        </p>
+                                                    </div>
+
+                                                    {changeRequest.admin_note && (
+                                                        <div className="rounded-lg border border-stone-200 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">
+                                                                Bakery's Response
+                                                            </p>
+
+                                                            <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone-600">
+                                                                {changeRequest.admin_note}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="pt-2">
                                 <Logistics order={order} onViewReceipt={setSelectedReceiptPayment} />
                             </div>
@@ -685,6 +830,25 @@ export default function CustomerOrderDetailPage() {
                 quotations={order.quotations || []}
                 onQuotationAccepted={fetchOrder}
                 onRefreshOrder={fetchOrder}
+            />
+
+            <DeliveryChangeRequestModal
+                isOpen={showDeliveryChangeModal}
+                order={order}
+                onClose={() => setShowDeliveryChangeModal(false)}
+                onSubmitted={async () => {
+                    setShowDeliveryChangeModal(false);
+
+                    await fetchOrder();
+
+                    await showAlert(
+                        "Your delivery change request has been submitted. Please wait for the bakery's approval.",
+                        {
+                            tone: "success",
+                            title: "Request submitted",
+                        }
+                    );
+                }}
             />
 
             <CustomCakeModal

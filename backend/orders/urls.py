@@ -12,6 +12,7 @@ urlpatterns = [
     path('customer/orders/<int:order_id>/', views.customer_order_detail, name='customer_order_detail'),
     path('<int:order_id>/accept-quotation/', views.accept_quotation, name='accept_quotation'),
     path('<int:order_id>/cancel/', cancel_order, name='cancel_order'),
+    path('customer/orders/<int:order_id>/delivery-change-requests/', views.create_delivery_change_request, name='create_delivery_change_request'),
     
     # Customer Feedback
     path('<int:order_id>/items/<int:item_id>/product-review/', views.product_review, name='product_review'),
@@ -24,4 +25,5 @@ urlpatterns = [
     path('admin/orders/<int:order_id>/quotation/', admin_views.admin_send_quotation),
     path('admin/dashboard/', admin_views.admin_dashboard),
     path('admin/orders/<int:order_id>/update-status/', admin_views.admin_update_order_status),
+    path('admin/orders/<int:order_id>/delivery-change-requests/<int:request_id>/review/', admin_views.admin_review_delivery_change_request, name='admin_review_delivery_change_request'),
 ]

@@ -18,62 +18,11 @@ from .address_utils import resolve_address
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError
+from .delivery_schedule import ( get_available_delivery_slots, validate_delivery_schedule )
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
-
-def _get_available_delivery_slots(requested_date):
-    from datetime import datetime, time as time_type, timedelta
-    from collections import Counter
-
-    max_orders_per_slot = 3
-    interval = timedelta(minutes=30)
-    now = timezone.localtime()
-    earliest_delivery = now + timedelta(
-        minutes=settings.DELIVERY_BOOKING_BUFFER_MINUTES
-    )
-
-    current = datetime.combine(requested_date, time_type(8, 0))
-    end = datetime.combine(requested_date, time_type(20, 0))
-    slots = []
-    while current < end:
-        slot_datetime = timezone.make_aware(current, timezone.get_current_timezone())
-        if requested_date != now.date() or slot_datetime > earliest_delivery:
-            slots.append(current.time())
-        current += interval
-
-    booked_orders = (
-        Order.objects.filter(delivery_date=requested_date)
-        .exclude(status__in=["cancelled", "rejected"])
-        .values_list("delivery_time", flat=True)
-    )
-    slot_counts = Counter(slot for slot in booked_orders if slot is not None)
-
-    return [
-        slot.strftime("%H:%M")
-        for slot in slots
-        if slot_counts.get(slot, 0) < max_orders_per_slot
-    ]
-
-def _delivery_schedule_error(date_value, time_value):
-    from datetime import date as date_type, datetime
-
-    try:
-        requested_date = date_type.fromisoformat(date_value)
-        requested_time = datetime.strptime(time_value, "%H:%M").time()
-    except (TypeError, ValueError):
-        return "Please select a valid delivery date and time."
-
-    if requested_date < timezone.localdate():
-        return "Delivery date cannot be in the past."
-
-    if requested_time.strftime("%H:%M") not in _get_available_delivery_slots(
-        requested_date
-    ):
-        return "The selected delivery time is no longer available. Please choose another slot."
-
-    return None
-    
+   
 # Product
 @api_view(['GET'])
 def get_products(request):
@@ -274,7 +223,36 @@ def delivery_slots(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    available = _get_available_delivery_slots(requested_date)
+    exclude_order_id = None
+
+    order_id = request.GET.get("order_id")
+
+    if order_id:
+
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "Authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            existing_order = Order.objects.get(
+                id=order_id,
+                user=request.user,
+            )
+
+        except Order.DoesNotExist:
+            return Response(
+                {"error": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        exclude_order_id = existing_order.id
+
+    available = get_available_delivery_slots(
+        requested_date,
+        exclude_order_id=exclude_order_id,
+    )
 
     return Response({
         "date": date_str,
@@ -306,7 +284,7 @@ def create_order(request):
         delivery_time = data.get("delivery_time")
         notes = data.get("notes")
 
-        schedule_error = _delivery_schedule_error(delivery_date, delivery_time)
+        schedule_error = validate_delivery_schedule( delivery_date, delivery_time )
         if schedule_error:
             return Response({"error": schedule_error}, status=400)
 
@@ -949,7 +927,7 @@ def update_uploaded_order(request, order_id):
 
     delivery_date = data.get("delivery_date")
     delivery_time = data.get("delivery_time")
-    schedule_error = _delivery_schedule_error(delivery_date, delivery_time)
+    schedule_error = validate_delivery_schedule( delivery_date, delivery_time )
     if schedule_error:
         return Response({"error": schedule_error}, status=400)
 
