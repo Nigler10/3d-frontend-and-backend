@@ -3,16 +3,17 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getMediaUrl } from "../../utils/media";
-import RejectModal from "../../components/admin/RejectModal";
-import Logistics from "../../components/Logistics";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
-import AdminQuotationPanel from "../../components/admin/AdminQuotationPanel";
-import ChatBox from "../../components/chat/ChatBox";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
-import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
-import OrderItemDetailsModal from "../../components/admin/OrderItemDetailsModal";
 import { FileText } from "lucide-react";
 import { InvoiceModal } from "../customer/CustomerOrdersPage";
+import RejectModal from "../../components/admin/RejectModal";
+import Logistics from "../../components/Logistics";
+import AdminQuotationPanel from "../../components/admin/AdminQuotationPanel";
+import ChatBox from "../../components/chat/ChatBox";
+import UpdateOrderStatusModal from "../../components/admin/UpdateOrderStatusModal";
+import OrderItemDetailsModal from "../../components/admin/OrderItemDetailsModal";
+import AdminDeliveryChangeRequests from "../../components/admin/AdminDeliveryChangeRequests";
 
 export default function AdminOrderDetailPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -188,7 +189,7 @@ export default function AdminOrderDetailPage() {
                         )}
                         {hasProcessingPayment && (
                             <p className="rounded-xl border border-[#E9C5C1] bg-[#FFF3F1] p-3 text-sm leading-relaxed text-[#9E3936]">
-                               Note: This order has an existing partial or full payment and cannot be cancelled directly. Please follow the appropriate refund process.
+                                Note: This order has an existing partial or full payment and cannot be cancelled directly. Please follow the appropriate refund process.
                             </p>
                         )}
 
@@ -252,6 +253,11 @@ export default function AdminOrderDetailPage() {
                         )}
                     </div>
                 </div>
+
+                <AdminDeliveryChangeRequests
+                    order={order}
+                    onUpdated={fetchOrder}
+                />
 
                 {/* Items Table */}
                 <div className="bg-white p-6 rounded-2xl border border-[#E6CCA2]">

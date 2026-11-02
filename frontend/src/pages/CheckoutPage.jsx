@@ -1,3 +1,4 @@
+// src/pages/CheckoutPage.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useCart } from "../context/CartContext";
 import { authFetch } from "../utils/auth";

@@ -1,5 +1,6 @@
 # orders/models.py
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from store.models import Order, OrderItem, Product
 
@@ -70,3 +71,73 @@ class ProductReview(models.Model):
 
     def __str__(self):
         return f"Review for {self.product.name} by {self.user.username}"
+    
+class OrderDeliveryChangeRequest(models.Model):
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="delivery_change_requests",
+    )
+
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="delivery_change_requests",
+    )
+
+    # Delivery details when the customer submitted the request.
+    original_details = models.JSONField(default=dict)
+
+    # Proposed delivery details from the customer.
+    requested_details = models.JSONField(default=dict)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+    )
+
+    admin_note = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_delivery_change_requests",
+    )
+
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order"],
+                condition=Q(status="pending"),
+                name="one_pending_delivery_change_per_order",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"Delivery Change Request "
+            f"#{self.id} - Order #{self.order_id} - {self.status}"
+        )

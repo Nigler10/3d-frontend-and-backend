@@ -1,4 +1,6 @@
 # orders/admin_views.py
+import math
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -14,7 +16,10 @@ from django.db.models.functions import Cast, Lower
 from datetime import date, timedelta
 from .utils_sms_notifications import send_order_status_sms
 from payments.services import ( PaymentAlreadyCompletedError, PaymentGatewayError, expire_pending_checkout_sessions )
-import math
+from django.utils import timezone
+from store.delivery_schedule import validate_delivery_schedule
+from .models import OrderDeliveryChangeRequest
+from .serializers import OrderDeliveryChangeRequestSerializer
 
 # ADMIN: LIST ALL ORDERS
 @api_view(['GET'])
@@ -127,6 +132,194 @@ def admin_send_quotation(request, order_id):
         "chat_message": MessageSerializer(message).data,
         "order": OrderSerializer(order).data,
     })
+    
+@api_view(["PATCH"])
+@permission_classes([IsAdminUser])
+def admin_review_delivery_change_request(
+    request,
+    order_id,
+    request_id,
+):
+
+    action = request.data.get("status")
+    admin_note = str(
+        request.data.get("admin_note") or ""
+    ).strip()
+
+    if action not in ["approved", "rejected"]:
+        return Response(
+            {
+                "error": (
+                    "Invalid review action. "
+                    "Choose approved or rejected."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if action == "rejected" and not admin_note:
+        return Response(
+            {
+                "error": (
+                    "Please provide a reason when rejecting "
+                    "a delivery change request."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    with transaction.atomic():
+
+        try:
+            order = Order.objects.select_for_update().get(
+                id=order_id
+            )
+
+        except Order.DoesNotExist:
+            return Response(
+                {"error": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            change_request = (
+                OrderDeliveryChangeRequest.objects
+                .select_for_update()
+                .get(
+                    id=request_id,
+                    order=order,
+                )
+            )
+
+        except OrderDeliveryChangeRequest.DoesNotExist:
+            return Response(
+                {
+                    "error": (
+                        "Delivery change request not found."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if change_request.status != "pending":
+            return Response(
+                {
+                    "error": (
+                        "This delivery change request has "
+                        "already been reviewed."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if action == "approved":
+
+            if order.status not in [
+                "pending_review",
+                "awaiting_customer_response",
+                "awaiting_downpayment",
+                "processing",
+                "ready_for_delivery",
+            ]:
+                return Response(
+                    {
+                        "error": (
+                            "This order can no longer receive "
+                            "delivery changes."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            requested = change_request.requested_details
+
+            schedule_error = validate_delivery_schedule(
+                requested.get("delivery_date"),
+                requested.get("delivery_time"),
+                exclude_order_id=order.id,
+            )
+
+            if schedule_error:
+                return Response(
+                    {
+                        "error": (
+                            "This requested delivery slot is no "
+                            "longer available. The customer must "
+                            "submit another request."
+                        ),
+                        "details": schedule_error,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            fields_to_update = [
+                "full_name",
+                "phone",
+                "street",
+                "region",
+                "region_code",
+                "province",
+                "province_code",
+                "city",
+                "city_code",
+                "barangay",
+                "barangay_code",
+                "postal_code",
+                "delivery_date",
+                "delivery_time",
+            ]
+
+            from datetime import date, datetime
+
+            for field in fields_to_update:
+
+                value = requested.get(field)
+
+                if field == "delivery_date":
+                    value = date.fromisoformat(value)
+
+                elif field == "delivery_time":
+                    value = datetime.strptime(
+                        value,
+                        "%H:%M",
+                    ).time()
+
+                setattr(order, field, value)
+
+            order.save(
+                update_fields=fields_to_update
+            )
+
+        change_request.status = action
+        change_request.admin_note = admin_note
+        change_request.reviewed_by = request.user
+        change_request.reviewed_at = timezone.now()
+
+        change_request.save(
+            update_fields=[
+                "status",
+                "admin_note",
+                "reviewed_by",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
+    order.refresh_from_db()
+
+    return Response(
+        {
+            "message": (
+                "Delivery change request "
+                f"{action} successfully."
+            ),
+            "request": OrderDeliveryChangeRequestSerializer(
+                change_request
+            ).data,
+            "order": OrderSerializer(order).data,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 # ADMIN: UPDATE ORDER
 @api_view(['PATCH'])

@@ -1,10 +1,10 @@
 # orders/views.py
+import re, uuid
 from django.db import transaction
 from django.utils import timezone
 from chat.models import Conversation
 from chat.services import ChatService
 from .serializers import QuotationSerializer
-import uuid
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -14,11 +14,14 @@ from .models import ProductReview
 from .serializers import OrderSerializer
 from .serializers_feedback import ProductReviewSerializer
 from orders.utils_sms_notifications import send_order_status_sms
-from payments.services import (
-    PaymentAlreadyCompletedError,
-    PaymentGatewayError,
-    expire_pending_checkout_sessions,
-)
+from payments.services import ( PaymentAlreadyCompletedError, PaymentGatewayError, expire_pending_checkout_sessions )
+from datetime import datetime
+from django.db import IntegrityError
+from django.utils import timezone
+from store.address_utils import resolve_address
+from store.delivery_schedule import validate_delivery_schedule
+from .models import ( ProductReview, OrderDeliveryChangeRequest )
+from .serializers import ( OrderDeliveryChangeRequestSerializer )
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -45,6 +48,263 @@ def customer_orders(request):
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
 
+DELIVERY_CHANGE_ALLOWED_STATUSES = [
+    "pending_review",
+    "awaiting_customer_response",
+    "awaiting_downpayment",
+    "processing",
+    "ready_for_delivery",
+]
+
+DELIVERY_ADDRESS_FIELDS = [
+    "street",
+    "region",
+    "region_code",
+    "province",
+    "province_code",
+    "city",
+    "city_code",
+    "barangay",
+    "barangay_code",
+    "postal_code",
+]
+
+
+def get_order_delivery_details(order):
+
+    details = {
+        "full_name": order.full_name or "",
+        "phone": order.phone or "",
+    }
+
+    for field in DELIVERY_ADDRESS_FIELDS:
+        details[field] = getattr(order, field) or ""
+
+    details["delivery_date"] = (
+        order.delivery_date.isoformat()
+        if order.delivery_date
+        else ""
+    )
+
+    details["delivery_time"] = (
+        order.delivery_time.strftime("%H:%M")
+        if order.delivery_time
+        else ""
+    )
+
+    return details
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_delivery_change_request(request, order_id):
+    try:
+        with transaction.atomic():
+
+            try:
+                order = Order.objects.select_for_update().get(
+                    id=order_id,
+                    user=request.user,
+                )
+
+            except Order.DoesNotExist:
+                return Response(
+                    {"error": "Order not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if order.status not in DELIVERY_CHANGE_ALLOWED_STATUSES:
+                return Response(
+                    {
+                        "error": (
+                            "Delivery details can no longer be changed "
+                            "for this order."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            existing_request = (
+                OrderDeliveryChangeRequest.objects.filter(
+                    order=order,
+                    status="pending",
+                ).first()
+            )
+
+            if existing_request:
+                return Response(
+                    {
+                        "error": (
+                            "You already have a pending delivery "
+                            "change request for this order."
+                        ),
+                        "request": (
+                            OrderDeliveryChangeRequestSerializer(
+                                existing_request
+                            ).data
+                        ),
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            data = request.data
+
+            full_name = str(
+                data.get("full_name", order.full_name or "")
+            ).strip()
+
+            phone = str(
+                data.get("phone", order.phone or "")
+            ).strip()
+
+            if not full_name:
+                return Response(
+                    {"error": "Recipient name is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not re.fullmatch(r"09\d{9}", phone):
+                return Response(
+                    {
+                        "error": (
+                            "Phone number must contain 11 digits "
+                            "and start with 09."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate the address using the same resolver as checkout.
+            try:
+                profile = request.user.userprofile
+
+                address = resolve_address(
+                    data=data,
+                    profile=profile,
+                )
+
+            except Exception as exc:
+                return Response(
+                    {
+                        "error": (
+                            "Unable to validate your delivery address."
+                        ),
+                        "details": str(exc),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            required_address_fields = [
+                "street",
+                "region_code",
+                "city_code",
+                "barangay_code",
+            ]
+
+            for field in required_address_fields:
+                if not str(address.get(field) or "").strip():
+                    return Response(
+                        {
+                            "error": (
+                                f"Please provide a valid {field.replace('_', ' ')}."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            postal_code = str(
+                address.get("postal_code") or ""
+            ).strip()
+
+            if not re.fullmatch(r"\d{4}", postal_code):
+                return Response(
+                    {
+                        "error": (
+                            "Postal code must contain exactly 4 digits."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            delivery_date = data.get("delivery_date")
+            delivery_time = data.get("delivery_time")
+
+            schedule_error = validate_delivery_schedule(
+                delivery_date,
+                delivery_time,
+                exclude_order_id=order.id,
+            )
+
+            if schedule_error:
+                return Response(
+                    {"error": schedule_error},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            requested_time = datetime.strptime(
+                str(delivery_time),
+                "%H:%M",
+            ).strftime("%H:%M")
+
+            requested_details = {
+                "full_name": full_name,
+                "phone": phone,
+            }
+
+            for field in DELIVERY_ADDRESS_FIELDS:
+                requested_details[field] = (
+                    address.get(field) or ""
+                )
+
+            requested_details["delivery_date"] = str(
+                delivery_date
+            )
+
+            requested_details["delivery_time"] = requested_time
+
+            original_details = get_order_delivery_details(order)
+
+            if requested_details == original_details:
+                return Response(
+                    {
+                        "error": (
+                            "You haven't made any changes to your "
+                            "delivery information."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            change_request = OrderDeliveryChangeRequest.objects.create(
+                order=order,
+                requested_by=request.user,
+                original_details=original_details,
+                requested_details=requested_details,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Delivery change request submitted successfully. "
+                    "Please wait for the bakery's approval."
+                ),
+                "request": OrderDeliveryChangeRequestSerializer(
+                    change_request
+                ).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    except IntegrityError:
+        return Response(
+            {
+                "error": (
+                    "A pending delivery change request already exists "
+                    "for this order."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+        
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def customer_order_detail(request, order_id):
