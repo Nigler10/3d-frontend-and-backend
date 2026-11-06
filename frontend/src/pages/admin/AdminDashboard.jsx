@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import AdminScheduledOrders from "../../components/admin/AdminScheduledOrders";
+import { printScheduledOrders } from "../../components/admin/ScheduledOrdersPrint";
 import { LayoutDashboard, Plus, LayoutGrid, LayoutList, Filter, ArrowUpDown, Search, X, RotateCcw, Download, ChevronLeft, ChevronRight, CalendarDays, Clock, ExternalLink, Info, TrendingUp, TrendingDown, Package, ShoppingCart, Hourglass, CreditCard, CheckCircle2, DollarSign, BarChart3, Inbox, PartyPopper, AlertTriangle, XCircle, RefreshCw, ArrowRight, } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, } from "recharts";
 
@@ -217,39 +218,6 @@ export default function AdminDashboard() {
     const processedQueueOrders = useMemo(() => {
         return data?.all_upcoming_orders || [];
     }, [data]);
-
-    // CSV Export Handler
-    const handleExportCSV = () => {
-        const ordersToExport = processedQueueOrders;
-
-        if (ordersToExport.length === 0) {
-            alert("No orders available to export.");
-            return;
-        }
-
-        const headers = ["Order ID", "Customer Name", "Delivery Date", "Time Slot", "Status", "Is Overdue"];
-        const rows = ordersToExport.map((o) => [
-            `#${o.id}`,
-            `"${(o.full_name || "").replace(/"/g, '""')}"`,
-            o.delivery_date || "",
-            formatTimeSlot(o.delivery_time),
-            o.status || "",
-            checkIsOverdue(o.delivery_date, o.status) ? "Yes" : "No",
-        ]);
-
-        const csvContent =
-            "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `dashboard_orders_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
 
     const applyStatusFilter = (filterStatus) => {
         setStatusFilter(filterStatus);
@@ -560,7 +528,12 @@ export default function AdminDashboard() {
 
                         <button
                             type="button"
-                            onClick={handleExportCSV}
+                            onClick={() => printScheduledOrders({
+                                orders: processedQueueOrders.slice(0, perPage),
+                                formatTimeSlot,
+                                getStatusConfig,
+                                checkIsOverdue,
+                            })}
                             className="px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5" /> Export
