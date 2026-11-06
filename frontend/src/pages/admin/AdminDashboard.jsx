@@ -5,6 +5,7 @@ import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
 import AdminScheduledOrders from "../../components/admin/AdminScheduledOrders";
 import { printScheduledOrders } from "../../components/admin/ScheduledOrdersPrint";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import { LayoutDashboard, Plus, LayoutGrid, LayoutList, Filter, ArrowUpDown, Search, X, RotateCcw, Download, ChevronLeft, ChevronRight, CalendarDays, Clock, ExternalLink, Info, TrendingUp, TrendingDown, Package, ShoppingCart, Hourglass, CreditCard, CheckCircle2, DollarSign, BarChart3, Inbox, PartyPopper, AlertTriangle, XCircle, RefreshCw, ArrowRight, } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, } from "recharts";
 
@@ -132,6 +133,7 @@ const getPaginationItems = (currentPage, totalPages) => {
 export default function AdminDashboard() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
+    const { showAlert } = useCustomerDialog();
     const [data, setData] = useState(null);
     const [queuePage, setQueuePage] = useState(1);
     const [showStats, setShowStats] = useState(false);
@@ -530,6 +532,7 @@ export default function AdminDashboard() {
                             type="button"
                             onClick={() => printScheduledOrders({
                                 orders: processedQueueOrders.slice(0, perPage),
+                                showAlert,
                                 formatTimeSlot,
                                 getStatusConfig,
                                 checkIsOverdue,

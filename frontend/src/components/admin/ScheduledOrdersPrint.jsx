@@ -21,7 +21,18 @@ export function snapshotScheduledOrders(orders, { formatTimeSlot, getStatusConfi
     });
 }
 
-export function ScheduledOrdersPrint({ rows, generatedAt, brand = receiptBrand }) {
+const SCHEDULED_COLUMNS = [
+    { key: "customer", label: "Customer name", className: "spc-order-invoice-item-name" },
+    { key: "id", label: "Order #", render: (row) => `#${row.id}` },
+    { key: "deliveryDate", label: "Delivery date" },
+    { key: "timeSlot", label: "Time slot" },
+    { key: "status", label: "Status", badgeClassKey: "statusClassName" },
+    { key: "overdue", label: "Overdue", render: (row) => row.overdue ? <strong className="text-[#991B1B]">OVERDUE</strong> : "—" },
+];
+
+export function ScheduledOrdersPrint({ rows, generatedAt, brand = receiptBrand,
+    title = "All Scheduled Orders & Live Dispatch Queue — Export", columns = SCHEDULED_COLUMNS,
+    tableLabel = "Exported scheduled orders" }) {
     const timestamp = generatedAt.toLocaleString("en-PH", {
         timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric",
         hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short",
@@ -33,34 +44,28 @@ export function ScheduledOrdersPrint({ rows, generatedAt, brand = receiptBrand }
                 <img src={brand.logo} alt={`${brand.name} logo`} />
                 <div>
                     <h2>{brand.name}</h2>
-                    <h3>All Scheduled Orders &amp; Live Dispatch Queue — Export</h3>
+                    <h3>{title}</h3>
                     {brand.contact && <p className="spc-order-invoice-contact">{brand.contact}</p>}
                     <p className="spc-scheduled-orders-print-generated">Generated: <time dateTime={generatedAt.toISOString()}>{timestamp}</time></p>
                 </div>
             </header>
 
             <div className="spc-scheduled-orders-print-table">
-                <table aria-label="Exported scheduled orders">
-                    <colgroup><col /><col /><col /><col /><col /><col /></colgroup>
+                <table aria-label={tableLabel}>
+                    <colgroup>{columns.map((column) => <col key={column.key} style={column.width ? { width: column.width } : undefined} />)}</colgroup>
                     <thead>
                         <tr>
-                            <th scope="col">Customer name</th>
-                            <th scope="col">Order #</th>
-                            <th scope="col">Delivery date</th>
-                            <th scope="col">Time slot</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Overdue</th>
+                            {columns.map((column) => <th key={column.key} scope="col">{column.label}</th>)}
                         </tr>
                     </thead>
                     <tbody>
                         {rows.map((row) => (
                             <tr key={row.id}>
-                                <td className="spc-order-invoice-item-name">{row.customer}</td>
-                                <td>#{row.id}</td>
-                                <td>{row.deliveryDate}</td>
-                                <td>{row.timeSlot}</td>
-                                <td><span className={`inline-block rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${row.statusClassName}`}>{row.status}</span></td>
-                                <td>{row.overdue ? <strong className="text-[#991B1B]">OVERDUE</strong> : "—"}</td>
+                                {columns.map((column) => <td key={column.key} className={column.className}>
+                                    {column.render ? column.render(row) : column.badgeClassKey
+                                        ? <span className={`inline-block rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${row[column.badgeClassKey]}`}>{row[column.key]}</span>
+                                        : row[column.key]}
+                                </td>)}
                             </tr>
                         ))}
                     </tbody>
@@ -73,17 +78,22 @@ export function ScheduledOrdersPrint({ rows, generatedAt, brand = receiptBrand }
 
 let activeFrame = null;
 
-export async function printScheduledOrders({ orders, formatTimeSlot, getStatusConfig, checkIsOverdue }) {
+export async function printScheduledOrders({ orders, formatTimeSlot, getStatusConfig, checkIsOverdue,
+    title, columns, tableLabel, mapOrder, showAlert }) {
     if (activeFrame) return;
     if (!orders.length) {
-        window.alert("No orders available to export.");
+        await showAlert("There are no orders matching the current view to export.\nAdjust your filters and try again.", {
+            title: "No Orders to Export",
+            tone: "info",
+            confirmLabel: "Okay",
+        });
         return;
     }
-    const rows = snapshotScheduledOrders(orders, { formatTimeSlot, getStatusConfig, checkIsOverdue });
+    const rows = mapOrder ? orders.map(mapOrder) : snapshotScheduledOrders(orders, { formatTimeSlot, getStatusConfig, checkIsOverdue });
     const generatedAt = new Date();
     const frame = document.createElement("iframe");
     activeFrame = frame;
-    frame.title = "Scheduled orders PDF export";
+    frame.title = title || "Scheduled orders PDF export";
     frame.setAttribute("aria-hidden", "true");
     frame.tabIndex = -1;
     Object.assign(frame.style, { position: "fixed", left: "-10000px", top: "0", width: "1120px", height: "800px", border: "0" });
@@ -98,7 +108,7 @@ export async function printScheduledOrders({ orders, formatTimeSlot, getStatusCo
         document.body.appendChild(frame);
         const printDocument = frame.contentDocument;
         const printWindow = frame.contentWindow;
-        printDocument.title = "Scheduled orders export";
+        printDocument.title = title || "Scheduled orders export";
         printDocument.documentElement.lang = document.documentElement.lang || "en";
 
         // Reuse the live app's compiled fonts, receipt styles and status colors.
@@ -114,7 +124,7 @@ export async function printScheduledOrders({ orders, formatTimeSlot, getStatusCo
             return loaded;
         });
         root = createRoot(printDocument.body);
-        flushSync(() => root.render(<ScheduledOrdersPrint rows={rows} generatedAt={generatedAt} />));
+        flushSync(() => root.render(<ScheduledOrdersPrint rows={rows} generatedAt={generatedAt} title={title} columns={columns} tableLabel={tableLabel} />));
         await Promise.all(styleLoads);
         await printDocument.fonts?.ready;
         await Promise.all([...printDocument.images].map((image) => image.decode()));
