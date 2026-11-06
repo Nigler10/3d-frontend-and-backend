@@ -464,6 +464,9 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     const customization = useCustomization();
     const {
         cakeColors, cakeColor, setCakeColor,
+        defaultCakeColor,
+        tierColors, customizeCakeColorPerTier, setCustomizeCakeColorPerTier,
+        setTierCakeColorOverride, resetTierCakeColors,
         icingColors, icingColor, setIcingColor,
         form, setForm,
         flavors, flavor, setFlavor,
@@ -508,7 +511,32 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
     const [errorMessage, setErrorMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [openSection, setOpenSection] = useState("tier");
-    const isCakeColorAvailable = selectedTierFlavors.every((layerFlavor) => layerFlavor === "Choco Moist");
+    const [openTierColorPicker, setOpenTierColorPicker] = useState(null);
+    const tierColorPickerRef = useRef(null);
+    useEffect(() => {
+        if (openTierColorPicker === null) return;
+        if (!customizeCakeColorPerTier || openSection !== "cakeColor" ||
+            !selectedTierFlavors[openTierColorPicker] || selectedTierFlavors[openTierColorPicker] === "Ube Chiffon") {
+            setOpenTierColorPicker(null);
+            return;
+        }
+        const closeOnOutsideClick = (event) => {
+            if (!tierColorPickerRef.current?.contains(event.target)) setOpenTierColorPicker(null);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === "Escape") {
+                tierColorPickerRef.current?.querySelector("button")?.focus();
+                setOpenTierColorPicker(null);
+            }
+        };
+        document.addEventListener("pointerdown", closeOnOutsideClick);
+        document.addEventListener("keydown", closeOnEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeOnOutsideClick);
+            document.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [openTierColorPicker, customizeCakeColorPerTier, openSection, selectedTierFlavors]);
+    const isCakeColorAvailable = selectedTierFlavors.some((layerFlavor) => layerFlavor === DEFAULT_FLAVOR || layerFlavor === "Vanilla Chiffon");
 
     const toggleSection = (section) => {
         setOpenSection((current) =>
@@ -661,64 +689,9 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                 </div>
             </ConfiguratorSection>
 
-            {/* ── Cake Color ── */}
-            <ConfiguratorSection
-                title="3. Cake Color"
-                isOpen={openSection === "cakeColor"}
-                onToggle={() => toggleSection("cakeColor")}
-            >
-                <div className="flex flex-wrap gap-2.5">
-                    {cakeColors.map((c) => (
-                        <button
-                            key={c.name}
-                            type="button"
-                            className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:active:scale-100 focus:outline-none ${cakeColor.name === c.name
-                                ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
-                                : "border-transparent shadow-sm"
-                                }`}
-                            style={{ background: c.color }}
-                            title={c.name}
-                            onClick={() => setCakeColor(c)}
-                            disabled={!isCakeColorAvailable}
-                            aria-label={`Cake color ${c.name}`}
-                            aria-describedby="cake-color-note"
-                        />
-                    ))}
-                </div>
-                <p id="cake-color-note" className="mt-3 text-xs text-[#A07060]">
-                    Note: Cake colors are only available when both tiers are Choco Moist.
-                </p>
-            </ConfiguratorSection>
-
-            {/* ── Icing Color ── */}
-            <ConfiguratorSection
-                title="4. Icing Color"
-                isOpen={openSection === "icingColor"}
-                onToggle={() => toggleSection("icingColor")}
-            >
-                <div className="flex flex-wrap gap-2.5">
-                    {icingColors.map((c) => (
-                        <button
-                            key={c.name}
-                            type="button"
-                            className={`group relative w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 focus:outline-none ${icingColor.name === c.name
-                                ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
-                                : "border-transparent shadow-sm"
-                                }`}
-                            style={{ background: c.color }}
-                            title={c.name}
-                            onClick={() => setIcingColor(c)}
-                            aria-label={`Icing color ${c.name}`}
-                        >
-                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-medium text-[#A07060] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none capitalize">{c.name}</span>
-                        </button>
-                    ))}
-                </div>
-            </ConfiguratorSection>
-
             {/* ── Flavor ── */}
             <ConfiguratorSection
-                title={selectedTierIndex === 0 ? "5. Flavor" : "Tier Flavor Layout"}
+                title={selectedTierIndex === 0 ? "3. Flavor" : "3. Tier Flavor Layout"}
                 isOpen={openSection === "flavor"}
                 onToggle={() => toggleSection("flavor")}
             >
@@ -732,15 +705,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                     ? "bg-[#C05A11] border-[#C05A11] text-white font-semibold shadow-md shadow-[#C05A11]/20"
                                     : "bg-white border-[#E6CCA2] text-[#6E473B] hover:bg-[#FFFDF9]"
                                     }`}
-                                onClick={() => {
-                                    setFlavor(f);
-                                    if (f === "Choco Moist")
-                                        setCakeColor(cakeColors.find((c) => c.name === "brown") || cakeColors[0]);
-                                    else if (f === "Vanilla Chiffon")
-                                        setCakeColor(cakeColors.find((c) => c.name === "vanilla") || cakeColors[0]);
-                                    else if (f === "Ube Chiffon")
-                                        setCakeColor(cakeColors.find((c) => c.name === "lavender") || cakeColors[0]);
-                                }}
+                                onClick={() => setFlavor(f)}
                             >
                                 {FLAVOR_LABELS[f] || "Cake"} - {f}
                             </button>
@@ -780,6 +745,142 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                                 </select>
                             </label>
                         ))}
+                    </div>
+                )}
+            </ConfiguratorSection>
+
+            {/* ── Icing Color ── */}
+            <ConfiguratorSection
+                title="4. Icing Color"
+                isOpen={openSection === "icingColor"}
+                onToggle={() => toggleSection("icingColor")}
+            >
+                <div className="flex flex-wrap gap-2.5">
+                    {icingColors.map((c) => (
+                        <button
+                            key={c.name}
+                            type="button"
+                            className={`group relative w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 focus:outline-none ${icingColor.name === c.name
+                                ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
+                                : "border-transparent shadow-sm"
+                                }`}
+                            style={{ background: c.color }}
+                            title={c.name}
+                            onClick={() => setIcingColor(c)}
+                            aria-label={`Icing color ${c.name}`}
+                        >
+                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-medium text-[#A07060] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none capitalize">{c.name}</span>
+                        </button>
+                    ))}
+                </div>
+            </ConfiguratorSection>
+
+            {/* ── Cake Color ── */}
+            <ConfiguratorSection
+                title="5. Cake Color"
+                isOpen={openSection === "cakeColor"}
+                onToggle={() => toggleSection("cakeColor")}
+            >
+                <div className="flex flex-wrap gap-2.5">
+                    {cakeColors.map((c) => (
+                        <button
+                            key={c.name}
+                            type="button"
+                            className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:active:scale-100 focus:outline-none ${isCakeColorAvailable && selectedTierFlavors.every((layerFlavor, idx) =>
+                                layerFlavor === "Ube Chiffon" || (tierColors[idx]?.cakeColorOverride ?? defaultCakeColor[layerFlavor]) === c.color)
+                                ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
+                                : "border-transparent shadow-sm"
+                                }`}
+                            style={{ background: c.color }}
+                            title={c.name}
+                            onClick={() => setCakeColor(c)}
+                            disabled={!isCakeColorAvailable}
+                            aria-label={`Cake color ${c.name}`}
+                            aria-describedby="cake-color-note"
+                        />
+                    ))}
+                </div>
+                <p id="cake-color-note" className="mt-3 text-xs text-[#A07060]">
+                    Cake color is only available for Choco Moist and Vanilla Chiffon. Ube Chiffon uses its own default cake color and texture.
+                </p>
+                <div className="mt-3 flex flex-col">
+                    <button
+                        type="button"
+                        className="self-start px-3 py-1.5 text-[11px] font-semibold text-[#A05A2C] bg-white border border-[#E6CCA2] rounded-lg hover:bg-[#FDF6E2] transition-all cursor-pointer active:scale-95"
+                        onClick={resetTierCakeColors}
+                    >
+                        ↺ Reset tier colors to flavor default
+                    </button>
+                </div>
+                <label className="mt-3 flex items-center gap-2 text-sm font-medium text-[#6E473B] cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="accent-[#C05A11]"
+                        checked={customizeCakeColorPerTier}
+                        onChange={(event) => setCustomizeCakeColorPerTier(event.target.checked)}
+                    />
+                    Customize color per tier
+                </label>
+                {customizeCakeColorPerTier && (
+                    <div className="mt-3 flex flex-col gap-3">
+                        {activeTierLabels.map((label, idx) => {
+                            const layerFlavor = selectedTierFlavors[idx] || DEFAULT_FLAVOR;
+                            const isColorLocked = layerFlavor === "Ube Chiffon";
+                            const color = isColorLocked ? defaultCakeColor[layerFlavor]
+                                : tierColors[idx]?.cakeColorOverride ?? defaultCakeColor[layerFlavor];
+                            return (
+                                <div key={`tier-color-${idx}`} ref={openTierColorPicker === idx ? tierColorPickerRef : null} aria-disabled={isColorLocked}>
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 p-3 bg-white rounded-xl border border-[#E6CCA2] text-left text-sm font-medium text-[#6E473B] cursor-pointer focus:outline-none focus:border-[#C05A11] disabled:opacity-40 disabled:cursor-not-allowed"
+                                        disabled={isColorLocked}
+                                        onClick={() => setOpenTierColorPicker((current) => current === idx ? null : idx)}
+                                        aria-label={`${label} cake color`}
+                                        aria-expanded={!isColorLocked && openTierColorPicker === idx}
+                                        aria-controls={`tier-color-palette-${idx}`}
+                                        aria-describedby="cake-color-note"
+                                    >
+                                        <span
+                                            className="w-9 h-9 shrink-0 rounded-full border-2 border-[#E6CCA2] inline-block shadow-sm"
+                                            style={{ backgroundColor: color }}
+                                        />
+                                        {label}
+                                        {isColorLocked && <span className="text-[10px]">Locked for Ube Chiffon</span>}
+                                        {!isColorLocked && <span className="ml-auto text-[#C05A11]" aria-hidden="true">⌄</span>}
+                                    </button>
+                                    {!isColorLocked && openTierColorPicker === idx && (
+                                        <div
+                                            id={`tier-color-palette-${idx}`}
+                                            role="group"
+                                            aria-label={`${label} cake color palette`}
+                                            className="mt-2 rounded-xl bg-[#FFFDF9] py-3 shadow-lg ring-1 ring-[#E6CCA2]"
+                                        >
+                                            <div className="flex flex-wrap gap-2.5">
+                                                {cakeColors.map((c) => (
+                                                    <button
+                                                        key={c.name}
+                                                        type="button"
+                                                        className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:active:scale-100 focus:outline-none ${color === c.color
+                                                            ? "border-[#C05A11] ring-2 ring-[#C05A11]/30 scale-105 shadow-md"
+                                                            : "border-transparent shadow-sm"
+                                                            }`}
+                                                        style={{ background: c.color }}
+                                                        title={c.name}
+                                                        onClick={() => {
+                                                            setTierCakeColorOverride(idx, c.color);
+                                                            tierColorPickerRef.current?.querySelector("button")?.focus();
+                                                            setOpenTierColorPicker(null);
+                                                        }}
+                                                        aria-label={`${label} cake color ${c.name}`}
+                                                        aria-pressed={color === c.color}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </ConfiguratorSection>
@@ -991,7 +1092,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
 
             {/* ── Topping Placement ── */}
             <ConfiguratorSection
-                title="8. Topping Placement"
+                title="8. Toppings Placement"
                 isOpen={openSection === "placement"}
                 onToggle={() => toggleSection("placement")}
             >

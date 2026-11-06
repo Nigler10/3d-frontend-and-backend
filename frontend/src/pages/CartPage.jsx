@@ -1,6 +1,7 @@
 import { useCart } from "../context/CartContext";
 import { Link, useNavigate } from "react-router-dom";
 import CakePreview3D from "../components/admin/CakePreview3D";
+import { defaultCakeColor } from "../contexts/Customization";
 import {
     ShoppingBag,
     Cake,
@@ -122,7 +123,7 @@ function CartPage() {
                                                         {/* Tier & Size */}
                                                         {(d.tier || d.size) && (
                                                             <div className="flex justify-between border-b border-dashed border-stone-200/60 pb-1">
-                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Ruler className="w-3.5 h-3.5" /> Size</span>
+                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Ruler className="w-3.5 h-3.5" /> Tier & Size</span>
                                                                 <span className="font-semibold text-stone-700">
                                                                     {d.tier}{d.tier && d.size ? " — " : ""}{d.size}
                                                                 </span>
@@ -131,7 +132,7 @@ function CartPage() {
 
                                                         {/* Shape */}
                                                         <div className="flex justify-between border-b border-dashed border-stone-200/60 pb-1">
-                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Cake className="w-3.5 h-3.5" /> Shape</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Cake className="w-3.5 h-3.5" /> Cake Base Shape</span>
                                                             <span className="font-semibold text-stone-700 capitalize">{d.shape}</span>
                                                         </div>
 
@@ -143,7 +144,7 @@ function CartPage() {
 
                                                         {tierFlavors.length > 0 && (
                                                             <div className="flex flex-col gap-1 pt-1">
-                                                                <span className="font-medium text-stone-400">Tier Flavors</span>
+                                                                <span className="font-medium text-stone-400">Tier Flavor Layout</span>
                                                                 <div className="flex flex-wrap gap-1.5 mt-0.5">
                                                                     {tierFlavors.map(([tierName, tierFlavor]) => (
                                                                         <span key={tierName} className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-medium text-[11px]">
@@ -151,38 +152,6 @@ function CartPage() {
                                                                         </span>
                                                                     ))}
                                                                 </div>
-                                                            </div>
-                                                        )}
-
-                                                        {d.has_candle && (
-                                                            <div className="flex justify-between items-center pt-1">
-                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Flame className="w-3.5 h-3.5" /> Candle</span>
-                                                                <span className="font-semibold text-stone-700">{candleDescription}</span>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1 text-stone-700">
-                                                            <span className="font-bold text-amber-800 mr-1 inline-flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Message:</span>
-                                                            <span className={messageText ? "italic" : "italic text-stone-400"}>
-                                                                {messageText ? `"${messageText}"` : "No message"}
-                                                            </span>
-                                                            <span className="block mt-1 text-[11px] text-stone-500">
-                                                                Font: {d.text_font || "Default"}
-                                                            </span>
-                                                            <span className="flex items-center gap-2 mt-1 text-[11px] text-stone-500">
-                                                                Message color:
-                                                                <span
-                                                                    className="w-3.5 h-3.5 rounded-full border border-stone-300 shadow-sm"
-                                                                    style={{ backgroundColor: messageColor }}
-                                                                    aria-label={`Message color ${messageColorName}`}
-                                                                />
-                                                                {messageColorName}
-                                                            </span>
-                                                        </div>
-
-                                                        {d.has_candle && candleMode === "number" && (
-                                                            <div className="text-[11px] text-stone-500 pt-1">
-                                                                Number candle color: {candleColor}
                                                             </div>
                                                         )}
 
@@ -201,18 +170,66 @@ function CartPage() {
 
                                                         {/* Cake Color */}
                                                         <div className="flex justify-between items-center pt-1">
-                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> Color</span>
-                                                            <span className="flex items-center">
-                                                                <span
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> Cake Color</span>
+                                                            <span className="flex flex-col items-end gap-1">
+                                                                {tierFlavors.length > 0 ? tierFlavors.map(([tierName, tierFlavor], index) => {
+                                                                    const color = tierFlavor === "Ube Chiffon" ? defaultCakeColor[tierFlavor]
+                                                                        : d.topping_layout?._tierColors
+                                                                            ? d.topping_layout._tierColors.tiers?.[index]?.cakeColorOverride ?? defaultCakeColor[tierFlavor]
+                                                                            : d.cake_color;
+                                                                    return (
+                                                                        <span key={tierName} className="flex items-center gap-2">
+                                                                            {tierName}
+                                                                            <span
+                                                                                className="w-4 h-4 rounded-full border border-stone-300 shadow-sm"
+                                                                                style={{ background: color }}
+                                                                                title={color}
+                                                                                aria-label={`${tierName} cake color ${color}`}
+                                                                            />
+                                                                        </span>
+                                                                    );
+                                                                }) : <span
                                                                     className="w-4 h-4 rounded-full border border-stone-300 shadow-sm"
                                                                     style={{ background: d.cake_color }}
-                                                                />
+                                                                />}
                                                             </span>
                                                         </div>
 
+                                                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1 text-stone-700">
+                                                            <span className="font-bold text-amber-800 mr-1 inline-flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Cake Message:</span>
+                                                            <span className={messageText ? "italic" : "italic text-stone-400"}>
+                                                                {messageText ? `"${messageText}"` : "No message"}
+                                                            </span>
+                                                            <span className="block mt-1 text-[11px] text-stone-500">
+                                                                Font: {d.text_font || "Default"}
+                                                            </span>
+                                                            <span className="flex items-center gap-2 mt-1 text-[11px] text-stone-500">
+                                                                Message color:
+                                                                <span
+                                                                    className="w-3.5 h-3.5 rounded-full border border-stone-300 shadow-sm"
+                                                                    style={{ backgroundColor: messageColor }}
+                                                                    aria-label={`Message color ${messageColorName}`}
+                                                                />
+                                                                {messageColorName}
+                                                            </span>
+                                                        </div>
+
+                                                        {d.has_candle && (
+                                                            <div className="flex justify-between items-center pt-1">
+                                                                <span className="font-medium text-stone-400 flex items-center gap-1"><Flame className="w-3.5 h-3.5" /> Candle</span>
+                                                                <span className="font-semibold text-stone-700">{candleDescription}</span>
+                                                            </div>
+                                                        )}
+
+                                                        {d.has_candle && candleMode === "number" && (
+                                                            <div className="text-[11px] text-stone-500 pt-1">
+                                                                Number candle color: {candleColor}
+                                                            </div>
+                                                        )}
+
                                                         {/* Add-ons */}
                                                         <div className="flex flex-col gap-1 pt-2 border-t border-stone-200/60">
-                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Add-ons</span>
+                                                            <span className="font-medium text-stone-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Decorations</span>
                                                             <div className="flex flex-wrap gap-1.5 mt-0.5">
                                                                 {addons.length > 0
                                                                     ? addons.map(a => (

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import { Cake, Cherry, Cookie, Flame, MessageSquare, Palette, Ruler, Sparkles, Wheat, X } from "lucide-react";
+import { defaultCakeColor } from "../../contexts/Customization";
 
 const MESSAGE_COLORS = {
     "#EF4444": "Red", "#FACC15": "Yellow", "#22C55E": "Green",
@@ -96,10 +97,10 @@ export default function OrderItemDetailsModal({ item, onClose }) {
 
                 <div className="mt-4 space-y-2 rounded-2xl border border-[#fdf0dc] bg-[#fffbf4] p-4 text-[15px] text-stone-600">
                     <dl>
-                        <SpecificationRow Icon={Ruler} label="Size" divider>
+                        <SpecificationRow Icon={Ruler} label="Tier & Size" divider>
                             {[details.tier, details.size].filter(Boolean).join(" — ") || "Not specified"}
                         </SpecificationRow>
-                        <SpecificationRow Icon={Cake} label="Shape" divider>
+                        <SpecificationRow Icon={Cake} label="Cake Base Shape" divider>
                             <span className="capitalize">{details.shape || "Not specified"}</span>
                         </SpecificationRow>
                         <SpecificationRow Icon={Cake} label="Flavor" divider>
@@ -109,7 +110,7 @@ export default function OrderItemDetailsModal({ item, onClose }) {
 
                     {tierFlavors.length > 0 && (
                         <div>
-                            <p className="font-medium text-stone-400">Tier Flavors</p>
+                            <p className="font-medium text-stone-400">Tier Flavor Layout</p>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                                 {tierFlavors.map(([tier, flavor]) => (
                                     <span key={tier} className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">{tier}: {flavor}</span>
@@ -118,9 +119,37 @@ export default function OrderItemDetailsModal({ item, onClose }) {
                         </div>
                     )}
 
+                    <dl>
+                        <SpecificationRow Icon={Palette} label="Icing Color">
+                            {details.icing_color ? (
+                                <span className="flex items-center justify-end gap-2">
+                                    <ColorSwatch color={details.icing_color} label={`Icing color ${icingColorName}`} /> {icingColorName}
+                                </span>
+                            ) : "Not specified"}
+                        </SpecificationRow>
+                        <SpecificationRow Icon={Palette} label="Cake Color">
+                            {tierFlavors.length > 0 ? (
+                                <span className="flex flex-col items-end gap-1">
+                                    {tierFlavors.map(([tier, flavor], index) => {
+                                        const color = flavor === "Ube Chiffon" ? defaultCakeColor[flavor]
+                                            : details.topping_layout?._tierColors
+                                                ? details.topping_layout._tierColors.tiers?.[index]?.cakeColorOverride ?? defaultCakeColor[flavor]
+                                                : details.cake_color;
+                                        return (
+                                            <span key={tier} className="flex items-center gap-2">
+                                                {tier}
+                                                <ColorSwatch color={color} label={`${tier} cake color`} />
+                                            </span>
+                                        );
+                                    })}
+                                </span>
+                            ) : details.cake_color ? <ColorSwatch color={details.cake_color} label="Base color" /> : "Not specified"}
+                        </SpecificationRow>
+                    </dl>
+
                     <div className="rounded-xl border border-amber-100 bg-amber-50 p-2.5 text-stone-700">
                         <p className="inline-flex items-center gap-1 font-bold text-amber-800">
-                            <MessageSquare aria-hidden="true" className="h-[18px] w-[18px]" /> Message:
+                            <MessageSquare aria-hidden="true" className="h-[18px] w-[18px]" /> Cake Message:
                         </p>
                         <p className={`whitespace-pre-wrap break-words italic ${message ? "" : "text-stone-400"}`}>
                             {message ? `"${message}"` : "No message"}
@@ -133,22 +162,9 @@ export default function OrderItemDetailsModal({ item, onClose }) {
                         </div>
                     </div>
 
-                    <dl>
-                        <SpecificationRow Icon={Palette} label="Icing Color">
-                            {details.icing_color ? (
-                                <span className="flex items-center justify-end gap-2">
-                                    <ColorSwatch color={details.icing_color} label={`Icing color ${icingColorName}`} /> {icingColorName}
-                                </span>
-                            ) : "Not specified"}
-                        </SpecificationRow>
-                        <SpecificationRow Icon={Palette} label="Color">
-                            {details.cake_color ? <ColorSwatch color={details.cake_color} label="Base color" /> : "Not specified"}
-                        </SpecificationRow>
-                    </dl>
-
                     <div className="border-t border-stone-200/60 pt-2">
                         <p className="flex items-center gap-1 font-medium text-stone-400">
-                            <Sparkles aria-hidden="true" className="h-[18px] w-[18px]" /> Add-ons
+                            <Sparkles aria-hidden="true" className="h-[18px] w-[18px]" /> Decorations
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                             {addons.length ? addons.map(([key, label, Icon]) => {

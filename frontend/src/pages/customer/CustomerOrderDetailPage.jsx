@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { CustomCakeModal } from "../../components/admin/CustomCakeModal";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
-import { AlertTriangle, Cake } from "lucide-react";
+import { AlertTriangle, Cake, CalendarDays, CheckCircle2, Clock3, SquarePen } from "lucide-react";
 import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import Logistics from "../../components/Logistics";
 import ProductReviewForm from "../../components/customer/ProductReviewForm";
@@ -690,24 +690,35 @@ export default function CustomerOrderDetailPage() {
 
                             <div className="border-t border-stone-100 pt-4 space-y-4">
 
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h4 className="text-sm font-black text-[#844414]">
-                                            Need to change your delivery details?
-                                        </h4>
-
-                                        <p className="mt-1 text-xs leading-relaxed text-stone-500">
-                                            Request a different delivery date, time, address, or recipient.
-                                            Changes require bakery approval.
-                                        </p>
+                                <div className="rounded-2xl border border-amber-100 bg-[var(--cream)] p-3 shadow-sm sm:p-4 lg:p-3 xl:p-4">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-2 text-[10px] font-bold leading-4 tracking-wide text-amber-700">
+                                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+                                                <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
+                                            </span>
+                                            <span>DELIVERY ADJUSTMENTS</span>
+                                        </div>
+                                        <span className="ml-auto shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800">
+                                            Subject to Approval
+                                        </span>
                                     </div>
+
+                                    <h4 className="mt-3 whitespace-nowrap text-xs font-bold tracking-tight text-amber-900 sm:text-base lg:text-xs xl:text-sm">
+                                        Need to change your delivery details?
+                                    </h4>
+                                    <p className="mt-2 text-xs leading-relaxed text-stone-600">
+                                        Request a different date, time slot, recipient or address, subject to bakery approval before preparation begins.
+                                    </p>
+
+                                    
 
                                     {canRequestDeliveryChanges && !pendingDeliveryChangeRequest && (
                                         <button
                                             type="button"
                                             onClick={() => setShowDeliveryChangeModal(true)}
-                                            className="shrink-0 rounded-xl bg-[#d67b27] px-4 py-3 text-xs font-black text-white transition hover:bg-[#b56219]"
+                                            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                                         >
+                                            <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
                                             Request Delivery Changes
                                         </button>
                                     )}

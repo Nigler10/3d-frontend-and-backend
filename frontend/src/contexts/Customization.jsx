@@ -32,6 +32,12 @@ const icingColors = [
 export const DEFAULT_FLAVOR = "Choco Moist";
 const flavors = [DEFAULT_FLAVOR, "Vanilla Chiffon", "Ube Chiffon"];
 
+export const defaultCakeColor = {
+    "Choco Moist": "#683434",
+    "Vanilla Chiffon": "#f3e5ab",
+    "Ube Chiffon": "#a56bff",
+};
+
 const flavorTextureMap = {
     "Choco Moist": "choco",
     "Vanilla Chiffon": "vanilla",
@@ -246,6 +252,50 @@ export const CustomizationProvider = (props) => {
     const [cakeColor, setCakeColor] = useState(
         () => cakeColors.find(c => c.color === initialState?.cake_color) || cakeColors[0]
     );
+    const [tierColors, setTierColors] = useState(
+        () => {
+            const savedColors = initialState?.topping_layout?._tierColors;
+            return hydrateTierFlavors(initialState).tier4.map((layerFlavor, index) => ({
+                cakeColorOverride: layerFlavor === "Ube Chiffon" ? null : savedColors
+                    ? savedColors.tiers?.[index]?.cakeColorOverride ?? null
+                    : initialState?.cake_color ? cakeColor.color : null,
+                cakeColorFollowsGlobal: layerFlavor !== "Ube Chiffon" && savedColors?.tiers?.[index]?.cakeColorFollowsGlobal === true,
+            }));
+        }
+    );
+    const [customizeCakeColorPerTier, setCustomizeCakeColorPerTierState] = useState(
+        () => initialState?.topping_layout?._tierColors?.customizeCakeColorPerTier === true
+    );
+    // Null uses the flavor default; an explicit global choice colors eligible tiers.
+    const setGlobalCakeColor = (color) => {
+        if (!selectedTierFlavors.some((layerFlavor) => layerFlavor === DEFAULT_FLAVOR || layerFlavor === "Vanilla Chiffon")) return;
+        const nextColor = typeof color === "function" ? color(cakeColor) : color;
+        setCakeColor(nextColor);
+        setTierColors((previous) => previous.map((tier, index) => {
+            if (tierFlavors.tier4[index] === "Ube Chiffon") return { ...tier, cakeColorOverride: null, cakeColorFollowsGlobal: false };
+            if (customizeCakeColorPerTier && tier.cakeColorOverride !== null && !tier.cakeColorFollowsGlobal) return tier;
+            return { ...tier, cakeColorOverride: nextColor.color, cakeColorFollowsGlobal: true };
+        }));
+    };
+    const setCustomizeCakeColorPerTier = (enabled) => {
+        setCustomizeCakeColorPerTierState(enabled);
+        setTierColors((previous) => previous.map((tier, index) => ({
+            ...tier,
+            cakeColorOverride: enabled && tierFlavors.tier4[index] !== "Ube Chiffon"
+                ? tier.cakeColorOverride ?? defaultCakeColor[tierFlavors.tier4[index]] : null,
+            cakeColorFollowsGlobal: false,
+        })));
+    };
+    const setTierCakeColorOverride = (layerIndex, color) => {
+        if (!Number.isInteger(layerIndex) || layerIndex < 0 || layerIndex > selectedTierIndex) return;
+        if (selectedTierFlavors[layerIndex] === "Ube Chiffon") return;
+        setTierColors((previous) => previous.map((tier, index) => (
+            index === layerIndex ? { ...tier, cakeColorOverride: color, cakeColorFollowsGlobal: false } : tier
+        )));
+    };
+    const resetTierCakeColors = () => {
+        setTierColors((previous) => previous.map((tier) => ({ ...tier, cakeColorOverride: null, cakeColorFollowsGlobal: false })));
+    };
     const [icingColor, setIcingColor] = useState(
         () => icingColors.find(c => c.color === initialState?.icing_color) || icingColors[0]
     );
@@ -302,6 +352,11 @@ export const CustomizationProvider = (props) => {
         setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
             key, layers.map((value, index) => shouldCascade || index === 0 ? false : value),
         ])));
+        const colorFlavor = typeof newFlavor === "function" ? newFlavor(flavor) : newFlavor;
+        setTierColors((previous) => previous.map((tier, index) => (
+            (shouldCascade || index === 0) && (colorFlavor === "Ube Chiffon" || tierFlavors.tier4[index] === "Ube Chiffon")
+                ? { ...tier, cakeColorOverride: null, cakeColorFollowsGlobal: false } : tier
+        )));
     };
     const selectedTierFlavors = tierFlavors[tier.tierKey];
     const selectedTierFlavorOverrides = tierFlavorOverrides[tier.tierKey];
@@ -411,6 +466,11 @@ export const CustomizationProvider = (props) => {
         setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
             key, layers.map((value, index) => index === layerIdx ? true : value),
         ])));
+        if (newFlavor === "Ube Chiffon" || selectedTierFlavors[layerIdx] === "Ube Chiffon") {
+            setTierColors((previous) => previous.map((tier, index) => (
+                index === layerIdx ? { ...tier, cakeColorOverride: null, cakeColorFollowsGlobal: false } : tier
+            )));
+        }
     };
     const resetTierFlavorOverrides = () => {
         setTierFlavors((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
@@ -419,6 +479,10 @@ export const CustomizationProvider = (props) => {
         setTierFlavorOverrides((prev) => Object.fromEntries(Object.entries(prev).map(([key, layers]) => [
             key, layers.map((value, index) => index <= selectedTierIndex ? false : value),
         ])));
+        setTierColors((previous) => previous.map((tier, index) => (
+            index <= selectedTierIndex && selectedTierFlavors[index] === "Ube Chiffon"
+                ? { ...tier, cakeColorOverride: null, cakeColorFollowsGlobal: false } : tier
+        )));
     };
 
     const setCandleNumber = (value) => {
@@ -584,6 +648,11 @@ export const CustomizationProvider = (props) => {
         const randomLayers = [randomFlavor, ...Array.from({ length: 3 }, () => flavors[Math.floor(Math.random() * flavors.length)])];
         setTierFlavors(Object.fromEntries(CAKE_SIZES.map(({ tierKey }, index) => [tierKey, randomLayers.slice(0, index + 1)])));
         setTierFlavorOverrides(hydrateTierFlavorOverrides());
+        setTierColors((previous) => previous.map((tier, index) => ({
+            ...tier,
+            cakeColorOverride: randomLayers[index] === "Ube Chiffon" ? null : randomCakeColor.color,
+            cakeColorFollowsGlobal: randomLayers[index] !== "Ube Chiffon",
+        })));
 
         setCandle(false);
         setChocolate(false);
@@ -628,7 +697,13 @@ export const CustomizationProvider = (props) => {
                 setSelectedSize,
                 cakeColors,
                 cakeColor,
-                setCakeColor,
+                setCakeColor: setGlobalCakeColor,
+                defaultCakeColor,
+                tierColors,
+                customizeCakeColorPerTier,
+                setCustomizeCakeColorPerTier,
+                setTierCakeColorOverride,
+                resetTierCakeColors,
                 icingColors,
                 icingColor,
                 setIcingColor,
@@ -673,7 +748,13 @@ export const CustomizationProvider = (props) => {
                 pricingError,
                 basePrices,
                 addonPrices,
-                toppingLayout,
+                toppingLayout: {
+                    ...toppingLayout,
+                    _tierColors: {
+                        tiers: tierColors.slice(0, selectedTierIndex + 1),
+                        customizeCakeColorPerTier,
+                    },
+                },
                 setToppingPosition,
                 rejectToppingAdditions,
                 setToppingSize,
