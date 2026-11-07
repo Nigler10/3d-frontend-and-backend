@@ -3,11 +3,14 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import { printScheduledOrders } from "../../components/admin/ScheduledOrdersPrint";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import { MessageSquare, Filter, Download, MapPin, Package, Phone, Search, X } from "lucide-react";
 
 export default function AdminOrdersPage() {
   const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
   const navigate = useNavigate();
+  const { showAlert } = useCustomerDialog();
   const [orders, setOrders] = useState([]);
   const [unreadOrders, setUnreadOrders] = useState({});
   const [loading, setLoading] = useState(true);
@@ -120,37 +123,31 @@ export default function AdminOrdersPage() {
     return filteredOrders.slice(start, start + perPage);
   }, [filteredOrders, currentPage, perPage]);
 
-  // CSV Export
-  const handleExportCSV = () => {
-    const listToExport = filteredOrders;
-
-    if (listToExport.length === 0) {
-      alert("No orders available to export.");
-      return;
-    }
-
-    const headers = ["Order ID", "Customer", "Contact", "Total Amount", "Status", "Payment Status"];
-    const rows = listToExport.map((o) => [
-      `#${o.id}`,
-      `"${(o.user_name || "").replace(/"/g, '""')}"`,
-      `"${(o.formatted_phone || o.phone || "").replace(/"/g, '""')}"`,
-      `₱${o.total_amount || 0}`,
-      o.status || "",
-      o.payment_status || "",
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `customer_orders_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const handleExportPDF = () => printScheduledOrders({
+    orders: paginatedOrders,
+    showAlert,
+    title: "All Customer Orders — Export",
+    tableLabel: "Exported customer orders",
+    mapOrder: (order) => ({
+      id: order.id,
+      customer: order.user_name || "—",
+      contact: order.formatted_phone || order.phone || "—",
+      address: order.full_address || [order.street, order.city].filter(Boolean).join(" ") || "—",
+      amount: `₱${Number(order.total_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      status: getOrderStatusLabel(order.status, true),
+      statusClassName: getStatusBadgeStyle(order.status),
+      payment: (order.payment_status || "PENDING").replace(/_/g, " "),
+      paymentClassName: getPaymentBadgeStyle(order.payment_status),
+    }),
+    columns: [
+      { key: "id", label: "Order #", width: "8%", render: (row) => `#${row.id}` },
+      { key: "customer", label: "Customer", width: "18%", className: "spc-order-invoice-item-name" },
+      { key: "contact", label: "Contact & address", width: "30%", render: (row) => <><p>{row.contact}</p><p className="spc-order-invoice-customization">{row.address}</p></> },
+      { key: "amount", label: "Total amount", width: "13%", className: "spc-order-invoice-item-name" },
+      { key: "status", label: "Status", width: "19%", badgeClassKey: "statusClassName" },
+      { key: "payment", label: "Payment", width: "12%", badgeClassKey: "paymentClassName" },
+    ],
+  });
 
   const handleJumpPage = (e) => {
     e.preventDefault();
@@ -375,10 +372,10 @@ export default function AdminOrdersPage() {
 
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={handleExportPDF}
               className="px-4 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Download aria-hidden="true" className="w-3.5 h-3.5" /> Export CSV
+              <Download aria-hidden="true" className="w-3.5 h-3.5" /> Export
             </button>
           </div>
         </div>

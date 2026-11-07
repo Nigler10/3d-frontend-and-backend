@@ -1,0 +1,37 @@
+/* Bulk export only: use the existing receipt's palette, font and table/card
+   conventions. No selectors here affect the dashboard or single receipt. */
+.spc-scheduled-orders-print {
+    padding: 24px;
+    color: #191919;
+    background: #FDFCF9;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.spc-scheduled-orders-print .spc-order-invoice-brand { grid-template-columns: 104px minmax(0, 1fr); gap: 20px; margin-bottom: 24px; }
+.spc-scheduled-orders-print .spc-order-invoice-brand img { border-radius: 50%; }
+.spc-scheduled-orders-print .spc-order-invoice-brand h2 { font-size: 36px; }
+.spc-scheduled-orders-print .spc-order-invoice-brand h3 { font-size: 18px; }
+.spc-scheduled-orders-print .spc-order-invoice-contact { font-size: 11px; }
+.spc-scheduled-orders-print-generated { margin-top: 8px; color: #5C3D2E; font-size: 12px; }
+.spc-scheduled-orders-print-table { border: 1px solid #BFB6A1; border-radius: 14px; overflow: hidden; }
+.spc-scheduled-orders-print table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.spc-scheduled-orders-print col:nth-child(1) { width: 23%; }
+.spc-scheduled-orders-print col:nth-child(2) { width: 9%; }
+.spc-scheduled-orders-print col:nth-child(3) { width: 13%; }
+.spc-scheduled-orders-print col:nth-child(4) { width: 22%; }
+.spc-scheduled-orders-print col:nth-child(5) { width: 23%; }
+.spc-scheduled-orders-print col:nth-child(6) { width: 10%; }
+.spc-scheduled-orders-print th { background: #EEE4D0; color: #5A2D18; font-weight: 800; text-align: left; }
+.spc-scheduled-orders-print th, .spc-scheduled-orders-print td { padding: 12px; vertical-align: middle; overflow-wrap: anywhere; }
+.spc-scheduled-orders-print th { border-bottom: 1px solid #BFB6A1; }
+.spc-scheduled-orders-print tbody tr + tr td { border-top: 1px solid #D8D1C3; }
+.spc-scheduled-orders-print footer { margin-top: 16px; color: #5A2D18; font-weight: 800; text-align: right; }
+
+@page spc-scheduled-orders-export { size: A4 landscape; margin: 12mm; }
+@media print {
+    .spc-scheduled-orders-print { page: spc-scheduled-orders-export; padding: 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .spc-scheduled-orders-print .spc-order-invoice-brand, .spc-scheduled-orders-print tr, .spc-scheduled-orders-print footer { break-inside: avoid; }
+    .spc-scheduled-orders-print-table { overflow: visible; }
+    .spc-scheduled-orders-print thead { display: table-header-group; }
+    .spc-scheduled-orders-print th, .spc-scheduled-orders-print td { padding: 10px 12px; }
+}

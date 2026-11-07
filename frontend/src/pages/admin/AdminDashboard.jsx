@@ -3,6 +3,9 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../../utils/auth";
 import { getOrderStatusLabel } from "../../utils/orderStatus";
+import AdminScheduledOrders from "../../components/admin/AdminScheduledOrders";
+import { printScheduledOrders } from "../../components/admin/ScheduledOrdersPrint";
+import { useCustomerDialog } from "../../context/CustomerDialogContext";
 import { LayoutDashboard, Plus, LayoutGrid, LayoutList, Filter, ArrowUpDown, Search, X, RotateCcw, Download, ChevronLeft, ChevronRight, CalendarDays, Clock, ExternalLink, Info, TrendingUp, TrendingDown, Package, ShoppingCart, Hourglass, CreditCard, CheckCircle2, DollarSign, BarChart3, Inbox, PartyPopper, AlertTriangle, XCircle, RefreshCw, ArrowRight, } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, } from "recharts";
 
@@ -130,15 +133,16 @@ const getPaginationItems = (currentPage, totalPages) => {
 export default function AdminDashboard() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
+    const { showAlert } = useCustomerDialog();
     const [data, setData] = useState(null);
     const [queuePage, setQueuePage] = useState(1);
     const [showStats, setShowStats] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [calendarStatus, setCalendarStatus] = useState("all");
     const [sortBy, setSortBy] = useState("date_asc");
     const perPage = 9;
-    const [jumpPageInput, setJumpPageInput] = useState("");
-    const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
+    const [viewMode, setViewMode] = useState("calendar"); // calendar | table | cards
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSortOpen, setIsSortOpen] = useState(false);
     const [isQueueLoading, setIsQueueLoading] = useState(false);
@@ -147,7 +151,10 @@ export default function AdminDashboard() {
     useEffect(() => {
         const controller = new AbortController();
 
+        let fetching = false;
         const fetchDashboard = async () => {
+            if (fetching || controller.signal.aborted) return;
+            fetching = true;
             setIsQueueLoading(true);
 
             try {
@@ -174,6 +181,9 @@ export default function AdminDashboard() {
 
                 if (!controller.signal.aborted) {
                     setData(json);
+                    if (json.all_upcoming_page && json.all_upcoming_page !== queuePage) {
+                        setQueuePage(json.all_upcoming_page);
+                    }
                 }
             } catch (err) {
                 if (
@@ -183,6 +193,7 @@ export default function AdminDashboard() {
                     console.error("Failed to fetch admin dashboard:", err);
                 }
             } finally {
+                fetching = false;
                 if (!controller.signal.aborted) {
                     setIsQueueLoading(false);
                 }
@@ -190,9 +201,16 @@ export default function AdminDashboard() {
         };
 
         fetchDashboard();
+        const refreshQueue = () => { if (!document.hidden) fetchDashboard(); };
+        const interval = viewMode !== "calendar" ? window.setInterval(refreshQueue, 30000) : null;
+        if (viewMode !== "calendar") window.addEventListener("focus", refreshQueue);
 
-        return () => controller.abort();
-    }, [BASEURL, queuePage, statusFilter, perPage, searchQuery, sortBy]);
+        return () => {
+            controller.abort();
+            if (interval !== null) window.clearInterval(interval);
+            window.removeEventListener("focus", refreshQueue);
+        };
+    }, [BASEURL, queuePage, statusFilter, perPage, searchQuery, sortBy, viewMode]);
 
     useEffect(() => {
         setUpcomingPage(1);
@@ -203,49 +221,6 @@ export default function AdminDashboard() {
         return data?.all_upcoming_orders || [];
     }, [data]);
 
-    // CSV Export Handler
-    const handleExportCSV = () => {
-        const ordersToExport = processedQueueOrders;
-
-        if (ordersToExport.length === 0) {
-            alert("No orders available to export.");
-            return;
-        }
-
-        const headers = ["Order ID", "Customer Name", "Delivery Date", "Time Slot", "Status", "Is Overdue"];
-        const rows = ordersToExport.map((o) => [
-            `#${o.id}`,
-            `"${(o.full_name || "").replace(/"/g, '""')}"`,
-            o.delivery_date || "",
-            formatTimeSlot(o.delivery_time),
-            o.status || "",
-            checkIsOverdue(o.delivery_date, o.status) ? "Yes" : "No",
-        ]);
-
-        const csvContent =
-            "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `dashboard_orders_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleJumpPage = (e) => {
-        e.preventDefault();
-
-        const page = parseInt(jumpPageInput, 10);
-
-        if (Number.isInteger(page) && page >= 1) {
-            setQueuePage(Math.min(page, totalPages));
-            setJumpPageInput("");
-        }
-    };
-
     const applyStatusFilter = (filterStatus) => {
         setStatusFilter(filterStatus);
         setQueuePage(1);
@@ -253,6 +228,7 @@ export default function AdminDashboard() {
 
     const scrollToQueue = (filterStatus = "all") => {
         applyStatusFilter(filterStatus);
+        setViewMode("table");
         const el = document.getElementById("order-queue-section");
         if (el) {
             el.scrollIntoView({ behavior: "smooth" });
@@ -295,7 +271,6 @@ export default function AdminDashboard() {
             </div>
         );
 
-    const totalPages = Math.max(1, data.all_upcoming_total_pages || 1);
     const overdueCount = data.overdue_count || 0;
 
     const upcomingPerPage = 6;
@@ -392,12 +367,14 @@ export default function AdminDashboard() {
                             onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
                             className="flex items-center gap-2 px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all cursor-pointer font-medium"
                         >
-                            {viewMode === "table" ? (
+                            {viewMode === "calendar" ? (
+                                <CalendarDays className="w-3.5 h-3.5" />
+                            ) : viewMode === "table" ? (
                                 <LayoutList className="w-3.5 h-3.5" />
                             ) : (
                                 <LayoutGrid className="w-3.5 h-3.5" />
                             )}
-                            <span>{viewMode === "table" ? "Table View" : "Cards View"}</span>
+                            <span>{viewMode === "calendar" ? "Calendar View" : viewMode === "table" ? "Table View" : "Cards View"}</span>
                             <ChevronRight className="w-3 h-3 text-[#8C6D58] rotate-90" />
                         </button>
 
@@ -553,7 +530,13 @@ export default function AdminDashboard() {
 
                         <button
                             type="button"
-                            onClick={handleExportCSV}
+                            onClick={() => printScheduledOrders({
+                                orders: processedQueueOrders.slice(0, perPage),
+                                showAlert,
+                                formatTimeSlot,
+                                getStatusConfig,
+                                checkIsOverdue,
+                            })}
                             className="px-3.5 py-2 bg-[#FFFDF9] hover:bg-[#F9F3EA] border border-[#E6DBCB] rounded-xl text-[#5C3D2E] transition-all flex items-center gap-1.5 cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5" /> Export
@@ -868,31 +851,51 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* ── Scheduled Orders Queue Data Section ── */}
-                <div id="order-queue-section" className="bg-white border border-[#E6DBCB] rounded-2xl p-6 shadow-xs flex flex-col gap-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E6DBCB]/30">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-[#FDF0EB] flex items-center justify-center">
-                                <LayoutList className="w-4 h-4 text-[#AD4313]" />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-black text-[#3D251E]">All Scheduled Orders (Queue)</h2>
-                                <p className="text-xs text-[#8C6D58] font-medium">Manage and track live customer order queue.</p>
-                            </div>
-                        </div>
+                <AdminScheduledOrders
+                    viewMode={viewMode}
+                    onViewChange={setViewMode}
+                    status={calendarStatus}
+                    onStatusChange={setCalendarStatus}
+                    renderQueue={() => (
+                        <ScheduledQueueContent
+                            viewMode={viewMode}
+                            orders={processedQueueOrders}
+                            isQueueLoading={isQueueLoading}
+                            data={data}
+                            queuePage={data.all_upcoming_page || queuePage}
+                            setQueuePage={setQueuePage}
+                            perPage={perPage}
+                            sortBy={sortBy}
+                            setSortBy={setSortBy}
+                        />
+                    )}
+                />
 
-                        {statusFilter !== "all" && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-[#8C6D58] font-semibold">Active Filter:</span>
-                                <span className="px-3 py-1 bg-[#FDF6E2] text-[#AD4313] border border-[#E6CCA2] rounded-full text-xs font-bold flex items-center gap-1.5">
-                                    {statusFilter === "overdue" ? "⚠️ Overdue Orders" : statusFilter === "completed" ? "Completed / Delivered" : getStatusConfig(statusFilter).label}
-                                    <button type="button" onClick={() => applyStatusFilter("all")} className="hover:text-[#3D251E]">
-                                        <X className="w-3.5 h-3.5" />
-                                    </button>
-                                </span>
-                            </div>
-                        )}
-                    </div>
 
+            </div>
+        </div>
+    );
+}
+
+// One status badge presentation for both queue layouts, using the existing palette.
+function ScheduledQueueStatusBadge({ status, compact = false }) {
+    const { style, Icon, label } = getStatusConfig(status);
+    return (
+        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border text-[10px] font-bold uppercase whitespace-nowrap ${compact ? "px-2.5 py-0.5" : "px-3 py-1"} ${style}`}>
+            <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {label}
+        </span>
+    );
+}
+
+// Table and card views share their header, order records and pagination.
+function ScheduledQueueContent({ viewMode, orders: processedQueueOrders, isQueueLoading, data, queuePage, setQueuePage, perPage, sortBy, setSortBy }) {
+    const navigate = useNavigate();
+    const totalPages = Math.max(1, data.all_upcoming_total_pages || 1);
+
+    return (
+        <div className="flex flex-col gap-5">
+            
                     {processedQueueOrders.length === 0 ? (
                         <div className="p-12 text-center bg-[#FCF8EE] rounded-xl border border-dashed border-[#E6DBCB]">
                             <Inbox className="w-10 h-10 text-[#AD4313]/30 mx-auto mb-3" />
@@ -902,7 +905,7 @@ export default function AdminDashboard() {
                     ) : viewMode === "table" ? (
                         /* Table View */
                         <div className="overflow-x-auto rounded-xl border border-[#E6DBCB]/60">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
                                 {/* Table Header */}
                                 <thead className="bg-[#FFFDF9] text-[#8C6D58] text-[11px] font-bold uppercase tracking-wider border-b border-[#E6DBCB]">
                                     <tr>
@@ -928,8 +931,6 @@ export default function AdminDashboard() {
                                 <tbody className="divide-y divide-[#E6DBCB]/40 text-xs font-semibold text-[#3D251E]">
                                     {processedQueueOrders.slice(0, perPage).map((order) => {
                                         const isOverdue = checkIsOverdue(order.delivery_date, order.status);
-                                        const statusCfg = getStatusConfig(order.status);
-                                        const StatusIcon = statusCfg.Icon;
 
                                         return (
                                             <tr
@@ -961,16 +962,13 @@ export default function AdminDashboard() {
                                                 </td>
 
                                                 <td className="p-3.5 text-[#5C3D2E]">
-                                                    <span className="flex items-center gap-1.5 font-medium">
+                                                    <span className="flex items-center gap-1.5 font-medium whitespace-nowrap">
                                                         <Clock className="w-3.5 h-3.5 text-[#8C6D58]" /> {formatTimeSlot(order.delivery_time)}
                                                     </span>
                                                 </td>
 
                                                 <td className="p-3.5">
-                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold rounded-full border uppercase ${statusCfg.style}`}>
-                                                        <StatusIcon className="w-3 h-3" />
-                                                        {statusCfg.label}
-                                                    </span>
+                                                    <ScheduledQueueStatusBadge status={order.status} />
                                                 </td>
 
                                                 <td className="p-3.5 text-right">
@@ -996,36 +994,31 @@ export default function AdminDashboard() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {processedQueueOrders.slice(0, perPage).map((order) => {
                                 const isOverdue = checkIsOverdue(order.delivery_date, order.status);
-                                const statusCfg = getStatusConfig(order.status);
-                                const StatusIcon = statusCfg.Icon;
 
                                 return (
                                     <div
                                         key={order.id}
                                         onClick={() => navigate(`/admin/orders/${order.id}`)}
-                                        className={`p-4 bg-white border rounded-2xl cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-2xs hover:shadow-md group ${isOverdue ? "border-[#FCA5A5] bg-[#FFF8F8]" : "border-[#E6DBCB] hover:border-[#AD4313]/30"
+                                        className={`p-4 bg-white border rounded-2xl cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-2xs hover:shadow-md group ${isOverdue ? "border-[#FCA5A5]" : "border-[#E6DBCB] hover:border-[#AD4313]/30"
                                             }`}
                                     >
                                         <div className="flex items-start justify-between gap-2">
-                                            <span className="text-[10px] font-black tracking-wider text-[#8C6D58] uppercase flex items-center gap-1">
+                                            <span className="text-[10px] font-black tracking-wider text-[#8C6D58] uppercase flex shrink-0 items-center gap-1">
                                                 <Package className="w-3 h-3" /> ORDER #{order.id}
                                             </span>
 
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex flex-wrap items-center justify-end gap-1.5">
                                                 {isOverdue && (
                                                     <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-[#991B1B] text-white uppercase tracking-wide">
                                                         OVERDUE
                                                     </span>
                                                 )}
-                                                <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border uppercase inline-flex items-center gap-1 ${statusCfg.style}`}>
-                                                    <StatusIcon className="w-3 h-3" />
-                                                    {statusCfg.label}
-                                                </span>
+                                                <ScheduledQueueStatusBadge status={order.status} compact />
                                             </div>
                                         </div>
 
                                         <div>
-                                            <h3 className="font-bold text-[#3D251E] text-base group-hover:text-[#AD4313] transition-colors">
+                                            <h3 className={`font-bold text-base transition-colors ${isOverdue ? "text-[#AD4313]" : "text-[#3D251E] group-hover:text-[#AD4313]"}`}>
                                                 {order.full_name || "Customer"}
                                             </h3>
                                         </div>
@@ -1124,35 +1117,9 @@ export default function AdminDashboard() {
                             </div>
                         )}
 
-                        {/* Jump to Page */}
-                        <form
-                            onSubmit={handleJumpPage}
-                            className="flex items-center justify-center gap-2"
-                        >
-                            <label htmlFor="queue-jump-page">Go to page:</label>
-                            <input
-                                id="queue-jump-page"
-                                type="number"
-                                min="1"
-                                max={totalPages}
-                                value={jumpPageInput}
-                                onChange={(e) => setJumpPageInput(e.target.value)}
-                                placeholder="#"
-                                className="w-14 px-2 py-1.5 bg-[#FFFDF9] border border-[#E6DBCB] rounded-lg text-xs font-bold text-[#3D251E] text-center focus:outline-none focus:border-[#AD4313]"
-                            />
-                            <button
-                                type="submit"
-                                disabled={isQueueLoading}
-                                className="px-3 py-1.5 bg-white hover:bg-[#FCF8EE] border border-[#E6DBCB] rounded-lg text-xs font-semibold text-[#3D251E] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                            >
-                                Go <ChevronRight className="w-3 h-3" />
-                            </button>
-                        </form>
+
                     </div>
 
-                </div>
-
-            </div>
         </div>
     );
 }

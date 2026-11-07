@@ -2,6 +2,7 @@
 from django.urls import path
 from . import views
 from . import admin_views
+from . import schedule_views
 from orders.views import cancel_order
 
 urlpatterns = [
@@ -24,6 +25,8 @@ urlpatterns = [
     path('admin/orders/<int:order_id>/review/', admin_views.admin_review_order),
     path('admin/orders/<int:order_id>/quotation/', admin_views.admin_send_quotation),
     path('admin/dashboard/', admin_views.admin_dashboard),
+    path('admin/schedule/calendar/', schedule_views.admin_schedule_calendar, name='admin_schedule_calendar'),
+    path('admin/schedule/day/', schedule_views.admin_schedule_day, name='admin_schedule_day'),
     path('admin/orders/<int:order_id>/update-status/', admin_views.admin_update_order_status),
     path('admin/orders/<int:order_id>/delivery-change-requests/<int:request_id>/review/', admin_views.admin_review_delivery_change_request, name='admin_review_delivery_change_request'),
 ]
