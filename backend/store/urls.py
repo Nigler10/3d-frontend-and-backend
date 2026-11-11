@@ -14,6 +14,7 @@ urlpatterns = [
     path("password-reset/verify/", verify_password_reset_otp, name="password_reset_verify"),
     path("password-reset/confirm/", confirm_password_reset, name="password_reset_confirm"),
     path('token/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/status/', views.LoginStatusView.as_view(), name='token_login_status'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_obtain_refresh'),
     path('profile/', views.profile_view, name='profile'),
     path( "change-password/", views.change_password_view, name="change_password"),

@@ -435,4 +435,10 @@ class UploadedCakeRequest(models.Model):
     def __str__(self):
         return f"Uploaded Cake #{self.id}"
         
+class LoginAttempt(models.Model):
+    identifier_hash = models.CharField(max_length=64, primary_key=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+
 from .models_verification import SMSVerification

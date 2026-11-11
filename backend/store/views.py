@@ -3,9 +3,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.conf import settings
-from .token_serializers import MyTokenObtainPairSerializer
+from .login_rate_limit import LoginRejected, get_login_retry_after
+from .token_serializers import LoginStatusSerializer, MyTokenObtainPairSerializer
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.core.files.storage import default_storage
@@ -22,6 +24,38 @@ from .delivery_schedule import ( get_available_delivery_slots, validate_delivery
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except LoginRejected as error:
+            if error.retry_after:
+                return Response(
+                    {'detail': 'Too many login attempts.', 'retry_after': error.retry_after},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    headers={'Retry-After': str(error.retry_after), 'Cache-Control': 'no-store'},
+                )
+            return Response(
+                {'detail': 'Invalid username or password.', 'attempts_remaining': error.attempts_remaining},
+                status=status.HTTP_401_UNAUTHORIZED,
+                headers={
+                    'WWW-Authenticate': self.get_authenticate_header(request),
+                    'Cache-Control': 'no-store',
+                },
+            )
+
+
+class LoginStatusView(APIView):
+    authentication_classes = ()
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = LoginStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            {'retry_after': get_login_retry_after(serializer.validated_data['username'])},
+            headers={'Cache-Control': 'no-store'},
+        )
    
 # Product
 @api_view(['GET'])
