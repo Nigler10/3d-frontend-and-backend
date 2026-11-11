@@ -794,7 +794,7 @@ function Configurator({ selectedTierIndex, setSelectedTierIndex, selectedSize, s
                             style={{ background: c.color }}
                             title={c.name}
                             onClick={() => setCakeColor(c)}
-                            disabled={!isCakeColorAvailable}
+                            disabled={!isCakeColorAvailable || customizeCakeColorPerTier}
                             aria-label={`Cake color ${c.name}`}
                             aria-describedby="cake-color-note"
                         />
