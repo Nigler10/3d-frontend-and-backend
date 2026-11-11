@@ -4,6 +4,8 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import Navbar from '../components/Navbar';
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
+import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 import { getAccessToken } from '../utils/auth';
 import { getMediaUrl } from '../utils/media';
 import { useCart } from '../context/CartContext';
@@ -21,6 +23,8 @@ const LandingPage = () => {
     const [addingProductId, setAddingProductId] = useState(null);
     const [addedProductId, setAddedProductId] = useState(null);
     const [failedProductId, setFailedProductId] = useState(null);
+    const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+    const [isTermsOpen, setIsTermsOpen] = useState(false);
 
     const token = getAccessToken();
     let isAdmin = false;
@@ -330,12 +334,28 @@ const LandingPage = () => {
                     <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#E6CCA2]">
                         <p>© 2026 Smiley Page Corner. All rights reserved.</p>
                         <div className="flex items-center gap-4">
-                            <span className="hover:text-white cursor-pointer transition-colors">Privacy Policy</span>
-                            <span className="hover:text-white cursor-pointer transition-colors">Terms of Service</span>
+                            <button
+                                type="button"
+                                aria-haspopup="dialog"
+                                className="hover:text-white cursor-pointer transition-colors"
+                                onClick={() => setIsPrivacyOpen(true)}
+                            >
+                                Privacy Policy
+                            </button>
+                            <button
+                                type="button"
+                                aria-haspopup="dialog"
+                                className="hover:text-white cursor-pointer transition-colors"
+                                onClick={() => setIsTermsOpen(true)}
+                            >
+                                Terms and Conditions
+                            </button>
                         </div>
                     </div>
                 </div>
             </footer>
+            {isPrivacyOpen && <PrivacyPolicyModal onClose={() => setIsPrivacyOpen(false)} />}
+            {isTermsOpen && <TermsAndConditionsModal onClose={() => setIsTermsOpen(false)} />}
         </div>
     );
 };
