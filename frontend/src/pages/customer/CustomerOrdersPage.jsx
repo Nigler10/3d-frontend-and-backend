@@ -507,7 +507,7 @@ function OrderPagination({ page, totalItems, onPageChange }) {
 export default function CustomerOrdersPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
-    const [orders, setOrders] = useState([]);
+    const [{ orders, counts }, setOrderList] = useState({ orders: [], counts: {} });
     const [unreadOrders, setUnreadOrders] = useState({});
     const [reorderOrder, setReorderOrder] = useState(null);
     const [invoiceOrder, setInvoiceOrder] = useState(null);
@@ -541,10 +541,9 @@ export default function CustomerOrdersPage() {
 
     const fetchOrders = async () => {
         try {
-            const res = await authFetch(`${BASEURL}/api/orders/customer/orders/`);
+            const res = await authFetch(`${BASEURL}/api/orders/customer/orders/?status=all`);
             if (!res.ok) throw new Error("Failed to fetch customer orders");
-            const data = await res.json();
-            setOrders(data);
+            setOrderList(await res.json());
             setError(null);
         } catch (err) {
             setError(err.message);
@@ -608,6 +607,9 @@ export default function CustomerOrdersPage() {
             if (activeTab === "awaiting") {
                 return o.status === "pending_review" || o.status === "awaiting_customer_response";
             }
+            if (activeTab === "awaiting_downpayment") {
+                return o.status === "awaiting_downpayment";
+            }
             if (activeTab === "to_receive") {
                 return o.status === "processing";
             }
@@ -633,14 +635,6 @@ export default function CustomerOrdersPage() {
         () => filteredOrders.filter((order) => FINISHED_STATUSES.has(order.status)),
         [filteredOrders]
     );
-
-    // Metrics
-    const awaitingReviewCount = orders.filter(
-        (o) => o.status === "pending_review" || o.status === "awaiting_customer_response"
-    ).length;
-    const toReceiveCount = orders.filter((o) => o.status === "processing").length;
-    const pastCompletedCount = orders.filter((o) => FINISHED_STATUSES.has(o.status)).length;
-    const cancelledCount = orders.filter((o) => CANCELLED_STATUSES.has(o.status)).length;
 
     const visibleActiveOrders = activeOrders.slice(
         (activePage - 1) * ORDERS_PER_PAGE,
@@ -693,7 +687,7 @@ export default function CustomerOrdersPage() {
                                 : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
                                 }`}
                         >
-                            All Orders ({orders.length})
+                            All Orders ({counts.all})
                         </button>
 
                         <button
@@ -706,7 +700,20 @@ export default function CustomerOrdersPage() {
                                 : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
                                 }`}
                         >
-                            Awaiting Review & Quote ({awaitingReviewCount})
+                            Awaiting Review & Quote ({counts.awaiting})
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setActiveTab("awaiting_downpayment");
+                                setActivePage(1);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === "awaiting_downpayment"
+                                ? "bg-[#6E473B] text-white shadow-sm"
+                                : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
+                                }`}
+                        >
+                            To Pay ({counts.awaiting_downpayment})
                         </button>
 
                         <button
@@ -719,7 +726,7 @@ export default function CustomerOrdersPage() {
                                 : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
                                 }`}
                         >
-                            To Receive ({toReceiveCount})
+                            To Receive ({counts.to_receive})
                         </button>
 
                         <button
@@ -732,7 +739,7 @@ export default function CustomerOrdersPage() {
                                 : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
                                 }`}
                         >
-                            Past Completed ({pastCompletedCount})
+                            Past Completed ({counts.completed})
                         </button>
 
                         <button
@@ -745,7 +752,7 @@ export default function CustomerOrdersPage() {
                                 : "bg-white text-stone-600 border border-[#F3E5D0] hover:bg-[#FAF5EB]"
                                 }`}
                         >
-                            Cancelled ({cancelledCount})
+                            Cancelled ({counts.cancelled})
                         </button>
                     </div>
                 </div>

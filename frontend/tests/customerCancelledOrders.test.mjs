@@ -14,6 +14,24 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 const nodes = (value) => Array.isArray(value) ? value.flatMap(nodes) : value && typeof value === "object" ? [value, ...nodes(value.props?.children)] : [];
 const text = (value) => Array.isArray(value) ? value.map(text).join("") : value && typeof value === "object" ? text(value.props?.children) : value == null ? "" : String(value);
 
+const tabStatuses = {
+    awaiting: ["pending_review", "awaiting_customer_response"],
+    awaiting_downpayment: ["awaiting_downpayment"],
+    to_receive: ["processing"],
+    completed: ["delivered", "completed"],
+    cancelled: ["cancelled", "rejected"],
+};
+
+const orderListResponse = (orders) => ({
+    orders,
+    counts: {
+        all: orders.length,
+        ...Object.fromEntries(Object.entries(tabStatuses).map(([tab, statuses]) => [
+            tab, orders.filter((order) => statuses.includes(order.status)).length,
+        ])),
+    },
+});
+
 async function customerPage(initialOrders) {
     let orders = initialOrders;
     let cursor = 0;
@@ -21,7 +39,7 @@ async function customerPage(initialOrders) {
     const state = [];
     const effects = [];
     const polls = [];
-    const page = runInNewContext(`${code}\n;({ CustomerOrdersPage, ActiveOrderCard });`, {
+    const page = runInNewContext(`${code}\n;({ CustomerOrdersPage, ActiveOrderCard, PastOrderCard });`, {
         React, ...icons, getOrderStatusLabel,
         CustomCakeModal: "CustomCakeModal",
         useNavigate: () => () => {},
@@ -32,7 +50,7 @@ async function customerPage(initialOrders) {
             if (!(slot in state)) state[slot] = typeof initial === "function" ? initial() : initial;
             return [state[slot], (next) => { state[slot] = typeof next === "function" ? next(state[slot]) : next; }];
         },
-        authFetch: async (url) => ({ ok: true, json: async () => url.endsWith("/customer/orders/") ? orders : [] }),
+        authFetch: async (url) => ({ ok: true, json: async () => url.endsWith("/customer/orders/?status=all") ? orderListResponse(orders) : [] }),
         window: { setInterval: (poll) => { polls.push(poll); return polls.length; }, clearInterval() {}, addEventListener() {}, removeEventListener() {} },
     });
     const render = () => { cursor = 0; return page.CustomerOrdersPage(); };
@@ -40,15 +58,43 @@ async function customerPage(initialOrders) {
     mounted = true;
     effects.forEach((effect) => effect());
     await flush();
-    const button = (prefix) => nodes(render()).find((node) => node.type === "button" && text(node).startsWith(prefix));
+    const buttons = () => nodes(render()).filter((node) => node.type === "button");
+    const button = (prefix) => buttons().find((node) => text(node).startsWith(prefix));
     return {
-        render, button,
+        render, button, buttons,
         select(prefix) { const target = button(prefix); assert(target, `Missing ${prefix} tab`); target.props.onClick(); },
-        cards: () => nodes(render()).filter((node) => node.type === page.ActiveOrderCard).map((node) => node.props.order),
+        cards: () => nodes(render()).filter((node) => [page.ActiveOrderCard, page.PastOrderCard].includes(node.type)).map((node) => node.props.order),
         card: (order) => page.ActiveOrderCard({ order, unreadCount: 0 }),
         async refresh(nextOrders) { orders = nextOrders; polls.forEach((poll) => poll()); await flush(); },
     };
 }
+
+test("To Pay appears between review and receive and only shows orders awaiting downpayment", async () => {
+    const orders = [
+        "awaiting_downpayment", "pending_review", "processing", "awaiting_downpayment", "delivered", "cancelled",
+    ].map((status, index) => ({ id: index + 1, status, items: [] }));
+    const page = await customerPage(orders);
+    const tabs = ["All Orders (6)", "Awaiting Review & Quote (1)", "To Pay (2)", "To Receive (1)", "Past Completed (1)", "Cancelled (1)"];
+    assert.deepEqual(page.buttons().map(text).filter((label) => tabs.includes(label)), tabs);
+    assert.equal(page.button("To Pay (").props.className, page.button("To Receive (").props.className);
+    assert.deepEqual(page.cards().map((order) => order.id), [1, 2, 3, 4]);
+
+    const activeClass = page.button("All Orders (").props.className;
+    page.select("To Pay (");
+    assert.equal(page.button("To Pay (").props.className, activeClass);
+    assert.deepEqual(page.cards().map((order) => order.id), [1, 4]);
+
+    for (const [tab, id] of [["Awaiting Review & Quote", 2], ["To Receive", 3], ["Past Completed", 5], ["Cancelled", 6]]) {
+        page.select(`${tab} (`);
+        assert.deepEqual(page.cards().map((order) => order.id), [id]);
+    }
+
+    page.select("To Pay (");
+    await page.refresh(orders.map((order) => order.id === 1 ? { ...order, status: "processing" } : order));
+    assert.equal(text(page.button("To Pay (")), "To Pay (1)");
+    assert.equal(text(page.button("All Orders (")), "All Orders (6)");
+    assert.deepEqual(page.cards().map((order) => order.id), [4]);
+});
 
 test("Cancelled tab counts and displays both cancelled and rejected orders with their original status labels", async () => {
     const orders = ["pending_review", "cancelled", "rejected", "processing", "delivered"].map((status, index) => ({ id: index + 1, status, items: [] }));

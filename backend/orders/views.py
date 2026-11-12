@@ -1,5 +1,6 @@
 # orders/views.py
 import re, uuid
+from collections import Counter
 from django.db import transaction
 from django.utils import timezone
 from chat.models import Conversation
@@ -40,13 +41,36 @@ def order_detail(request, order_id):
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=404)
 
+CUSTOMER_ORDER_STATUS_FILTERS = {
+    "awaiting": ("pending_review", "awaiting_customer_response"),
+    "awaiting_downpayment": ("awaiting_downpayment",),
+    "to_receive": ("processing",),
+    "completed": ("delivered", "completed"),
+    "cancelled": ("cancelled", "rejected"),
+}
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def customer_orders(request):
-    user = request.user
     orders = Order.objects.filter(user=request.user).order_by('-created_at')
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
+    selected_status = request.query_params.get("status")
+    if selected_status is None:
+        return Response(OrderSerializer(orders, many=True).data)
+    if selected_status != "all" and selected_status not in CUSTOMER_ORDER_STATUS_FILTERS:
+        return Response({"status": "Unknown order status filter."}, status=status.HTTP_400_BAD_REQUEST)
+
+    orders = list(orders)
+    status_counts = Counter(order.status for order in orders)
+    counts = {"all": len(orders)}
+    for tab, statuses in CUSTOMER_ORDER_STATUS_FILTERS.items():
+        counts[tab] = sum(status_counts[value] for value in statuses)
+
+    if selected_status != "all":
+        statuses = CUSTOMER_ORDER_STATUS_FILTERS[selected_status]
+        orders = [order for order in orders if order.status in statuses]
+
+    return Response({"orders": OrderSerializer(orders, many=True).data, "counts": counts})
 
 DELIVERY_CHANGE_ALLOWED_STATUSES = [
     "pending_review",
